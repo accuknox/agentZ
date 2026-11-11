@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -599,12 +600,13 @@ func (ns NullEventTrailTarget) Value() (driver.Value, error) {
 type ExternalAgentKind string
 
 const (
-	ExternalAgentKindClaude               ExternalAgentKind = "claude"
-	ExternalAgentKindCodex                ExternalAgentKind = "codex"
-	ExternalAgentKindGithubCopilotCli     ExternalAgentKind = "github-copilot-cli"
-	ExternalAgentKindGithubCopilotDesktop ExternalAgentKind = "github-copilot-desktop"
-	ExternalAgentKindChatgptDesktop       ExternalAgentKind = "chatgpt-desktop"
-	ExternalAgentKindClaudeDesktop        ExternalAgentKind = "claude-desktop"
+	ExternalAgentKindClaude                 ExternalAgentKind = "claude"
+	ExternalAgentKindCodex                  ExternalAgentKind = "codex"
+	ExternalAgentKindGithubCopilotCli       ExternalAgentKind = "github-copilot-cli"
+	ExternalAgentKindGithubCopilotDesktop   ExternalAgentKind = "github-copilot-desktop"
+	ExternalAgentKindChatgptDesktop         ExternalAgentKind = "chatgpt-desktop"
+	ExternalAgentKindClaudeDesktop          ExternalAgentKind = "claude-desktop"
+	ExternalAgentKindMicrosoftCopilotStudio ExternalAgentKind = "microsoft-copilot-studio"
 )
 
 func (e *ExternalAgentKind) Scan(src interface{}) error {
@@ -1040,6 +1042,24 @@ type CodingWorktree struct {
 	Shared      bool               `json:"shared"`
 	Deleting    bool               `json:"deleting"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type CopilotStudioIntegration struct {
+	ID             string                       `json:"id"`
+	OrganizationID string                       `json:"organization_id"`
+	WorkspaceID    string                       `json:"workspace_id"`
+	UserID         string                       `json:"user_id"`
+	Name           string                       `json:"name"`
+	TenantID       string                       `json:"tenant_id"`
+	ApplicationID  string                       `json:"application_id"`
+	EnvironmentID  string                       `json:"environment_id"`
+	Enabled        bool                         `json:"enabled"`
+	FailureMode    string                       `json:"failure_mode"`
+	Policies       []v1alpha1.ResourceReference `json:"policies"`
+	CreatedAt      pgtype.Timestamptz           `json:"created_at"`
+	ValidatedAt    pgtype.Timestamptz           `json:"validated_at"`
+	LastSeenAt     pgtype.Timestamptz           `json:"last_seen_at"`
+	RuntimeError   string                       `json:"runtime_error"`
 }
 
 type DelegationGrant struct {

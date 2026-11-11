@@ -7,6 +7,7 @@ import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from "rea
 import { RoutedTableRow } from "@/components/routed-table-row"
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export type AdminColumnLayout = {
   width?: number
@@ -21,12 +22,17 @@ type AdminDataGridProps<T> = {
   className?: string
   rows: T[]
   table: TanStackTable<T>
+  tableClassName?: string
   layout: Record<string, AdminColumnLayout>
+  loading?: boolean
+  loadingRows?: number
   emptyState: ReactNode
   onRowActivate?: (row: T) => void
   pagination?: ReactNode
   renderSubRow?: (row: T) => ReactNode
+  subRowClassName?: string
   rowAriaLabel?: (row: T) => string
+  rowAriaExpanded?: (row: T) => boolean | undefined
   rowCanActivate?: (row: T) => boolean
   rowHref?: (row: T) => Route | undefined
   viewportClassName?: string
@@ -50,14 +56,19 @@ export function AdminDataGrid<T>({
   className,
   emptyState,
   layout,
+  loading = false,
+  loadingRows = 10,
   onRowActivate,
   pagination,
   renderSubRow,
+  subRowClassName,
   rowAriaLabel,
+  rowAriaExpanded,
   rowCanActivate,
   rowHref,
   rows,
   table,
+  tableClassName,
   viewportClassName,
 }: AdminDataGridProps<T>) {
   "use no memo"
@@ -79,8 +90,13 @@ export function AdminDataGrid<T>({
     return () => observer.disconnect()
   }, [rows])
 
-  if (rows.length === 0) {
-    return <Fragment>{emptyState}</Fragment>
+  if (rows.length === 0 && !loading) {
+    return (
+      <Fragment>
+        {emptyState}
+        {pagination}
+      </Fragment>
+    )
   }
 
   const declaredLayout = (columnId: string) => {
@@ -112,7 +128,7 @@ export function AdminDataGrid<T>({
     })
 
   return (
-    <div className={cn("flex min-w-0 flex-col gap-4", className)}>
+    <div className={cn("flex min-w-0 flex-col gap-4", className)} aria-busy={loading || undefined}>
       <div
         aria-label={overflowing ? ariaLabel : undefined}
         className={cn(
@@ -126,7 +142,7 @@ export function AdminDataGrid<T>({
       >
         <table
           aria-label={ariaLabel}
-          className="w-max min-w-full table-auto caption-bottom text-sm"
+          className={cn("w-max min-w-full table-auto caption-bottom text-sm", tableClassName)}
           ref={tableRef}
         >
           <TableHeader>
@@ -192,64 +208,91 @@ export function AdminDataGrid<T>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.map((row) => {
-              const href = rowHref?.(row.original)
-              const canActivate = onRowActivate && (rowCanActivate?.(row.original) ?? true)
-              const ariaLabel = rowAriaLabel?.(row.original) ?? `Open row ${row.id}`
-              const renderedRow = href ? (
-                <RoutedTableRow
-                  aria-label={ariaLabel}
-                  className="group"
-                  data-state={row.getIsSelected() && "selected"}
-                  href={href}
-                  key={row.id}
-                >
-                  {cell(row)}
-                </RoutedTableRow>
-              ) : canActivate ? (
-                <TableRow
-                  aria-label={ariaLabel}
-                  className="group cursor-pointer focus-visible:ring-2 focus-visible:ring-inset"
-                  data-state={row.getIsSelected() && "selected"}
-                  key={row.id}
-                  onClick={() => onRowActivate(row.original)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return
-                    event.preventDefault()
-                    onRowActivate(row.original)
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  {cell(row)}
-                </TableRow>
-              ) : (
-                <TableRow
-                  className="group"
-                  data-state={row.getIsSelected() && "selected"}
-                  key={row.id}
-                >
-                  {cell(row)}
-                </TableRow>
-              )
-              const subRow = renderSubRow?.(row.original)
-
-              return (
-                <Fragment key={row.id}>
-                  {renderedRow}
-                  {subRow ? (
-                    <TableRow>
-                      <TableCell
-                        className="bg-muted/20 px-4 py-4 whitespace-normal"
-                        colSpan={row.getVisibleCells().length}
-                      >
-                        {subRow}
-                      </TableCell>
+            {loading
+              ? Array.from({ length: loadingRows }, (_, index) => (
+                  <TableRow key={index} aria-hidden className="h-12">
+                    {table.getVisibleLeafColumns().map((column) => {
+                      const columnLayout = declaredLayout(column.id)
+                      return (
+                        <TableCell
+                          key={column.id}
+                          className={cn(
+                            alignClasses[columnLayout.align ?? "start"],
+                            columnLayout.hiddenBelow && hiddenClasses[columnLayout.hiddenBelow]
+                          )}
+                          style={{ minWidth: columnLayout.minWidth, width: columnLayout.width }}
+                        >
+                          <Skeleton
+                            className="h-4 w-3/4"
+                            style={{ maxWidth: columnLayout.contentMaxWidth }}
+                          />
+                        </TableCell>
+                      )
+                    })}
+                  </TableRow>
+                ))
+              : table.getRowModel().rows.map((row) => {
+                  const href = rowHref?.(row.original)
+                  const canActivate = onRowActivate && (rowCanActivate?.(row.original) ?? true)
+                  const ariaLabel = rowAriaLabel?.(row.original) ?? `Open row ${row.id}`
+                  const renderedRow = href ? (
+                    <RoutedTableRow
+                      aria-label={ariaLabel}
+                      className="group"
+                      data-state={row.getIsSelected() && "selected"}
+                      href={href}
+                      key={row.id}
+                    >
+                      {cell(row)}
+                    </RoutedTableRow>
+                  ) : canActivate ? (
+                    <TableRow
+                      aria-label={ariaLabel}
+                      aria-expanded={rowAriaExpanded?.(row.original)}
+                      className="group cursor-pointer focus-visible:ring-2 focus-visible:ring-inset"
+                      data-state={row.getIsSelected() && "selected"}
+                      key={row.id}
+                      onClick={() => onRowActivate(row.original)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return
+                        event.preventDefault()
+                        onRowActivate(row.original)
+                      }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      {cell(row)}
                     </TableRow>
-                  ) : null}
-                </Fragment>
-              )
-            })}
+                  ) : (
+                    <TableRow
+                      className="group"
+                      data-state={row.getIsSelected() && "selected"}
+                      key={row.id}
+                    >
+                      {cell(row)}
+                    </TableRow>
+                  )
+                  const subRow = renderSubRow?.(row.original)
+
+                  return (
+                    <Fragment key={row.id}>
+                      {renderedRow}
+                      {subRow ? (
+                        <TableRow>
+                          <TableCell
+                            className={cn(
+                              "bg-muted/20 px-4 py-4 whitespace-normal",
+                              subRowClassName
+                            )}
+                            colSpan={row.getVisibleCells().length}
+                          >
+                            {subRow}
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </Fragment>
+                  )
+                })}
           </TableBody>
         </table>
       </div>

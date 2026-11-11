@@ -2,6 +2,49 @@
 
 import * as z from "zod"
 
+export const zGuardrailEvaluationMessage = z.object({
+  role: z.enum(["system", "user", "assistant", "tool"]),
+  content: z.string(),
+  tool_call_id: z.string().optional(),
+})
+
+export const zCopilotStudioChatMessage = z.object({
+  id: z.string(),
+  role: z.string(),
+  content: z.string(),
+  timestamp: z.iso.datetime({ offset: true }).optional(),
+})
+
+/**
+ * Values to copy into the caller application's Microsoft Entra federated credential.
+ */
+export const zCopilotStudioFederatedCredential = z.object({
+  issuer: z.string(),
+  subject: z.string(),
+  audience: z.string(),
+})
+
+export const zCopilotStudioAgentSummary = z.object({
+  client_id: z.string(),
+  agent_id: z.string(),
+  name: z.string(),
+  created_at: z.iso.datetime({ offset: true }),
+  last_active_at: z.iso.datetime({ offset: true }).nullable(),
+  disabled: z.boolean(),
+})
+
+export const zListCopilotStudioAgentsResponse = z.object({
+  agents: z.array(zCopilotStudioAgentSummary),
+  next_page_token: z.string(),
+})
+
+export const zCopilotStudioEvaluationResponse = z.object({
+  blockAction: z.boolean(),
+  reasonCode: z.int().optional(),
+  reason: z.string().optional(),
+  diagnostics: z.string().optional(),
+})
+
 export const zGuardrailCredentials = z.object({
   apiKey: z.string().optional(),
   accessKeyId: z.string().optional(),
@@ -336,10 +379,14 @@ export const zAppTrace = z.object({
   root_span_id: zOptionalSpanId,
   started_at: z.iso.datetime({ offset: true }),
   ended_at: z.iso.datetime({ offset: true }),
-  duration_ns: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
-    error: "Invalid value: Expected int64 to be <= 9223372036854775807",
-  }),
-  duration_ms: z.number().gte(0),
+  duration_ns: z.coerce
+    .bigint()
+    .gte(BigInt(0))
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .nullable(),
+  duration_ms: z.number().gte(0).nullable(),
   span_count: z.coerce.bigint().gte(BigInt(0)).max(BigInt("9223372036854775807"), {
     error: "Invalid value: Expected int64 to be <= 9223372036854775807",
   }),
@@ -515,6 +562,7 @@ export const zLensApp = z.object({
       "github-copilot-desktop",
       "chatgpt-desktop",
       "claude-desktop",
+      "microsoft-copilot-studio",
     ])
     .optional(),
 })
@@ -773,6 +821,40 @@ export const zGuardrailAssignment = z.object({
   policies: z.array(zResourceReference).optional(),
 })
 
+export const zCopilotStudioIntegrationInput = z.object({
+  name: z.string().min(1).max(120),
+  tenant_id: z.uuid(),
+  application_id: z.uuid(),
+  environment_id: z.string().min(1).max(128),
+  enabled: z.boolean(),
+  failure_mode: z.enum(["closed", "open"]),
+  assignment: zGuardrailAssignment,
+})
+
+export const zCopilotStudioIntegration = z.object({
+  name: z.string().min(1).max(120),
+  tenant_id: z.uuid(),
+  application_id: z.uuid(),
+  environment_id: z.string().min(1).max(128),
+  enabled: z.boolean(),
+  failure_mode: z.enum(["closed", "open"]),
+  assignment: zGuardrailAssignment,
+  id: z.string(),
+  endpoint: z.string(),
+  audience: z.string(),
+  federated_credential: zCopilotStudioFederatedCredential,
+  created_at: z.iso.datetime({ offset: true }),
+  validated_at: z.iso.datetime({ offset: true }).nullable(),
+  last_seen_at: z.iso.datetime({ offset: true }).nullable(),
+  runtime_error: z.string(),
+})
+
+export const zListCopilotStudioIntegrationsResponse = z.object({
+  enabled: z.boolean(),
+  integrations: z.array(zCopilotStudioIntegration),
+  next_page_token: z.string(),
+})
+
 export const zGuardrailCheck = z.object({
   id: z.string().min(1).max(128),
   name: z.string().min(1).max(128),
@@ -812,6 +894,7 @@ export const zGuardrailPolicy = z.object({
 })
 
 export const zGuardrailEffectiveInput = z.object({
+  client_id: z.string().optional(),
   sandbox: z.string().optional(),
   sandboxScope: zResourceScope.optional(),
   assignment: zGuardrailAssignment,
@@ -1660,6 +1743,24 @@ export const zMcpGraphTool = z.object({
 })
 
 export const zMcpGraphEdge = z.object({
+  allowed_count: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
+  blocked_count: z.coerce
+    .bigint()
+    .min(BigInt("-9223372036854775808"), {
+      error: "Invalid value: Expected int64 to be >= -9223372036854775808",
+    })
+    .max(BigInt("9223372036854775807"), {
+      error: "Invalid value: Expected int64 to be <= 9223372036854775807",
+    })
+    .optional(),
   source: z.string(),
   target: z.string(),
   kind: z.enum(["agent_connection", "app_connection", "connection_tool"]),
@@ -1842,6 +1943,52 @@ export const zJsonValue = z
     ),
   ])
   .nullable()
+
+export const zCopilotStudioToolOutput = z.object({
+  toolId: z.string(),
+  toolName: z.string(),
+  outputs: zJsonValue,
+  timestamp: z.iso.datetime({ offset: true }).optional(),
+})
+
+export const zCopilotStudioEvaluationRequest = z.object({
+  plannerContext: z.object({
+    userMessage: z.string(),
+    thought: z.string().nullish(),
+    chatHistory: z.array(zCopilotStudioChatMessage).nullish(),
+    previousToolOutputs: z.array(zCopilotStudioToolOutput).nullish(),
+    previousToolsOutputs: z.array(zCopilotStudioToolOutput).nullish(),
+  }),
+  toolDefinition: z.object({
+    id: z.string().min(1),
+    type: z.string(),
+    name: z.string().min(1),
+    description: z.string().nullish(),
+    inputParameters: z.array(zJsonValue).nullish(),
+    outputParameters: z.array(zJsonValue).nullish(),
+  }),
+  inputValues: z.record(z.string(), zJsonValue),
+  conversationMetadata: z.object({
+    agent: z.object({
+      id: z.string().min(1).max(512),
+      tenantId: z.string(),
+      environmentId: z.string(),
+      name: z.string().nullish(),
+      isPublished: z.boolean(),
+      version: z.string().nullish(),
+    }),
+    user: z
+      .object({
+        id: z.string().optional(),
+        tenantId: z.string().optional(),
+      })
+      .nullish(),
+    conversationId: z.string().min(1).max(512),
+    planId: z.string().nullish(),
+    planStepId: z.string().nullish(),
+    parentAgentComponentId: z.string().nullish(),
+  }),
+})
 
 export const zError = z.object({
   code: z.string().min(1),
@@ -3486,6 +3633,12 @@ export const zGuardrailRuntimeEvaluation = z.object({
   context: zGuardrailContext.optional(),
 })
 
+export const zGuardrailEvaluationResult = z.object({
+  blocked: z.boolean(),
+  revision: z.string(),
+  evaluations: z.array(zGuardrailRuntimeEvaluation),
+})
+
 /**
  * Authorized Lens model operation correlated with this evaluation.
  */
@@ -4475,6 +4628,31 @@ export const zDashboardWidgetNamePath = zDashboardWidgetName
  * Stable publish call identifier.
  */
 export const zIdempotencyKeyHeader = z.string().min(1).max(128)
+
+/**
+ * Successful response.
+ */
+export const zListCopilotStudioIntegrationsResponse2 = zListCopilotStudioIntegrationsResponse
+
+/**
+ * Successful response.
+ */
+export const zCreateCopilotStudioIntegrationResponse = zCopilotStudioIntegration
+
+/**
+ * Successful response.
+ */
+export const zGetCopilotStudioIntegrationResponse = zCopilotStudioIntegration
+
+/**
+ * Successful response.
+ */
+export const zUpdateCopilotStudioIntegrationResponse = zCopilotStudioIntegration
+
+/**
+ * Successful response.
+ */
+export const zListCopilotStudioAgentsResponse2 = zListCopilotStudioAgentsResponse
 
 /**
  * Workspace-scoped app telemetry.

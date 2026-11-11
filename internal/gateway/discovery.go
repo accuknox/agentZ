@@ -292,7 +292,9 @@ func guardrailGoogleCredentials(ctx context.Context, payload string, client *htt
 		return nil, errors.New("saved Google authorized user credentials are incomplete")
 	}
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
-	credentials, err := google.CredentialsFromJSONWithType(ctx, []byte(payload), config.Type, "https://www.googleapis.com/auth/cloud-platform")
+	credentials, err := google.CredentialsFromJSONWithType(
+		ctx, []byte(payload), config.Type, "https://www.googleapis.com/auth/cloud-platform",
+	)
 	if err != nil {
 		return nil, errors.New("saved Google credentials could not be loaded")
 	}
@@ -455,15 +457,21 @@ func discoverGoogleGuardrailResources(ctx context.Context, client *http.Client, 
 	}
 	var page modelarmorpb.ListTemplatesResponse
 	if err := decoder.Unmarshal(body, &page); err != nil {
-		return apiutil.NewError(http.StatusBadGateway, "provider_response_invalid", "The provider returned invalid template information.", nil)
+		return apiutil.NewError(
+			http.StatusBadGateway, "provider_response_invalid", "The provider returned invalid template information.", nil,
+		)
 	}
 	for _, template := range page.Templates {
 		if template == nil || !strings.HasPrefix(template.Name, parent+"/templates/") {
-			return apiutil.NewError(http.StatusBadGateway, "provider_response_invalid", "The provider returned an invalid template identifier.", nil)
+			return apiutil.NewError(
+				http.StatusBadGateway, "provider_response_invalid", "The provider returned an invalid template identifier.", nil,
+			)
 		}
 		id := strings.TrimPrefix(template.Name, parent+"/templates/")
 		if id == "" || len(id) > 63 || strings.ContainsAny(id, "/?# ") {
-			return apiutil.NewError(http.StatusBadGateway, "provider_response_invalid", "The provider returned an invalid template identifier.", nil)
+			return apiutil.NewError(
+				http.StatusBadGateway, "provider_response_invalid", "The provider returned an invalid template identifier.", nil,
+			)
 		}
 		result.Items = append(result.Items, gatewayapi.GuardrailDiscoveredResource{Id: template.Name, Label: id})
 	}

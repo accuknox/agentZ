@@ -6,7 +6,7 @@ CREATE TYPE "public"."destructive_target" AS ENUM('organization_membership', 'te
 CREATE TYPE "public"."event_trail_actor" AS ENUM('user', 'api_key', 'system');
 CREATE TYPE "public"."event_trail_result" AS ENUM('succeeded', 'denied', 'failed');
 CREATE TYPE "public"."event_trail_target" AS ENUM('organization', 'organization_membership', 'team', 'mcp_connection', 'inference_provider', 'inference_pool', 'role', 'sandbox', 'skill', 'agent', 'api_key', 'workspace_access', 'workspace', 'guardrail_connection', 'guardrail_policy', 'guardrail_settings', 'external_access_guardrails', 'workflow');
-CREATE TYPE "public"."external_agent_kind" AS ENUM('claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop');
+CREATE TYPE "public"."external_agent_kind" AS ENUM('claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop', 'microsoft-copilot-studio');
 CREATE TYPE "public"."permission_action" AS ENUM('read', 'create', 'modify', 'delete', 'delegate', 'author', 'share_authored', 'share_non_authored', 'use_shared', 'read_shared_secret', 'write_shared_secret', 'delete_shared_secret');
 CREATE TYPE "public"."permission_resource" AS ENUM('mcp_connection', 'skill', 'sandbox', 'inference_provider', 'inference_pool', 'agent', 'api_key', 'observability', 'guardrail_connection', 'guardrail_policy', 'guardrail_event');
 CREATE TYPE "public"."system_role" AS ENUM('superadmin', 'workspace_admin');
@@ -130,6 +130,35 @@ CREATE TABLE "coding_worktrees" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "coding_worktrees_workspace_agent_id_uidx" UNIQUE("workspace_id","agent_name","id"),
 	CONSTRAINT "coding_worktrees_directory_uidx" UNIQUE("workspace_id","agent_name","directory")
+);
+
+CREATE TABLE "copilot_studio_agents" (
+	"integration_id" text NOT NULL,
+	"agent_id" text NOT NULL,
+	"client_id" text,
+	"last_seen_at" timestamp with time zone,
+	CONSTRAINT "copilot_studio_agents_integration_id_agent_id_pk" PRIMARY KEY("integration_id","agent_id"),
+	CONSTRAINT "copilot_studio_agents_client_id_unique" UNIQUE("client_id")
+);
+
+CREATE TABLE "copilot_studio_integrations" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"workspace_id" text NOT NULL,
+	"user_id" text NOT NULL,
+	"name" text NOT NULL,
+	"tenant_id" text NOT NULL,
+	"application_id" text NOT NULL,
+	"environment_id" text NOT NULL,
+	"enabled" boolean DEFAULT false NOT NULL,
+	"failure_mode" text DEFAULT 'closed' NOT NULL,
+	"policies" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"validated_at" timestamp with time zone,
+	"last_seen_at" timestamp with time zone,
+	"runtime_error" text DEFAULT '' NOT NULL,
+	CONSTRAINT "copilot_studio_integrations_tenant_id_application_id_environment_id_unique" UNIQUE("tenant_id","application_id","environment_id"),
+	CONSTRAINT "copilot_studio_failure_mode" CHECK ("copilot_studio_integrations"."failure_mode" in ('open', 'closed'))
 );
 
 CREATE TABLE "delegation_grants" (
@@ -732,6 +761,11 @@ ALTER TABLE "coding_projects" ADD CONSTRAINT "coding_projects_workspace_id_works
 ALTER TABLE "coding_projects" ADD CONSTRAINT "coding_projects_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "coding_threads" ADD CONSTRAINT "coding_threads_workspace_id_agent_name_worktree_id_coding_worktrees_workspace_id_agent_name_id_fk" FOREIGN KEY ("workspace_id","agent_name","worktree_id") REFERENCES "public"."coding_worktrees"("workspace_id","agent_name","id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "coding_worktrees" ADD CONSTRAINT "coding_worktrees_workspace_id_project_id_coding_projects_workspace_id_id_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."coding_projects"("workspace_id","id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "copilot_studio_agents" ADD CONSTRAINT "copilot_studio_agents_integration_id_copilot_studio_integrations_id_fk" FOREIGN KEY ("integration_id") REFERENCES "public"."copilot_studio_integrations"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "copilot_studio_agents" ADD CONSTRAINT "copilot_studio_agents_client_id_external_agents_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."external_agents"("client_id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "copilot_studio_integrations" ADD CONSTRAINT "copilot_studio_integrations_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "copilot_studio_integrations" ADD CONSTRAINT "copilot_studio_integrations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "copilot_studio_integrations" ADD CONSTRAINT "copilot_studio_integrations_workspace_id_organization_id_workspaces_id_organization_id_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "delegation_grants" ADD CONSTRAINT "delegation_grants_client_id_oauth_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("client_id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "delegation_grants" ADD CONSTRAINT "delegation_grants_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "delegation_grants" ADD CONSTRAINT "delegation_grants_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
@@ -819,6 +853,7 @@ CREATE INDEX "api_key_scopes_revoked_idx" ON "api_key_scopes" USING btree ("orga
 CREATE INDEX "api_key_targets_agent_idx" ON "api_key_targets" USING btree ("agent_name");
 CREATE INDEX "cleanup_jobs_due_idx" ON "cleanup_jobs" USING btree ("state","next_attempt_at");
 CREATE INDEX "coding_projects_owner_idx" ON "coding_projects" USING btree ("workspace_id","owner_id");
+CREATE INDEX "copilot_studio_integrations_workspace_idx" ON "copilot_studio_integrations" USING btree ("organization_id","workspace_id","id");
 CREATE INDEX "delegation_grants_user_client_idx" ON "delegation_grants" USING btree ("user_id","client_id");
 CREATE INDEX "delegation_transactions_user_client_idx" ON "delegation_transactions" USING btree ("user_id","client_id");
 CREATE INDEX "event_trail_events_organization_created_idx" ON "event_trail_events" USING btree ("organization_id","created_at","id");

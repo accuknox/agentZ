@@ -158,7 +158,7 @@ export async function saveExternalAgentGuardrailsAction(
   const validated = await getEffectiveGuardrails({
     client: getGatewayServerClient(access.workspaceId),
     headers: { "X-AgentZ-Workspace-ID": access.workspaceId },
-    body: { assignment: parsed.data },
+    body: { assignment: parsed.data, client_id: clientId },
   })
   if (validated.error) return { error: validated.error.message }
   const policies = parsed.data.policies ?? []

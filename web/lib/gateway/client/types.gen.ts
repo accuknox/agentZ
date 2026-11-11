@@ -4,6 +4,135 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {})
 }
 
+export type GuardrailEvaluationMessage = {
+  role: "system" | "user" | "assistant" | "tool"
+  content: string
+  tool_call_id?: string
+}
+
+export type CopilotStudioChatMessage = {
+  id: string
+  role: string
+  content: string
+  timestamp?: string
+}
+
+export type CopilotStudioToolOutput = {
+  toolId: string
+  toolName: string
+  outputs: JsonValue
+  timestamp?: string
+}
+
+export type CopilotStudioIntegrationInput = {
+  name: string
+  tenant_id: string
+  application_id: string
+  environment_id: string
+  enabled: boolean
+  failure_mode: "closed" | "open"
+  assignment: GuardrailAssignment
+}
+
+export type CopilotStudioIntegration = {
+  name: string
+  tenant_id: string
+  application_id: string
+  environment_id: string
+  enabled: boolean
+  failure_mode: "closed" | "open"
+  assignment: GuardrailAssignment
+  id: string
+  endpoint: string
+  audience: string
+  federated_credential: CopilotStudioFederatedCredential
+  created_at: string
+  validated_at: string | null
+  last_seen_at: string | null
+  runtime_error: string
+}
+
+/**
+ * Values to copy into the caller application's Microsoft Entra federated credential.
+ */
+export type CopilotStudioFederatedCredential = {
+  issuer: string
+  subject: string
+  audience: string
+}
+
+export type ListCopilotStudioIntegrationsResponse = {
+  enabled: boolean
+  integrations: Array<CopilotStudioIntegration>
+  next_page_token: string
+}
+
+export type CopilotStudioAgentSummary = {
+  client_id: string
+  agent_id: string
+  name: string
+  created_at: string
+  last_active_at: string | null
+  disabled: boolean
+}
+
+export type ListCopilotStudioAgentsResponse = {
+  agents: Array<CopilotStudioAgentSummary>
+  next_page_token: string
+}
+
+export type GuardrailEvaluationResult = {
+  blocked: boolean
+  revision: string
+  evaluations: Array<GuardrailRuntimeEvaluation>
+}
+
+export type CopilotStudioEvaluationRequest = {
+  plannerContext: {
+    userMessage: string
+    thought?: string | null
+    chatHistory?: Array<CopilotStudioChatMessage> | null
+    previousToolOutputs?: Array<CopilotStudioToolOutput> | null
+    previousToolsOutputs?: Array<CopilotStudioToolOutput> | null
+  }
+  toolDefinition: {
+    id: string
+    type: string
+    name: string
+    description?: string | null
+    inputParameters?: Array<JsonValue> | null
+    outputParameters?: Array<JsonValue> | null
+  }
+  inputValues: {
+    [key: string]: JsonValue
+  }
+  conversationMetadata: {
+    agent: {
+      id: string
+      tenantId: string
+      environmentId: string
+      name?: string | null
+      isPublished: boolean
+      version?: string | null
+    }
+    user?: {
+      id?: string
+      tenantId?: string
+    } | null
+    conversationId: string
+    planId?: string | null
+    planStepId?: string | null
+    parentAgentComponentId?: string | null
+  }
+}
+
+export type CopilotStudioEvaluationResponse = {
+  blockAction: boolean
+  reasonCode?: number
+  reason?: string
+  diagnostics?: string
+}
+
 export type GuardrailCredentials = {
   apiKey?: string
   accessKeyId?: string
@@ -120,6 +249,7 @@ export type GuardrailPolicy = {
 }
 
 export type GuardrailEffectiveInput = {
+  client_id?: string
   sandbox?: string
   sandboxScope?: ResourceScope
   assignment: GuardrailAssignment
@@ -148,6 +278,7 @@ export type LensApp = {
     | "github-copilot-desktop"
     | "chatgpt-desktop"
     | "claude-desktop"
+    | "microsoft-copilot-studio"
 }
 
 export type ListLensAppsResponse = {
@@ -170,8 +301,8 @@ export type AppTrace = {
   root_span_id: OptionalSpanId
   started_at: string
   ended_at: string
-  duration_ns: number
-  duration_ms: number
+  duration_ns: number | null
+  duration_ms: number | null
   span_count: number
   error_count: number
   tool_count: number
@@ -1684,6 +1815,8 @@ export type McpGraphTool = {
 }
 
 export type McpGraphEdge = {
+  allowed_count?: number
+  blocked_count?: number
   source: string
   target: string
   kind: "agent_connection" | "app_connection" | "connection_tool"
@@ -4087,6 +4220,200 @@ export type DashboardWidgetNamePath = DashboardWidgetName
  * Stable publish call identifier.
  */
 export type IdempotencyKeyHeader = string
+
+export type ListCopilotStudioIntegrationsData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path?: never
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/copilot-studio/integrations"
+}
+
+export type ListCopilotStudioIntegrationsErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type ListCopilotStudioIntegrationsError =
+  ListCopilotStudioIntegrationsErrors[keyof ListCopilotStudioIntegrationsErrors]
+
+export type ListCopilotStudioIntegrationsResponses = {
+  /**
+   * Successful response.
+   */
+  200: ListCopilotStudioIntegrationsResponse
+}
+
+export type ListCopilotStudioIntegrationsResponse2 =
+  ListCopilotStudioIntegrationsResponses[keyof ListCopilotStudioIntegrationsResponses]
+
+export type CreateCopilotStudioIntegrationData = {
+  body: CopilotStudioIntegrationInput
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path?: never
+  query?: never
+  url: "/api/copilot-studio/integrations"
+}
+
+export type CreateCopilotStudioIntegrationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type CreateCopilotStudioIntegrationError =
+  CreateCopilotStudioIntegrationErrors[keyof CreateCopilotStudioIntegrationErrors]
+
+export type CreateCopilotStudioIntegrationResponses = {
+  /**
+   * Successful response.
+   */
+  201: CopilotStudioIntegration
+}
+
+export type CreateCopilotStudioIntegrationResponse =
+  CreateCopilotStudioIntegrationResponses[keyof CreateCopilotStudioIntegrationResponses]
+
+export type GetCopilotStudioIntegrationData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    integrationId: string
+  }
+  query?: never
+  url: "/api/copilot-studio/integrations/{integrationId}"
+}
+
+export type GetCopilotStudioIntegrationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type GetCopilotStudioIntegrationError =
+  GetCopilotStudioIntegrationErrors[keyof GetCopilotStudioIntegrationErrors]
+
+export type GetCopilotStudioIntegrationResponses = {
+  /**
+   * Successful response.
+   */
+  200: CopilotStudioIntegration
+}
+
+export type GetCopilotStudioIntegrationResponse =
+  GetCopilotStudioIntegrationResponses[keyof GetCopilotStudioIntegrationResponses]
+
+export type UpdateCopilotStudioIntegrationData = {
+  body: CopilotStudioIntegrationInput
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    integrationId: string
+  }
+  query?: never
+  url: "/api/copilot-studio/integrations/{integrationId}"
+}
+
+export type UpdateCopilotStudioIntegrationErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type UpdateCopilotStudioIntegrationError =
+  UpdateCopilotStudioIntegrationErrors[keyof UpdateCopilotStudioIntegrationErrors]
+
+export type UpdateCopilotStudioIntegrationResponses = {
+  /**
+   * Successful response.
+   */
+  200: CopilotStudioIntegration
+}
+
+export type UpdateCopilotStudioIntegrationResponse =
+  UpdateCopilotStudioIntegrationResponses[keyof UpdateCopilotStudioIntegrationResponses]
+
+export type ListCopilotStudioAgentsData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    integrationId: string
+  }
+  query?: {
+    /**
+     * Maximum number of items to return.
+     */
+    limit?: number
+    /**
+     * Opaque pagination token from a previous response.
+     */
+    page_token?: string
+  }
+  url: "/api/copilot-studio/integrations/{integrationId}/agents"
+}
+
+export type ListCopilotStudioAgentsErrors = {
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type ListCopilotStudioAgentsError =
+  ListCopilotStudioAgentsErrors[keyof ListCopilotStudioAgentsErrors]
+
+export type ListCopilotStudioAgentsResponses = {
+  /**
+   * Successful response.
+   */
+  200: ListCopilotStudioAgentsResponse
+}
+
+export type ListCopilotStudioAgentsResponse2 =
+  ListCopilotStudioAgentsResponses[keyof ListCopilotStudioAgentsResponses]
 
 export type ListLensAppsData = {
   body?: never

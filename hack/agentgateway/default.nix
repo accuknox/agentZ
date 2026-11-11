@@ -1,7 +1,7 @@
 { pkgs }:
 
 let
-  version = "1.6.0-agentz.5";
+  version = "1.6.0-agentz.6";
   revision = "ea5608642b9d5c94c5baf5fd9f2f9849b808e963";
   src = pkgs.fetchFromGitHub {
     owner = "agentgateway";
@@ -49,9 +49,15 @@ pkgs.rustPlatform.buildRustPackage {
   preBuild = ''
     cp -R ${ui} ui/dist
   '';
+  # Install the executable without copying Cargo's complete dependency directory.
+  installPhase = ''
+    runHook preInstall
+    install -Dm755 target/${pkgs.stdenv.hostPlatform.rust.rustcTarget}/release/agentgateway "$out/bin/agentgateway"
+    runHook postInstall
+  '';
   env = {
     VERSION = version;
-    GIT_REVISION = "${revision}-agentz.5";
+    GIT_REVISION = "${revision}-agentz.6";
   } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isAarch64 {
     JEMALLOC_SYS_WITH_LG_PAGE = "16";
   };

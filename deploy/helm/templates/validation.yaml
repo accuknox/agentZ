@@ -28,14 +28,14 @@
 {{- if and .Values.manager.enabled .Values.gateway.enabled .Values.gateway.serviceAccount.name (not .Values.manager.config.gatewayServiceAccountName) }}
 {{- fail "manager.config.gatewayServiceAccountName is required when gateway.serviceAccount.name is set" }}
 {{- end }}
-{{- if and .Values.manager.enabled .Values.gateway.enabled .Values.global.agentz.delegationEnabled }}
+{{- if and .Values.manager.enabled .Values.gateway.enabled (or .Values.global.agentz.delegationEnabled .Values.global.agentz.copilotStudioEnabled) }}
 {{- $namespace := printf "%s-delegations" (include "agentz.gatewayFullname" .) | trunc 63 | trimSuffix "-" }}
 {{- $managerNamespace := default (printf "%s-gateway-delegations" .Release.Name | trunc 63 | trimSuffix "-") .Values.manager.delegation.namespace }}
 {{- if ne $managerNamespace $namespace }}
 {{- fail (printf "manager.delegation.namespace must be %s to match the gateway delegation namespace" $namespace) }}
 {{- end }}
 {{- end }}
-{{- if and .Values.manager.enabled .Values.observer.enabled .Values.global.agentz.delegationEnabled }}
+{{- if and .Values.manager.enabled .Values.observer.enabled (or .Values.global.agentz.delegationEnabled .Values.global.agentz.copilotStudioEnabled) }}
 {{- if ne (int .Values.manager.config.delegationTracePort) (int .Values.observer.service.appGrpcPort) }}
 {{- fail "manager.config.delegationTracePort must match observer.service.appGrpcPort" }}
 {{- end }}

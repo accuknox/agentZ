@@ -85,14 +85,14 @@ export function readTraceRecording(
         key: `tool:${span.id}`,
         kind: "tool",
         span,
-        arguments: args ?? { format: "text", text: "Arguments not captured" },
+        arguments: args ?? { format: "text", text: "_" },
         result: readToolContent(payload.tool_result, "result"),
         error: readToolContent(operation.tool_error, "error"),
       })
       continue
     }
 
-    if (span.span_class !== "llm") continue
+    if (span.span_class !== "llm" && span.operation_name !== "observe_context") continue
     if (payload.input_messages !== "null") {
       const input = request.safeParse(JSON.parse(payload.input_messages))
       if (input.success) {
@@ -116,6 +116,7 @@ export function readTraceRecording(
       }
     }
 
+    if (span.operation_name === "observe_context") continue
     const output = response.safeParse(JSON.parse(payload.output_messages))
     steps.push({
       key: `response:${span.id}`,

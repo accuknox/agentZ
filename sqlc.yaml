@@ -52,6 +52,11 @@ sql:
         go_type:
           slice: true
           type: byte
+      - column: copilot_studio_integrations.policies
+        go_type:
+          import: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1
+          type: ResourceReference
+          slice: true
       - column: guardrail_client_access.policies
         go_type:
           import: github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1

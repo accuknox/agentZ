@@ -13,6 +13,8 @@ import { CodeBlockContent } from "@/components/ai-elements/code-block"
 import { CopyButton } from "@/components/interior/copy-button"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { EmptyValue } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TablePagination } from "@/components/table-pagination"
@@ -82,11 +84,13 @@ export function TraceConversation({
         tokens,
         duration: durationMs === null ? undefined : formatDurationMs(durationMs),
         durationPercent:
-          trace.durationMs > 0 && durationMs !== null
+          trace.durationMs !== null && trace.durationMs > 0 && durationMs !== null
             ? Math.min((durationMs / trace.durationMs) * 100, 100)
             : 0,
         offsetPercent:
-          trace.durationMs > 0 ? Math.min((offsetMs / trace.durationMs) * 100, 100) : 0,
+          trace.durationMs !== null && trace.durationMs > 0
+            ? Math.min((offsetMs / trace.durationMs) * 100, 100)
+            : 0,
       }
     })
   const navigation = items.filter((item) => pageKeys.has(item.step.key))
@@ -215,6 +219,15 @@ export function TraceConversation({
                           >
                             {label}
                           </span>
+                          {step.span.operation_name === "allow_tool" ? (
+                            <Badge variant="secondary">Allowed</Badge>
+                          ) : null}
+                          {step.span.operation_name === "block_tool" ? (
+                            <Badge variant="destructive">Blocked</Badge>
+                          ) : null}
+                          {step.span.operation_name === "observe_tool_result" ? (
+                            <Badge variant="outline">Observed output</Badge>
+                          ) : null}
                           <span className="truncate font-mono text-sm text-muted-foreground">
                             {step.arguments.text.slice(0, 300)}
                           </span>
@@ -225,17 +238,19 @@ export function TraceConversation({
                     </div>
                     <CollapsibleContent>
                       <div className="my-2 flex min-w-0 flex-col gap-3 pl-3">
-                        <div className="flex min-w-0 flex-col gap-1.5">
-                          <span className="text-xs text-muted-foreground">Input</span>
-                          <RecordedText {...step.arguments} />
-                        </div>
+                        {step.span.operation_name !== "observe_tool_result" ? (
+                          <div className="flex min-w-0 flex-col gap-1.5">
+                            <span className="text-xs text-muted-foreground">Input</span>
+                            <RecordedText {...step.arguments} />
+                          </div>
+                        ) : null}
                         {step.result ? (
                           <div className="flex min-w-0 flex-col gap-1.5">
                             <span className="text-xs text-muted-foreground">Output</span>
                             <RecordedText {...step.result} />
                           </div>
                         ) : !step.error && !step.span.error_message ? (
-                          <p className="text-xs text-muted-foreground">No output captured.</p>
+                          <EmptyValue />
                         ) : null}
                         {step.error ? (
                           <div role="alert" className="text-destructive">

@@ -1,7 +1,7 @@
 import { invalidateResource } from "@/data/page-selection"
 import "server-only"
 
-import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm"
+import { and, asc, count, eq, inArray, isNotNull, ne, sql } from "drizzle-orm"
 import { z } from "zod"
 import { DEVICE_CODE_GRANT_TYPE } from "@better-auth/oauth-provider"
 import { getDB, schema } from "@/db"
@@ -12,22 +12,32 @@ import { revokeOAuthApplication } from "@/data/delegations"
 import type { DelegationCatalog } from "@/lib/gateway/client"
 
 /** listExternalAgents lists workspace registrations and their approved resource grants. */
-export async function listExternalAgents(orgSlug: string, workspaceSlug: string) {
+export async function listExternalAgents(
+  orgSlug: string,
+  workspaceSlug: string,
+  clientIds?: string[]
+) {
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   if (scope.kind !== "ready" || !scope.workspace.capabilities.external_agents.read) return null
   const session = await getAuthSession()
   if (!session) return null
   const administer = scope.scope.organization.superadmin || scope.workspace.capabilities.administer
-  const [setting] = await getDB()
-    .select({ enabled: schema.organizationDelegation.enabled })
-    .from(schema.organizationDelegation)
-    .where(eq(schema.organizationDelegation.organizationId, scope.scope.organization.id))
+  const [setting] = clientIds
+    ? []
+    : await getDB()
+        .select({ enabled: schema.organizationDelegation.enabled })
+        .from(schema.organizationDelegation)
+        .where(eq(schema.organizationDelegation.organizationId, scope.scope.organization.id))
   const agents = await getDB()
     .select({
       clientId: schema.externalAgents.clientId,
       kind: schema.externalAgents.kind,
       name: schema.oauthClients.name,
       createdAt: schema.externalAgents.createdAt,
+      disabled: schema.oauthClients.disabled,
+      environmentEnabled: schema.copilotStudioIntegrations.enabled,
+      copilotStudioAgentId: schema.copilotStudioAgents.agentId,
+      lastActiveAt: schema.copilotStudioAgents.lastSeenAt,
       user: {
         id: schema.users.id,
         name: schema.users.name,
@@ -41,14 +51,26 @@ export async function listExternalAgents(orgSlug: string, workspaceSlug: string)
       eq(schema.oauthClients.clientId, schema.externalAgents.clientId)
     )
     .innerJoin(schema.users, eq(schema.users.id, schema.externalAgents.userId))
+    .leftJoin(
+      schema.copilotStudioAgents,
+      eq(schema.copilotStudioAgents.clientId, schema.externalAgents.clientId)
+    )
+    .leftJoin(
+      schema.copilotStudioIntegrations,
+      eq(schema.copilotStudioIntegrations.id, schema.copilotStudioAgents.integrationId)
+    )
     .where(
       and(
         eq(schema.externalAgents.workspaceId, scope.workspace.id),
-        administer ? undefined : eq(schema.externalAgents.userId, session.session.user.id)
+        administer ? undefined : eq(schema.externalAgents.userId, session.session.user.id),
+        clientIds
+          ? inArray(schema.externalAgents.clientId, clientIds)
+          : ne(schema.externalAgents.kind, "microsoft-copilot-studio")
       )
     )
     .orderBy(asc(schema.externalAgents.createdAt), asc(schema.externalAgents.clientId))
-  const grants = agents.length
+  const delegated = agents.filter((agent) => agent.kind !== "microsoft-copilot-studio")
+  const grants = delegated.length
     ? await getDB()
         .select()
         .from(schema.delegationGrants)
@@ -64,10 +86,59 @@ export async function listExternalAgents(orgSlug: string, workspaceSlug: string)
         .orderBy(asc(schema.delegationGrants.createdAt))
     : []
   const grantsByClient = Map.groupBy(grants, (grant) => grant.clientId)
+  const integrations = clientIds
+    ? []
+    : await getDB()
+        .select({
+          id: schema.copilotStudioIntegrations.id,
+          name: schema.copilotStudioIntegrations.name,
+          enabled: schema.copilotStudioIntegrations.enabled,
+          createdAt: schema.copilotStudioIntegrations.createdAt,
+          validatedAt: schema.copilotStudioIntegrations.validatedAt,
+          runtimeError: schema.copilotStudioIntegrations.runtimeError,
+          agentCount: count(schema.externalAgents.clientId),
+          user: {
+            id: schema.users.id,
+            name: schema.users.name,
+            email: schema.users.email,
+            image: schema.users.image,
+          },
+        })
+        .from(schema.copilotStudioIntegrations)
+        .innerJoin(schema.users, eq(schema.users.id, schema.copilotStudioIntegrations.userId))
+        .leftJoin(
+          schema.copilotStudioAgents,
+          eq(schema.copilotStudioAgents.integrationId, schema.copilotStudioIntegrations.id)
+        )
+        .leftJoin(
+          schema.externalAgents,
+          and(
+            eq(schema.externalAgents.clientId, schema.copilotStudioAgents.clientId),
+            administer ? undefined : eq(schema.externalAgents.userId, session.session.user.id)
+          )
+        )
+        .where(
+          and(
+            eq(schema.copilotStudioIntegrations.organizationId, scope.scope.organization.id),
+            eq(schema.copilotStudioIntegrations.workspaceId, scope.workspace.id),
+            administer ? undefined : isNotNull(schema.externalAgents.clientId)
+          )
+        )
+        .groupBy(schema.copilotStudioIntegrations.id, schema.users.id)
+        .orderBy(
+          asc(schema.copilotStudioIntegrations.createdAt),
+          asc(schema.copilotStudioIntegrations.id)
+        )
   return {
     workspace: scope.workspace,
     organization: scope.scope.organization,
     delegationEnabled: setting?.enabled ?? false,
+    integrations: integrations.map((integration) => ({
+      ...integration,
+      createdAt: integration.createdAt.toISOString(),
+      validatedAt: integration.validatedAt?.toISOString() ?? null,
+      canModify: administer,
+    })),
     agents: agents.map((agent) => {
       const history = grantsByClient.get(agent.clientId) ?? []
       const active = history.filter((grant) => !grant.revokedAt)
@@ -95,11 +166,15 @@ export async function listExternalAgents(orgSlug: string, workspaceSlug: string)
         ...agent,
         name: agent.name ?? "External agent",
         createdAt: agent.createdAt.toISOString(),
+        lastActiveAt: agent.lastActiveAt?.toISOString() ?? null,
         own,
         canModify: (own || administer) && scope.workspace.capabilities.external_agents.modify,
         canDelete: (own || administer) && scope.workspace.capabilities.external_agents.delete,
         canDisconnect: own || (administer && scope.workspace.capabilities.external_agents.modify),
-        connected: active.length > 0,
+        connected:
+          agent.kind === "microsoft-copilot-studio"
+            ? !agent.disabled && agent.environmentEnabled === true
+            : active.length > 0,
         connectedAt: active[0]?.createdAt.toISOString(),
         previouslyConnected: history.length > 0,
         scopes: [...new Set(active.flatMap((grant) => grant.scopes))],
@@ -114,6 +189,10 @@ export type ExternalAgent = NonNullable<
   Awaited<ReturnType<typeof listExternalAgents>>
 >["agents"][number]
 
+export type CopilotStudioEnvironment = NonNullable<
+  Awaited<ReturnType<typeof listExternalAgents>>
+>["integrations"][number]
+
 /** getExternalAgentGuardrails limits policy assignments to workspace agent registrations. */
 export async function getExternalAgentGuardrails(
   orgSlug: string,
@@ -127,8 +206,17 @@ export async function getExternalAgentGuardrails(
     .select({
       policies: schema.guardrailClientAccess.policies,
       updatedAt: schema.guardrailClientAccess.updatedAt,
+      environmentPolicies: schema.copilotStudioIntegrations.policies,
     })
     .from(schema.externalAgents)
+    .leftJoin(
+      schema.copilotStudioAgents,
+      eq(schema.copilotStudioAgents.clientId, schema.externalAgents.clientId)
+    )
+    .leftJoin(
+      schema.copilotStudioIntegrations,
+      eq(schema.copilotStudioIntegrations.id, schema.copilotStudioAgents.integrationId)
+    )
     .leftJoin(
       schema.guardrailClientAccess,
       and(
@@ -148,7 +236,7 @@ export async function getExternalAgentGuardrails(
   return {
     organizationId: scope.scope.organization.id,
     workspaceId: scope.workspace.id,
-    assignment: { policies: agent.policies ?? [] },
+    assignment: { policies: agent.policies ?? agent.environmentPolicies ?? [] },
     updatedAt: agent.updatedAt?.toISOString(),
   }
 }
@@ -160,6 +248,8 @@ export async function createExternalAgent(
   input: z.input<typeof externalAgentInput>
 ) {
   const data = externalAgentInput.parse(input)
+  if (data.kind === "microsoft-copilot-studio")
+    throw new Error("Copilot Studio agents are discovered from an environment connection.")
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   const session = await getAuthSession()
   if (
@@ -227,10 +317,10 @@ export async function changeExternalAgent(
   orgSlug: string,
   workspaceSlug: string,
   clientId: string,
-  operation: "rename" | "disconnect" | "delete",
+  operation: "rename" | "disconnect" | "reconnect" | "delete",
   name?: string
 ) {
-  operation = z.enum(["rename", "disconnect", "delete"]).parse(operation)
+  operation = z.enum(["rename", "disconnect", "reconnect", "delete"]).parse(operation)
   const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
   const session = await getAuthSession()
   if (scope.kind !== "ready" || !session) throw new Error("Workspace unavailable.")
@@ -253,6 +343,8 @@ export async function changeExternalAgent(
   if (operation === "disconnect" && own) allowed = true
   if (!allowed || (!own && !administer))
     throw new Error("You do not have permission to manage this agent.")
+  if (operation === "reconnect" && agent.kind !== "microsoft-copilot-studio")
+    throw new Error("Reconnect this agent through its normal sign-in flow.")
   if (operation === "rename") {
     const input = externalAgentInput.parse({ name, kind: agent.kind })
     await getDB().transaction(async (tx) => {
@@ -267,6 +359,17 @@ export async function changeExternalAgent(
   if (operation === "delete") {
     await getDB().transaction(async (tx) => {
       await tx.delete(schema.oauthClients).where(eq(schema.oauthClients.clientId, clientId))
+      await tx.execute(sql`select pg_notify('agentz_external_agents', ${agent.workspaceId})`)
+    })
+    await invalidateResource(scope.workspace.id, { app_client_id: clientId })
+    return
+  }
+  if (agent.kind === "microsoft-copilot-studio") {
+    await getDB().transaction(async (tx) => {
+      await tx
+        .update(schema.oauthClients)
+        .set({ disabled: operation !== "reconnect" })
+        .where(eq(schema.oauthClients.clientId, clientId))
       await tx.execute(sql`select pg_notify('agentz_external_agents', ${agent.workspaceId})`)
     })
     await invalidateResource(scope.workspace.id, { app_client_id: clientId })

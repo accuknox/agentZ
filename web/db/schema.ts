@@ -257,7 +257,46 @@ export const externalAgentKind = pgEnum("external_agent_kind", [
   "github-copilot-desktop",
   "chatgpt-desktop",
   "claude-desktop",
+  "microsoft-copilot-studio",
 ])
+
+export const copilotStudioIntegrations = pgTable(
+  "copilot_studio_integrations",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    workspaceId: text("workspace_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    tenantId: text("tenant_id").notNull(),
+    applicationId: text("application_id").notNull(),
+    environmentId: text("environment_id").notNull(),
+    enabled: boolean("enabled").default(false).notNull(),
+    failureMode: text("failure_mode").default("closed").notNull(),
+    policies: jsonb("policies").$type<ResourceReference[]>().default([]).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    runtimeError: text("runtime_error").default("").notNull(),
+  },
+  (table) => [
+    unique().on(table.tenantId, table.applicationId, table.environmentId),
+    index("copilot_studio_integrations_workspace_idx").on(
+      table.organizationId,
+      table.workspaceId,
+      table.id
+    ),
+    foreignKey({
+      columns: [table.workspaceId, table.organizationId],
+      foreignColumns: [workspaces.id, workspaces.organizationId],
+    }).onDelete("restrict"),
+    check("copilot_studio_failure_mode", sql`${table.failureMode} in ('open', 'closed')`),
+  ]
+)
 
 export const externalAgents = pgTable(
   "external_agents",
@@ -282,6 +321,22 @@ export const externalAgents = pgTable(
       foreignColumns: [workspaces.id, workspaces.organizationId],
       name: "external_agents_workspace_organization_fk",
     }).onDelete("restrict"),
+  ]
+)
+
+export const copilotStudioAgents = pgTable(
+  "copilot_studio_agents",
+  {
+    integrationId: text("integration_id")
+      .notNull()
+      .references(() => copilotStudioIntegrations.id, { onDelete: "cascade" }),
+    agentId: text("agent_id").notNull(),
+    clientId: text("client_id").references(() => externalAgents.clientId, { onDelete: "set null" }),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.integrationId, table.agentId] }),
+    unique().on(table.clientId),
   ]
 )
 

@@ -668,6 +668,67 @@ func (q *Queries) GatewayCompleteCleanupJob(ctx context.Context, arg GatewayComp
 	return result.RowsAffected(), nil
 }
 
+const gatewayCopilotStudioRuntimeSubjects = `-- name: GatewayCopilotStudioRuntimeSubjects :many
+SELECT i.id, i.workspace_id, i.policies
+FROM copilot_studio_integrations i WHERE i.enabled
+UNION
+SELECT i.id, i.workspace_id, g.policies
+FROM copilot_studio_integrations i JOIN copilot_studio_agents a ON a.integration_id = i.id
+JOIN oauth_clients c ON c.client_id = a.client_id AND c.disabled IS NOT TRUE
+JOIN guardrail_client_access g ON g.client_id = a.client_id AND g.organization_id = i.organization_id AND g.workspace_id = i.workspace_id
+WHERE i.enabled
+`
+
+type GatewayCopilotStudioRuntimeSubjectsRow struct {
+	ID          string                       `json:"id"`
+	WorkspaceID string                       `json:"workspace_id"`
+	Policies    []v1alpha1.ResourceReference `json:"policies"`
+}
+
+func (q *Queries) GatewayCopilotStudioRuntimeSubjects(ctx context.Context) ([]GatewayCopilotStudioRuntimeSubjectsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayCopilotStudioRuntimeSubjects)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayCopilotStudioRuntimeSubjectsRow{}
+	for rows.Next() {
+		var i GatewayCopilotStudioRuntimeSubjectsRow
+		if err := rows.Scan(&i.ID, &i.WorkspaceID, &i.Policies); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayCopilotStudioTenants = `-- name: GatewayCopilotStudioTenants :many
+SELECT DISTINCT tenant_id FROM copilot_studio_integrations WHERE enabled ORDER BY tenant_id
+`
+
+func (q *Queries) GatewayCopilotStudioTenants(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, gatewayCopilotStudioTenants)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var tenant_id string
+		if err := rows.Scan(&tenant_id); err != nil {
+			return nil, err
+		}
+		items = append(items, tenant_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const gatewayCountChatSessionShelves = `-- name: GatewayCountChatSessionShelves :one
 SELECT
   count(*) FILTER (WHERE sessions.archived_at IS NOT NULL) AS archived,
@@ -1899,7 +1960,8 @@ WITH event AS (
     AND w.deleted_at IS NULL
     AND w.id = event.workspace_id
   JOIN observer_app_operations op ON op.organization_id = event.organization_id
-    AND op.workspace_id = w.id AND op.span_class = 'llm'
+    AND op.workspace_id = w.id
+    AND (op.span_class = 'llm' OR (op.agent_kind = 'microsoft-copilot-studio' AND op.operation_name IN ('allow_tool', 'block_tool')))
     AND event.client_id <> '' AND op.client_id = event.client_id
     AND ((op.trace_id = event.trace_id AND op.span_id = event.span_id)
       OR (event.session_id <> '' AND op.session_id = event.session_id
@@ -2169,30 +2231,32 @@ func (q *Queries) GatewayGetAgentShare(ctx context.Context, arg GatewayGetAgentS
 
 const gatewayGetAppMCPGraph = `-- name: GatewayGetAppMCPGraph :many
 WITH selected AS (
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_spans op
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time, op.agent_kind, op.operation_name FROM observer_app_spans op
  WHERE op.organization_id = $1 AND op.workspace_id = $2
-   AND op.visible AND op.client_id = $3 AND op.resource_kind = 'mcp'
+   AND op.visible AND op.client_id = $3 AND (op.resource_kind = 'mcp' OR (op.agent_kind = 'microsoft-copilot-studio' AND op.resource_kind = 'tool' AND op.operation_name IN ('allow_tool', 'block_tool')))
    AND op.start_time >= $4 AND op.start_time < $5
    AND $6::text = ''
  UNION ALL
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_spans op
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time, op.agent_kind, op.operation_name FROM observer_app_spans op
  WHERE op.organization_id = $1 AND op.workspace_id = $2
-   AND op.visible AND op.client_id = $3 AND op.resource_kind = 'mcp'
+   AND op.visible AND op.client_id = $3 AND (op.resource_kind = 'mcp' OR (op.agent_kind = 'microsoft-copilot-studio' AND op.resource_kind = 'tool' AND op.operation_name IN ('allow_tool', 'block_tool')))
    AND op.start_time >= $4 AND op.start_time < $5
    AND $6::text <> '' AND op.session_id = $6
  UNION ALL
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations run JOIN observer_app_spans op ON op.run_id = run.id
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time, op.agent_kind, op.operation_name FROM observer_app_operations run JOIN observer_app_spans op ON op.run_id = run.id
  WHERE run.organization_id = $1 AND run.workspace_id = $2
    AND run.client_id = $3 AND run.resource_kind = 'turn'
    AND run.session_id = $6 AND $6::text <> ''
    AND op.organization_id = $1 AND op.workspace_id = $2
-   AND op.visible AND op.client_id = $3 AND op.resource_kind = 'mcp' AND op.session_id = ''
+   AND op.visible AND op.client_id = $3 AND (op.resource_kind = 'mcp' OR (op.agent_kind = 'microsoft-copilot-studio' AND op.resource_kind = 'tool' AND op.operation_name IN ('allow_tool', 'block_tool'))) AND op.session_id = ''
    AND op.start_time >= $4 AND op.start_time < $5
 )
 SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name,
- AVG(op.duration_ns::double precision / 1000000)::double precision AS avg_latency_ms,
- COUNT(*) FILTER (WHERE op.status_code <> 'ERROR')::bigint AS success_count,
- COUNT(*) FILTER (WHERE op.status_code = 'ERROR')::bigint AS failed_count,
+ COALESCE(AVG(op.duration_ns::double precision / 1000000) FILTER (WHERE op.agent_kind <> 'microsoft-copilot-studio'), 0)::double precision AS avg_latency_ms,
+ COUNT(*) FILTER (WHERE op.operation_name = 'allow_tool')::bigint AS allowed_count,
+ COUNT(*) FILTER (WHERE op.operation_name = 'block_tool')::bigint AS blocked_count,
+ COUNT(*) FILTER (WHERE op.agent_kind <> 'microsoft-copilot-studio' AND op.status_code <> 'ERROR')::bigint AS success_count,
+ COUNT(*) FILTER (WHERE op.agent_kind <> 'microsoft-copilot-studio' AND op.status_code = 'ERROR')::bigint AS failed_count,
  MAX(op.start_time)::timestamptz AS last_called_at
 FROM selected op
 GROUP BY op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name
@@ -2214,6 +2278,8 @@ type GatewayGetAppMCPGraphRow struct {
 	ResourceNamespace string    `json:"resource_namespace"`
 	ToolName          string    `json:"tool_name"`
 	AvgLatencyMs      float64   `json:"avg_latency_ms"`
+	AllowedCount      int64     `json:"allowed_count"`
+	BlockedCount      int64     `json:"blocked_count"`
 	SuccessCount      int64     `json:"success_count"`
 	FailedCount       int64     `json:"failed_count"`
 	LastCalledAt      time.Time `json:"last_called_at"`
@@ -2241,6 +2307,8 @@ func (q *Queries) GatewayGetAppMCPGraph(ctx context.Context, arg GatewayGetAppMC
 			&i.ResourceNamespace,
 			&i.ToolName,
 			&i.AvgLatencyMs,
+			&i.AllowedCount,
+			&i.BlockedCount,
 			&i.SuccessCount,
 			&i.FailedCount,
 			&i.LastCalledAt,
@@ -2809,6 +2877,33 @@ func (q *Queries) GatewayGetCodingWorktree(ctx context.Context, arg GatewayGetCo
 		&i.CodingProject.Deleting,
 		&i.CodingProject.DefaultBranch,
 		&i.CodingProject.CreatedAt,
+	)
+	return i, err
+}
+
+const gatewayGetCopilotStudioIntegration = `-- name: GatewayGetCopilotStudioIntegration :one
+SELECT id, organization_id, workspace_id, user_id, name, tenant_id, application_id, environment_id, enabled, failure_mode, policies, created_at, validated_at, last_seen_at, runtime_error FROM copilot_studio_integrations WHERE id = $1
+`
+
+func (q *Queries) GatewayGetCopilotStudioIntegration(ctx context.Context, id string) (CopilotStudioIntegration, error) {
+	row := q.db.QueryRow(ctx, gatewayGetCopilotStudioIntegration, id)
+	var i CopilotStudioIntegration
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.Name,
+		&i.TenantID,
+		&i.ApplicationID,
+		&i.EnvironmentID,
+		&i.Enabled,
+		&i.FailureMode,
+		&i.Policies,
+		&i.CreatedAt,
+		&i.ValidatedAt,
+		&i.LastSeenAt,
+		&i.RuntimeError,
 	)
 	return i, err
 }
@@ -4284,7 +4379,7 @@ WITH sessions AS (
  SELECT session_id, MAX(end_time)::timestamptz AS last_seen
  FROM observer_app_operations
  WHERE organization_id = $5 AND workspace_id = $6
-   AND client_id = $7 AND agent_kind IN ('claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop')
+   AND client_id = $7 AND agent_kind IN ('claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop', 'microsoft-copilot-studio')
    AND session_id <> '' AND run_id IS NULL AND resource_kind <> 'tool'
    AND ($8::text = '' OR session_id = $8)
  GROUP BY session_id
@@ -4495,7 +4590,7 @@ WITH identities AS (
    AND (op.run_id = candidate.root_id OR op.id = candidate.root_id
      OR (candidate.root_id IS NULL AND op.run_id IS NULL AND op.trace_id = candidate.trace_id))
 )
-SELECT members.logical_trace_id AS trace_id, members.started_at,
+SELECT members.logical_trace_id AS trace_id, members.started_at, MIN(span.agent_kind)::text AS agent_kind,
  MAX(span.end_time)::timestamptz AS ended_at,
  (ARRAY_AGG(span.span_id ORDER BY span.resource_kind <> 'turn', span.start_time, span.id))[1]::bytea AS root_span_id,
  (EXTRACT(EPOCH FROM MAX(span.end_time) - members.started_at) * 1000000000)::bigint AS duration_ns,
@@ -4518,7 +4613,7 @@ SELECT members.logical_trace_id AS trace_id, members.started_at,
  COALESCE(SUM(span.cost_usd) FILTER (WHERE span.span_class = 'llm'), 0)::double precision AS cost_usd,
  COUNT(span.cost_usd) FILTER (WHERE span.span_class = 'llm') > 0
    AND COUNT(span.cost_usd) FILTER (WHERE span.span_class = 'llm') = COUNT(*) FILTER (WHERE span.span_class = 'llm') AS cost_usd_known,
- CASE WHEN BOOL_OR(span.status_code = 'ERROR') THEN 'ERROR' ELSE 'OK' END::text AS status_code,
+ CASE WHEN BOOL_OR(span.status_code = 'ERROR') THEN 'ERROR' WHEN MIN(span.agent_kind) = 'microsoft-copilot-studio' THEN 'UNSET' ELSE 'OK' END::text AS status_code,
  MAX(span.ingested_at)::timestamptz AS updated_at
 FROM members JOIN observer_app_spans span ON span.id = members.id
 WHERE span.visible
@@ -4542,6 +4637,7 @@ type GatewayListAppTracesParams struct {
 type GatewayListAppTracesRow struct {
 	TraceID                []byte      `json:"trace_id"`
 	StartedAt              time.Time   `json:"started_at"`
+	AgentKind              string      `json:"agent_kind"`
 	EndedAt                time.Time   `json:"ended_at"`
 	RootSpanID             []byte      `json:"root_span_id"`
 	DurationNs             int64       `json:"duration_ns"`
@@ -4586,6 +4682,7 @@ func (q *Queries) GatewayListAppTraces(ctx context.Context, arg GatewayListAppTr
 		if err := rows.Scan(
 			&i.TraceID,
 			&i.StartedAt,
+			&i.AgentKind,
 			&i.EndedAt,
 			&i.RootSpanID,
 			&i.DurationNs,
@@ -5331,6 +5428,134 @@ func (q *Queries) GatewayListCodingWorktrees(ctx context.Context, arg GatewayLis
 			&i.Shared,
 			&i.Deleting,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListCopilotStudioAgents = `-- name: GatewayListCopilotStudioAgents :many
+SELECT a.client_id, a.agent_id, COALESCE(c.name, a.agent_id)::text AS name,
+  e.created_at, a.last_seen_at, COALESCE(c.disabled, false)::boolean AS disabled
+FROM copilot_studio_agents a
+JOIN copilot_studio_integrations i ON i.id = a.integration_id
+JOIN external_agents e ON e.client_id = a.client_id
+JOIN oauth_clients c ON c.client_id = a.client_id
+WHERE i.id = $1 AND i.organization_id = $2 AND i.workspace_id = $3
+  AND ($4::boolean OR e.user_id = $5)
+  AND (NOT $6::boolean OR a.agent_id > $7::text)
+ORDER BY a.agent_id
+LIMIT $8
+`
+
+type GatewayListCopilotStudioAgentsParams struct {
+	IntegrationID  string `json:"integration_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	Administer     bool   `json:"administer"`
+	UserID         string `json:"user_id"`
+	CursorSet      bool   `json:"cursor_set"`
+	CursorID       string `json:"cursor_id"`
+	PageSize       int32  `json:"page_size"`
+}
+
+type GatewayListCopilotStudioAgentsRow struct {
+	ClientID   pgtype.Text        `json:"client_id"`
+	AgentID    string             `json:"agent_id"`
+	Name       string             `json:"name"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
+	Disabled   bool               `json:"disabled"`
+}
+
+func (q *Queries) GatewayListCopilotStudioAgents(ctx context.Context, arg GatewayListCopilotStudioAgentsParams) ([]GatewayListCopilotStudioAgentsRow, error) {
+	rows, err := q.db.Query(ctx, gatewayListCopilotStudioAgents,
+		arg.IntegrationID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Administer,
+		arg.UserID,
+		arg.CursorSet,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GatewayListCopilotStudioAgentsRow{}
+	for rows.Next() {
+		var i GatewayListCopilotStudioAgentsRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.AgentID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.LastSeenAt,
+			&i.Disabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const gatewayListCopilotStudioIntegrations = `-- name: GatewayListCopilotStudioIntegrations :many
+SELECT i.id, i.organization_id, i.workspace_id, i.user_id, i.name, i.tenant_id, i.application_id, i.environment_id, i.enabled, i.failure_mode, i.policies, i.created_at, i.validated_at, i.last_seen_at, i.runtime_error FROM copilot_studio_integrations i
+WHERE i.organization_id = $1 AND i.workspace_id = $2
+  AND (NOT $3::boolean OR i.id > $4::text)
+ORDER BY i.id
+LIMIT $5
+`
+
+type GatewayListCopilotStudioIntegrationsParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	CursorSet      bool   `json:"cursor_set"`
+	CursorID       string `json:"cursor_id"`
+	PageSize       int32  `json:"page_size"`
+}
+
+func (q *Queries) GatewayListCopilotStudioIntegrations(ctx context.Context, arg GatewayListCopilotStudioIntegrationsParams) ([]CopilotStudioIntegration, error) {
+	rows, err := q.db.Query(ctx, gatewayListCopilotStudioIntegrations,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.CursorSet,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CopilotStudioIntegration{}
+	for rows.Next() {
+		var i CopilotStudioIntegration
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.Name,
+			&i.TenantID,
+			&i.ApplicationID,
+			&i.EnvironmentID,
+			&i.Enabled,
+			&i.FailureMode,
+			&i.Policies,
+			&i.CreatedAt,
+			&i.ValidatedAt,
+			&i.LastSeenAt,
+			&i.RuntimeError,
 		); err != nil {
 			return nil, err
 		}
@@ -8074,6 +8299,68 @@ func (q *Queries) GatewayRefreshCodingConnection(ctx context.Context, arg Gatewa
 	return err
 }
 
+const gatewayRegisterCopilotStudioAgent = `-- name: GatewayRegisterCopilotStudioAgent :one
+WITH integration AS (
+ SELECT ci.id, ci.organization_id, ci.workspace_id, ci.user_id, ci.name, ci.tenant_id, ci.application_id, ci.environment_id, ci.enabled, ci.failure_mode, ci.policies, ci.created_at, ci.validated_at, ci.last_seen_at, ci.runtime_error FROM copilot_studio_integrations ci WHERE ci.id = $1 AND ci.enabled FOR KEY SHARE
+), identity AS (
+ INSERT INTO oauth_clients (id, client_id, user_id, name, redirect_uris, scopes, grant_types, created_at, updated_at)
+ SELECT $2, $2, i.user_id, $3, '{}', '{}', '{}', now(), now()
+ FROM integration i WHERE NOT EXISTS (
+  SELECT 1 FROM copilot_studio_agents a WHERE a.integration_id = i.id AND a.agent_id = $4
+ ) ON CONFLICT DO NOTHING RETURNING client_id
+), registered AS (
+ INSERT INTO external_agents (client_id, organization_id, workspace_id, user_id, kind)
+ SELECT c.client_id, i.organization_id, i.workspace_id, i.user_id, 'microsoft-copilot-studio'
+ FROM identity c CROSS JOIN integration i RETURNING client_id, organization_id, workspace_id, user_id, kind, created_at
+), mapping AS (
+ INSERT INTO copilot_studio_agents (integration_id, agent_id, client_id)
+ SELECT $1, $4, client_id FROM registered RETURNING copilot_studio_agents.client_id
+), notification AS (
+ SELECT pg_notify('agentz_external_agents', workspace_id) FROM registered
+)
+SELECT r.client_id, r.organization_id, r.workspace_id, r.user_id, r.kind, r.created_at FROM registered r JOIN mapping m USING (client_id) CROSS JOIN notification
+UNION ALL
+SELECT e.client_id, e.organization_id, e.workspace_id, e.user_id, e.kind, e.created_at FROM copilot_studio_agents a JOIN external_agents e ON e.client_id = a.client_id
+JOIN oauth_clients c ON c.client_id = a.client_id AND c.disabled IS NOT TRUE
+WHERE a.integration_id = $1 AND a.agent_id = $4
+LIMIT 1
+`
+
+type GatewayRegisterCopilotStudioAgentParams struct {
+	IntegrationID string      `json:"integration_id"`
+	ClientID      string      `json:"client_id"`
+	Name          pgtype.Text `json:"name"`
+	AgentID       string      `json:"agent_id"`
+}
+
+type GatewayRegisterCopilotStudioAgentRow struct {
+	ClientID       string             `json:"client_id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	UserID         string             `json:"user_id"`
+	Kind           ExternalAgentKind  `json:"kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GatewayRegisterCopilotStudioAgent(ctx context.Context, arg GatewayRegisterCopilotStudioAgentParams) (GatewayRegisterCopilotStudioAgentRow, error) {
+	row := q.db.QueryRow(ctx, gatewayRegisterCopilotStudioAgent,
+		arg.IntegrationID,
+		arg.ClientID,
+		arg.Name,
+		arg.AgentID,
+	)
+	var i GatewayRegisterCopilotStudioAgentRow
+	err := row.Scan(
+		&i.ClientID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.Kind,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const gatewayRenameCodingProject = `-- name: GatewayRenameCodingProject :execrows
 UPDATE coding_projects SET name = $1
 WHERE id = $2 AND workspace_id = $3 AND owner_id = $4
@@ -8546,6 +8833,56 @@ func (q *Queries) GatewaySaveCodingSnapshot(ctx context.Context, arg GatewaySave
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewaySaveCopilotStudioIntegration = `-- name: GatewaySaveCopilotStudioIntegration :one
+WITH integration AS (
+INSERT INTO copilot_studio_integrations (id, organization_id, workspace_id, user_id, name, tenant_id, application_id, environment_id, enabled, failure_mode, policies)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, enabled = EXCLUDED.enabled, failure_mode = EXCLUDED.failure_mode, policies = EXCLUDED.policies
+WHERE copilot_studio_integrations.organization_id = EXCLUDED.organization_id
+  AND copilot_studio_integrations.workspace_id = EXCLUDED.workspace_id
+  AND copilot_studio_integrations.tenant_id = EXCLUDED.tenant_id
+  AND copilot_studio_integrations.application_id = EXCLUDED.application_id
+  AND copilot_studio_integrations.environment_id = EXCLUDED.environment_id
+RETURNING id, workspace_id
+), notification AS (
+ SELECT pg_notify('agentz_external_agents', workspace_id) FROM integration
+)
+SELECT integration.id FROM integration CROSS JOIN notification
+`
+
+type GatewaySaveCopilotStudioIntegrationParams struct {
+	ID             string                       `json:"id"`
+	OrganizationID string                       `json:"organization_id"`
+	WorkspaceID    string                       `json:"workspace_id"`
+	UserID         string                       `json:"user_id"`
+	Name           string                       `json:"name"`
+	TenantID       string                       `json:"tenant_id"`
+	ApplicationID  string                       `json:"application_id"`
+	EnvironmentID  string                       `json:"environment_id"`
+	Enabled        bool                         `json:"enabled"`
+	FailureMode    string                       `json:"failure_mode"`
+	Policies       []v1alpha1.ResourceReference `json:"policies"`
+}
+
+func (q *Queries) GatewaySaveCopilotStudioIntegration(ctx context.Context, arg GatewaySaveCopilotStudioIntegrationParams) (string, error) {
+	row := q.db.QueryRow(ctx, gatewaySaveCopilotStudioIntegration,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.Name,
+		arg.TenantID,
+		arg.ApplicationID,
+		arg.EnvironmentID,
+		arg.Enabled,
+		arg.FailureMode,
+		arg.Policies,
+	)
+	var id string
+	err := row.Scan(&id)
+	return id, err
 }
 
 const gatewaySaveDelegationMCPSession = `-- name: GatewaySaveDelegationMCPSession :execrows
@@ -9102,6 +9439,34 @@ func (q *Queries) GatewayTouchCodingSnapshot(ctx context.Context, arg GatewayTou
 	return i, err
 }
 
+const gatewayTouchCopilotStudio = `-- name: GatewayTouchCopilotStudio :exec
+WITH integration AS (
+ UPDATE copilot_studio_integrations ci SET
+ validated_at = CASE WHEN $1::boolean THEN now() ELSE ci.validated_at END,
+ last_seen_at = CASE WHEN $1::boolean THEN ci.last_seen_at ELSE now() END
+ WHERE ci.id = $2 AND ci.enabled
+   AND ($1::boolean OR ci.last_seen_at IS NULL OR ci.last_seen_at < now() - interval '15 seconds')
+ RETURNING ci.workspace_id
+), activity AS (
+ UPDATE copilot_studio_agents a SET last_seen_at = now()
+ FROM copilot_studio_integrations i
+ WHERE a.integration_id = i.id AND i.id = $2 AND i.enabled
+   AND a.agent_id = $3 AND NOT $1::boolean
+)
+SELECT pg_notify('agentz_external_agents', workspace_id) FROM integration WHERE $1::boolean
+`
+
+type GatewayTouchCopilotStudioParams struct {
+	Validated bool   `json:"validated"`
+	ID        string `json:"id"`
+	AgentID   string `json:"agent_id"`
+}
+
+func (q *Queries) GatewayTouchCopilotStudio(ctx context.Context, arg GatewayTouchCopilotStudioParams) error {
+	_, err := q.db.Exec(ctx, gatewayTouchCopilotStudio, arg.Validated, arg.ID, arg.AgentID)
+	return err
+}
+
 const gatewayTransferAgentOwner = `-- name: GatewayTransferAgentOwner :one
 UPDATE agent_owners
 SET
@@ -9449,6 +9814,25 @@ type GatewayUpdateCodingRepositoryParams struct {
 
 func (q *Queries) GatewayUpdateCodingRepository(ctx context.Context, arg GatewayUpdateCodingRepositoryParams) error {
 	_, err := q.db.Exec(ctx, gatewayUpdateCodingRepository, arg.Repository, arg.DefaultBranch, arg.ID)
+	return err
+}
+
+const gatewayUpdateCopilotStudioRuntime = `-- name: GatewayUpdateCopilotStudioRuntime :exec
+WITH changed AS (
+ UPDATE copilot_studio_integrations SET runtime_error = $1
+ WHERE id = $2 AND runtime_error IS DISTINCT FROM $1
+ RETURNING workspace_id
+)
+SELECT pg_notify('agentz_external_agents', workspace_id) FROM changed
+`
+
+type GatewayUpdateCopilotStudioRuntimeParams struct {
+	RuntimeError string `json:"runtime_error"`
+	ID           string `json:"id"`
+}
+
+func (q *Queries) GatewayUpdateCopilotStudioRuntime(ctx context.Context, arg GatewayUpdateCopilotStudioRuntimeParams) error {
+	_, err := q.db.Exec(ctx, gatewayUpdateCopilotStudioRuntime, arg.RuntimeError, arg.ID)
 	return err
 }
 

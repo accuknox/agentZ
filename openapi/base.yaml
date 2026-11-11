@@ -45,6 +45,116 @@ tags:
   description: Workspace chat inbox and preference APIs.
 
 paths:
+  /api/copilot-studio/integrations:
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    get:
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      operationId: listCopilotStudioIntegrations
+      tags:
+      - guardrails
+      security:
+      - GatewayBearer: []
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListCopilotStudioIntegrationsResponse'
+        default:
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createCopilotStudioIntegration
+      tags:
+      - guardrails
+      security:
+      - GatewayBearer: []
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopilotStudioIntegration'
+        default:
+          $ref: '#/components/responses/InternalError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopilotStudioIntegrationInput'
+  /api/copilot-studio/integrations/{integrationId}:
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    - in: path
+      name: integrationId
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: getCopilotStudioIntegration
+      tags: [guardrails]
+      security:
+      - GatewayBearer: []
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopilotStudioIntegration'
+        default:
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: updateCopilotStudioIntegration
+      tags:
+      - guardrails
+      security:
+      - GatewayBearer: []
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopilotStudioIntegration'
+        default:
+          $ref: '#/components/responses/InternalError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopilotStudioIntegrationInput'
+  /api/copilot-studio/integrations/{integrationId}/agents:
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    - in: path
+      name: integrationId
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: listCopilotStudioAgents
+      tags: [guardrails]
+      security:
+      - GatewayBearer: []
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListCopilotStudioAgentsResponse'
+        default:
+          $ref: '#/components/responses/InternalError'
   /api/lens/apps:
     get:
       operationId: listLensApps
@@ -3375,7 +3485,7 @@ paths:
   /api/inference/v1/traces:
     post:
       operationId: exportExternalAgentTraces
-      summary: Export native Copilot traces with current delegated inference authorization.
+      summary: Export native GitHub Copilot traces with current delegated inference authorization.
       tags: [inference]
       security:
       - GatewayBearer: ['inference:use']
@@ -5956,6 +6066,348 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    GuardrailEvaluationMessage:
+      type: object
+      additionalProperties: false
+      properties:
+        role:
+          type: string
+          enum:
+          - system
+          - user
+          - assistant
+          - tool
+          x-enum-varnames:
+          - GuardrailEvaluationMessageRoleSystem
+          - GuardrailEvaluationMessageRoleUser
+          - GuardrailEvaluationMessageRoleAssistant
+          - GuardrailEvaluationMessageRoleTool
+        content:
+          type: string
+        tool_call_id:
+          type: string
+      required:
+      - role
+      - content
+    # Microsoft payload objects stay open to future fields; raw requests retain them.
+    CopilotStudioChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+        role:
+          type: string
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+      - id
+      - role
+      - content
+    CopilotStudioToolOutput:
+      type: object
+      properties:
+        toolId:
+          type: string
+        toolName:
+          type: string
+        outputs:
+          $ref: '#/components/schemas/JSONValue'
+        timestamp:
+          type: string
+          format: date-time
+      required:
+      - toolId
+      - toolName
+      - outputs
+    CopilotStudioIntegrationInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name: &copilotStudioName
+          type: string
+          minLength: 1
+          maxLength: 120
+        tenant_id: &copilotStudioUUID
+          type: string
+          format: uuid
+        application_id: *copilotStudioUUID
+        environment_id: &copilotStudioEnvironment
+          type: string
+          minLength: 1
+          maxLength: 128
+        enabled: &copilotStudioEnabled
+          type: boolean
+        failure_mode: &copilotStudioFailureMode
+          type: string
+          enum:
+          - closed
+          - open
+        assignment: &copilotStudioAssignment
+          $ref: '#/components/schemas/GuardrailAssignment'
+      required:
+      - name
+      - tenant_id
+      - application_id
+      - environment_id
+      - enabled
+      - failure_mode
+      - assignment
+    CopilotStudioIntegration:
+      type: object
+      additionalProperties: false
+      properties:
+        name: *copilotStudioName
+        tenant_id: *copilotStudioUUID
+        application_id: *copilotStudioUUID
+        environment_id: *copilotStudioEnvironment
+        enabled: *copilotStudioEnabled
+        failure_mode: *copilotStudioFailureMode
+        assignment: *copilotStudioAssignment
+        id:
+          type: string
+        endpoint:
+          type: string
+        audience:
+          type: string
+        federated_credential:
+          $ref: '#/components/schemas/CopilotStudioFederatedCredential'
+        created_at:
+          type: string
+          format: date-time
+        validated_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+        runtime_error:
+          type: string
+      required:
+      - name
+      - tenant_id
+      - application_id
+      - environment_id
+      - enabled
+      - failure_mode
+      - assignment
+      - id
+      - endpoint
+      - audience
+      - federated_credential
+      - created_at
+      - validated_at
+      - last_seen_at
+      - runtime_error
+    CopilotStudioFederatedCredential:
+      type: object
+      additionalProperties: false
+      description: Values to copy into the caller application's Microsoft Entra federated credential.
+      properties:
+        issuer:
+          type: string
+        subject:
+          type: string
+        audience:
+          type: string
+      required: [issuer, subject, audience]
+    ListCopilotStudioIntegrationsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+        integrations:
+          type: array
+          items:
+            $ref: '#/components/schemas/CopilotStudioIntegration'
+        next_page_token:
+          type: string
+      required:
+      - enabled
+      - integrations
+      - next_page_token
+    CopilotStudioAgentSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        client_id:
+          type: string
+        agent_id:
+          type: string
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_active_at:
+          type: string
+          format: date-time
+          nullable: true
+        disabled:
+          type: boolean
+      required: [client_id, agent_id, name, created_at, last_active_at, disabled]
+    ListCopilotStudioAgentsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CopilotStudioAgentSummary'
+        next_page_token:
+          type: string
+      required: [agents, next_page_token]
+    GuardrailEvaluationResult:
+      type: object
+      additionalProperties: false
+      properties:
+        blocked:
+          type: boolean
+        revision:
+          type: string
+        evaluations:
+          type: array
+          items:
+            $ref: '#/components/schemas/GuardrailRuntimeEvaluation'
+      required:
+      - blocked
+      - revision
+      - evaluations
+    CopilotStudioEvaluationRequest:
+      type: object
+      properties:
+        plannerContext:
+          type: object
+          properties:
+            userMessage:
+              type: string
+            thought:
+              type: string
+              nullable: true
+            chatHistory:
+              type: array
+              nullable: true
+              items:
+                $ref: '#/components/schemas/CopilotStudioChatMessage'
+            previousToolOutputs:
+              type: array
+              nullable: true
+              items:
+                $ref: '#/components/schemas/CopilotStudioToolOutput'
+            previousToolsOutputs:
+              type: array
+              nullable: true
+              items:
+                $ref: '#/components/schemas/CopilotStudioToolOutput'
+          required:
+          - userMessage
+        toolDefinition:
+          type: object
+          properties:
+            id:
+              type: string
+              minLength: 1
+            type:
+              type: string
+            name:
+              type: string
+              minLength: 1
+            description:
+              type: string
+              nullable: true
+            inputParameters:
+              type: array
+              nullable: true
+              items:
+                $ref: '#/components/schemas/JSONValue'
+            outputParameters:
+              type: array
+              nullable: true
+              items:
+                $ref: '#/components/schemas/JSONValue'
+          required:
+          - id
+          - type
+          - name
+        inputValues:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/JSONValue'
+        conversationMetadata:
+          type: object
+          properties:
+            agent:
+              type: object
+              properties:
+                id:
+                  type: string
+                  minLength: 1
+                  maxLength: 512
+                tenantId:
+                  type: string
+                environmentId:
+                  type: string
+                name:
+                  type: string
+                  nullable: true
+                isPublished:
+                  type: boolean
+                version:
+                  type: string
+                  nullable: true
+              required:
+              - id
+              - tenantId
+              - environmentId
+              - isPublished
+            user:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                tenantId:
+                  type: string
+            conversationId:
+              type: string
+              minLength: 1
+              maxLength: 512
+            planId:
+              type: string
+              nullable: true
+            planStepId:
+              type: string
+              nullable: true
+            parentAgentComponentId:
+              type: string
+              nullable: true
+          required:
+          - agent
+          - conversationId
+      required:
+      - plannerContext
+      - toolDefinition
+      - inputValues
+      - conversationMetadata
+    CopilotStudioEvaluationResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        blockAction:
+          type: boolean
+        reasonCode:
+          type: integer
+        reason:
+          type: string
+        diagnostics:
+          type: string
+      required:
+      - blockAction
     GuardrailCredentials:
       type: object
       additionalProperties: false
@@ -6110,6 +6562,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        client_id: {type: string}
         sandbox: {type: string}
         sandboxScope: {$ref: '#/components/schemas/ResourceScope'}
         assignment: {$ref: '#/components/schemas/GuardrailAssignment'}
@@ -6142,7 +6595,7 @@ components:
           $ref: '#/components/schemas/ResourceActor'
         agent_kind:
           type: string
-          enum: [claude, codex, github-copilot-cli, github-copilot-desktop, chatgpt-desktop, claude-desktop]
+          enum: [claude, codex, github-copilot-cli, github-copilot-desktop, chatgpt-desktop, claude-desktop, microsoft-copilot-studio]
       required:
       - client_id
       - name
@@ -6202,10 +6655,12 @@ components:
           type: integer
           format: int64
           minimum: 0
+          nullable: true
         duration_ms:
           type: number
           format: double
           minimum: 0
+          nullable: true
         span_count:
           type: integer
           format: int64
@@ -9775,6 +10230,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        allowed_count: {type: integer, format: int64}
+        blocked_count: {type: integer, format: int64}
         source:
           type: string
         target:

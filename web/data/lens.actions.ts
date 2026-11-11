@@ -739,7 +739,10 @@ function traceListItems(
   traces: readonly (TraceSession | AppTrace)[],
   subject: TraceSubject
 ): TraceListItem[] {
-  const totalDurationMs = traces.reduce((total, trace) => total + trace.duration_ns / 1_000_000, 0)
+  const totalDurationMs = traces.reduce(
+    (total, trace) => total + (trace.duration_ns ?? 0) / 1_000_000,
+    0
+  )
   let cumulativeDurationMs = 0
   return traces.map((trace, index) => {
     const startedAt = dayjs(trace.started_at)
@@ -748,8 +751,8 @@ function traceListItems(
       trace.input_tokens === null || trace.output_tokens === null
         ? null
         : trace.input_tokens + trace.output_tokens
-    const durationMs = trace.duration_ns / 1_000_000
-    cumulativeDurationMs += durationMs
+    const durationMs = trace.duration_ns === null ? null : trace.duration_ns / 1_000_000
+    cumulativeDurationMs += durationMs ?? 0
     const startedDate = startedAt.isValid()
       ? formatRecentTimestamp(trace.started_at, "MMM D, YYYY")
       : trace.started_at
@@ -764,7 +767,7 @@ function traceListItems(
       startedDate,
       startedTime,
       endedTime,
-      duration: formatDurationMs(durationMs),
+      duration: durationMs === null ? "_" : formatDurationMs(durationMs),
       durationMs,
       cumulativeDurationMs,
       cumulativeDurationPercent:
@@ -893,6 +896,10 @@ function payloadSection(key: string, label: string, json: string): SpanDetailPay
 }
 
 function operationLabel(span: Span | AppSpan) {
+  if (span.operation_name === "observe_context") return "Copilot Studio context"
+  if (span.operation_name === "allow_tool") return `Allow ${span.tool_name}`
+  if (span.operation_name === "block_tool") return `Block ${span.tool_name}`
+  if (span.operation_name === "observe_tool_result") return `Observed ${span.tool_name} output`
   if (span.operation_name === "invoke_agent") {
     return "Agent run"
   }

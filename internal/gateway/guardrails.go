@@ -823,6 +823,23 @@ func (s *Service) GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request,
 		contextNamespace = sandbox.Namespace
 	}
 	bundle, err := guardrails.Resolve(r.Context(), s.k8sClient, contextNamespace, assignment)
+	if err == nil && input.ClientId != nil {
+		agent, getErr := s.queries.GatewayGetExternalAgent(r.Context(), *input.ClientId)
+		if getErr != nil {
+			apiutil.WriteError(w, r, mapGatewayStoreError("get external agent", getErr))
+			return
+		}
+		if agent.OrganizationID != access.claims.OrganizationID || agent.WorkspaceID != access.workspaceID {
+			apiutil.WriteError(w, r, resourceForbidden(errors.New("agent belongs to another workspace")))
+			return
+		}
+		if agent.Kind == "microsoft-copilot-studio" {
+			err = copilotStudioPolicyCompatibility(bundle)
+			if err == nil && len(bundle.Checks) == 0 {
+				err = fmt.Errorf("%w: assign at least one guardrail check", errCopilotStudioPolicy)
+			}
+		}
+	}
 	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest,

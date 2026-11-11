@@ -15,6 +15,7 @@ import {
   createAgentFile,
   createAgentTool,
   createCodingProject,
+  createCopilotStudioIntegration,
   createDashboard,
   createGuardrailConnection,
   createGuardrailPolicy,
@@ -65,6 +66,7 @@ import {
   getCodingOperation,
   getCodingProject,
   getCodingThread,
+  getCopilotStudioIntegration,
   getDashboard,
   getDelegatedCatalog,
   getDelegationCatalog,
@@ -109,6 +111,8 @@ import {
   listCodingProjects,
   listCodingRefs,
   listCodingRepositories,
+  listCopilotStudioAgents,
+  listCopilotStudioIntegrations,
   listDashboards,
   listDashboardTableRows,
   listEventTrailEvents,
@@ -176,6 +180,7 @@ import {
   updateChatSession,
   updateChatSessionPreference,
   updateCodingProjectPreference,
+  updateCopilotStudioIntegration,
   updateGuardrailConnection,
   updateGuardrailPolicy,
   updateGuardrailSettings,
@@ -209,6 +214,9 @@ import type {
   CreateCodingProjectData,
   CreateCodingProjectError,
   CreateCodingProjectResponse,
+  CreateCopilotStudioIntegrationData,
+  CreateCopilotStudioIntegrationError,
+  CreateCopilotStudioIntegrationResponse,
   CreateDashboardData,
   CreateDashboardError,
   CreateDashboardResponse,
@@ -358,6 +366,9 @@ import type {
   GetCodingThreadData,
   GetCodingThreadError,
   GetCodingThreadResponse,
+  GetCopilotStudioIntegrationData,
+  GetCopilotStudioIntegrationError,
+  GetCopilotStudioIntegrationResponse,
   GetDashboardData,
   GetDashboardError,
   GetDashboardResponse,
@@ -490,6 +501,12 @@ import type {
   ListCodingRepositoriesData,
   ListCodingRepositoriesError,
   ListCodingRepositoriesResponse,
+  ListCopilotStudioAgentsData,
+  ListCopilotStudioAgentsError,
+  ListCopilotStudioAgentsResponse2,
+  ListCopilotStudioIntegrationsData,
+  ListCopilotStudioIntegrationsError,
+  ListCopilotStudioIntegrationsResponse2,
   ListDashboardsData,
   ListDashboardsError,
   ListDashboardsResponse2,
@@ -688,6 +705,9 @@ import type {
   UpdateCodingProjectPreferenceData,
   UpdateCodingProjectPreferenceError,
   UpdateCodingProjectPreferenceResponse,
+  UpdateCopilotStudioIntegrationData,
+  UpdateCopilotStudioIntegrationError,
+  UpdateCopilotStudioIntegrationResponse,
   UpdateGuardrailConnectionData,
   UpdateGuardrailConnectionError,
   UpdateGuardrailConnectionResponse,
@@ -767,6 +787,126 @@ const createQueryKey = <TOptions extends Options>(
   }
   return [params]
 }
+
+export const listCopilotStudioIntegrationsQueryKey = (
+  options?: Options<ListCopilotStudioIntegrationsData>
+) => createQueryKey("listCopilotStudioIntegrations", options)
+
+export const listCopilotStudioIntegrationsOptions = (
+  options?: Options<ListCopilotStudioIntegrationsData>
+) =>
+  queryOptions<
+    ListCopilotStudioIntegrationsResponse2,
+    ListCopilotStudioIntegrationsError,
+    ListCopilotStudioIntegrationsResponse2,
+    ReturnType<typeof listCopilotStudioIntegrationsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listCopilotStudioIntegrations({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listCopilotStudioIntegrationsQueryKey(options),
+  })
+
+export const createCopilotStudioIntegrationMutation = (
+  options?: Partial<Options<CreateCopilotStudioIntegrationData>>
+): UseMutationOptions<
+  CreateCopilotStudioIntegrationResponse,
+  CreateCopilotStudioIntegrationError,
+  Options<CreateCopilotStudioIntegrationData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateCopilotStudioIntegrationResponse,
+    CreateCopilotStudioIntegrationError,
+    Options<CreateCopilotStudioIntegrationData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createCopilotStudioIntegration({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const getCopilotStudioIntegrationQueryKey = (
+  options: Options<GetCopilotStudioIntegrationData>
+) => createQueryKey("getCopilotStudioIntegration", options)
+
+export const getCopilotStudioIntegrationOptions = (
+  options: Options<GetCopilotStudioIntegrationData>
+) =>
+  queryOptions<
+    GetCopilotStudioIntegrationResponse,
+    GetCopilotStudioIntegrationError,
+    GetCopilotStudioIntegrationResponse,
+    ReturnType<typeof getCopilotStudioIntegrationQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getCopilotStudioIntegration({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: getCopilotStudioIntegrationQueryKey(options),
+  })
+
+export const updateCopilotStudioIntegrationMutation = (
+  options?: Partial<Options<UpdateCopilotStudioIntegrationData>>
+): UseMutationOptions<
+  UpdateCopilotStudioIntegrationResponse,
+  UpdateCopilotStudioIntegrationError,
+  Options<UpdateCopilotStudioIntegrationData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateCopilotStudioIntegrationResponse,
+    UpdateCopilotStudioIntegrationError,
+    Options<UpdateCopilotStudioIntegrationData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateCopilotStudioIntegration({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const listCopilotStudioAgentsQueryKey = (options: Options<ListCopilotStudioAgentsData>) =>
+  createQueryKey("listCopilotStudioAgents", options)
+
+export const listCopilotStudioAgentsOptions = (options: Options<ListCopilotStudioAgentsData>) =>
+  queryOptions<
+    ListCopilotStudioAgentsResponse2,
+    ListCopilotStudioAgentsError,
+    ListCopilotStudioAgentsResponse2,
+    ReturnType<typeof listCopilotStudioAgentsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listCopilotStudioAgents({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: listCopilotStudioAgentsQueryKey(options),
+  })
 
 export const listLensAppsQueryKey = (options?: Options<ListLensAppsData>) =>
   createQueryKey("listLensApps", options)
@@ -3839,7 +3979,7 @@ export const getDelegatedCatalogOptions = (options?: Options<GetDelegatedCatalog
   })
 
 /**
- * Export native Copilot traces with current delegated inference authorization.
+ * Export native GitHub Copilot traces with current delegated inference authorization.
  */
 export const exportExternalAgentTracesMutation = (
   options?: Partial<Options<ExportExternalAgentTracesData>>

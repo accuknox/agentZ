@@ -1,6 +1,7 @@
 global:
   agentz:
     delegationEnabled: true
+    copilotStudioEnabled: false
   # Operator-managed application credentials in the release namespace.
   secretName: agentz
 
@@ -111,6 +112,9 @@ config:
   openBaoK8sAuthMountPath: kubernetes
   openBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
   mcpProbeStaleAfter: 5m
+  # Provider resource application. Configure v2 access tokens and the idtyp claim in Entra.
+  copilotStudioAudience: ""
+  copilotStudioBaseURL: ""
   skillsS3Endpoint: ""
   skillsS3Region: us-east-1
   skillsS3Bucket: ""

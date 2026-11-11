@@ -113,7 +113,10 @@ export default async function TracesPage({
         <Suspense key={`chart:${contentKey}`} fallback={<EventsChartSkeleton />}>
           <Chart searchParams={resolved} workspaceId={workspaceId} scope={scope} />
         </Suspense>
-        <Suspense key={`traces:${contentKey}`} fallback={<TracesSkeleton />}>
+        <Suspense
+          key={`traces:${contentKey}`}
+          fallback={<TracesSkeleton subject={scope.then((selection) => selection.subject)} />}
+        >
           <Traces searchParams={resolved} workspaceId={workspaceId} scope={scope} />
         </Suspense>
       </div>
@@ -247,6 +250,7 @@ async function Traces({
     return (
       <TracesTable
         key={JSON.stringify([subject, params.traceID])}
+        subject={subject}
         data={
           result.data
             ? { traces: [result.data], nextPageToken: "", hasNextPage: false, limit: 1 }
@@ -282,6 +286,7 @@ async function Traces({
           : `agent:${subject.name}:${subject.sessionId}`
       }
       data={result.data}
+      subject={subject}
       error={result.error}
       workspaceId={workspaceId}
     />

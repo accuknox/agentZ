@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -733,4 +734,180 @@ func delegationTelemetry(grant gatewaydb.DelegationGrant, appName, agentKind str
 			},
 		},
 	}
+}
+
+func (s *Service) runCopilotStudioRuntime(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		// Each replica authenticates callbacks even when another owns projection.
+		tenants, err := s.queries.GatewayCopilotStudioTenants(ctx)
+		if err != nil && ctx.Err() == nil {
+			slog.ErrorContext(ctx, "load Copilot Studio tenants", "error", err)
+		}
+		for _, tenant := range tenants {
+			if err := s.copilotStudioKey(ctx, tenant); err != nil && ctx.Err() == nil {
+				slog.ErrorContext(ctx, "initialize Microsoft signing keys", "tenant", tenant, "error", err)
+			}
+		}
+		if err := s.projectCopilotStudioRuntime(ctx); err != nil && ctx.Err() == nil {
+			slog.ErrorContext(ctx, "reconcile Copilot Studio guardrails", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Service) projectCopilotStudioRuntime(ctx context.Context) error {
+	ctx, release, err := gatewayLocks(ctx, s.lockDB)
+	if err != nil {
+		return err
+	}
+	defer release()
+	queries := ctx.Value(gatewayLockKey{}).(*gatewaydb.Queries)
+	locked, err := queries.GatewayTryLockResource(ctx, "copilot-studio-runtime")
+	if err != nil || !locked {
+		return err
+	}
+	subjects, err := s.queries.GatewayCopilotStudioRuntimeSubjects(ctx)
+	if err != nil {
+		return err
+	}
+	active := make(map[string]bool)
+	messages := make(map[string]string)
+	for _, subject := range subjects {
+		if _, exists := messages[subject.ID]; !exists {
+			messages[subject.ID] = ""
+		}
+		namespace := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeWorkspace, subject.WorkspaceID)
+		bundle, resolveErr := guardrails.Resolve(ctx, s.k8sClient, namespace, agentzv1alpha1.GuardrailAssignment{Policies: subject.Policies})
+		if resolveErr == nil {
+			resolveErr = copilotStudioPolicyCompatibility(bundle)
+		}
+		if resolveErr == nil && len(bundle.Checks) == 0 {
+			resolveErr = errors.New("assign a guardrail policy before enabling protection")
+		}
+		if resolveErr != nil {
+			messages[subject.ID] = resolveErr.Error()
+			continue
+		}
+		name := "guard-" + bundle.Revision[:24]
+		if active[name] {
+			continue
+		}
+		if err = s.projectGuardrailEvaluation(ctx, bundle, name); err != nil {
+			messages[subject.ID] = "Policies could not be applied. Contact your administrator."
+			slog.ErrorContext(ctx, "project Copilot Studio guardrails", "integration", subject.ID, "error", err)
+			continue
+		}
+		active[name] = true
+	}
+	for id, message := range messages {
+		err = s.queries.GatewayUpdateCopilotStudioRuntime(ctx, gatewaydb.GatewayUpdateCopilotStudioRuntimeParams{ID: id, RuntimeError: message})
+		if err != nil {
+			return err
+		}
+	}
+	lists := []ctrlclient.ObjectList{
+		&gwv1.HTTPRouteList{}, &agw.AgentgatewayBackendList{}, &agw.AgentgatewayPolicyList{}, &ciliumv2.CiliumNetworkPolicyList{},
+	}
+	for _, list := range lists {
+		err = s.k8sClient.List(ctx, list,
+			ctrlclient.InNamespace(s.cfg.DelegationNamespace), ctrlclient.HasLabels{"agentz.accuknox.com/guardrail-evaluation"},
+		)
+		if err != nil {
+			return err
+		}
+		objects, extractErr := meta.ExtractList(list)
+		if extractErr != nil {
+			return extractErr
+		}
+		for _, object := range objects {
+			resource := object.(ctrlclient.Object)
+			if active[resource.GetName()] {
+				continue
+			}
+			if err = ctrlclient.IgnoreNotFound(s.k8sClient.Delete(ctx, resource)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Service) projectGuardrailEvaluation(ctx context.Context, bundle *guardrails.Bundle, name string) error {
+	namespace := s.cfg.DelegationNamespace
+	target, err := networkpolicy.URLTarget(s.cfg.GuardrailStubURL)
+	if err != nil {
+		return err
+	}
+	stub, err := url.Parse(s.cfg.GuardrailStubURL)
+	if err != nil {
+		return err
+	}
+	bundle.Rebind(namespace)
+	targets, err := bundle.ProjectConnections(ctx, s.k8sClient, namespace, "agentz-inference")
+	if err != nil {
+		return err
+	}
+	targets = append(targets, target)
+	backend := &agw.AgentgatewayBackend{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: agw.GroupVersion.String(), Kind: "AgentgatewayBackend",
+		},
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+		Spec: agw.AgentgatewayBackendSpec{AI: &agw.AIBackend{LLM: &agw.LLMProvider{
+			Host: target.Host, Port: target.Port, Path: stub.Path,
+			Custom: &agw.CustomProvider{CustomProviderSettings: agw.CustomProviderSettings{
+				Formats: []agw.ProviderFormatConfig{{Type: agw.ProviderFormatCompletions}},
+			}},
+		}}},
+	}
+	route := delegationRoute(namespace, "delegations", name, "/"+name+"/v1", gwv1.PathMatchPathPrefix)
+	policy := &agw.AgentgatewayPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: agw.GroupVersion.String(), Kind: "AgentgatewayPolicy",
+		},
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+		Spec: agw.AgentgatewayPolicySpec{
+			TargetRefs: []agw.LocalPolicyTargetReferenceWithSectionName{{
+				LocalPolicyTargetReference: agw.LocalPolicyTargetReference{
+					Group: "gateway.networking.k8s.io", Kind: "HTTPRoute", Name: gwv1.ObjectName(name),
+				},
+			}},
+		},
+	}
+	bundle.Apply(policy)
+	policy.Spec.Traffic.Transformation.Response = &agw.Transform{
+		Body: new(agw.CELExpression(`{
+  "blocked": false,
+  "revision": metadata.agentz_guardrail_revision,
+  "evaluations": guardrails.filter(e, e.action != "allow")
+}`)),
+	}
+	network := &ciliumv2.CiliumNetworkPolicy{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "cilium.io/v2", Kind: "CiliumNetworkPolicy"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+		Spec: &ciliumapi.Rule{
+			EndpointSelector: ciliumapi.NewESFromLabels(), Egress: networkpolicy.ExternalEgress(targets),
+		},
+	}
+	objects := []ctrlclient.Object{backend, route, policy, network}
+	for _, object := range objects {
+		object.SetLabels(map[string]string{"agentz.accuknox.com/guardrail-evaluation": name})
+		data, marshalErr := json.Marshal(object)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		err = s.k8sClient.Patch(ctx, object, ctrlclient.RawPatch(types.ApplyPatchType, data),
+			ctrlclient.FieldOwner("agentz-guardrails"), ctrlclient.ForceOwnership,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

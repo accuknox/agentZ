@@ -470,7 +470,9 @@ func (installed *installation) copilotModels(ctx context.Context) (copilotRegist
 		})
 	}
 	if len(registry.Models) == 0 {
-		return copilotRegistry{}, fmt.Errorf("no approved model supports Copilot tool calls. Run agentz login %s and select a compatible model", installed.Provider)
+		return copilotRegistry{}, fmt.Errorf(
+			"no approved model supports Copilot tool calls. Run agentz login %s and select a compatible model", installed.Provider,
+		)
 	}
 	return registry, nil
 }

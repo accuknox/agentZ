@@ -320,7 +320,8 @@ func (b *Bundle) compile(namespace string) error {
 			connection := resolved.Connection
 			name := ConnectionRuntimeName(connection)
 			secret := &agw.LocalSecretKeyRef{Name: gwv1.ObjectName(name), Key: new("token")}
-			defaultScopes := len(check.Scopes) == 2 && slices.Contains(check.Scopes, "instructions") && slices.Contains(check.Scopes, "conversation")
+			defaultScopes := len(check.Scopes) == 2 &&
+				slices.Contains(check.Scopes, "instructions") && slices.Contains(check.Scopes, "conversation")
 			// The pinned controller and runtime support custom scopes only for regex and Bedrock.
 			if check.Phase == "input" && connection.Spec.Provider != "Bedrock" && !defaultScopes {
 				return fmt.Errorf("check %q provider requires instructions and conversation scopes", check.ID)

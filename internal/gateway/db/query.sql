@@ -3152,7 +3152,7 @@ WITH sessions AS (
  SELECT session_id, MAX(end_time)::timestamptz AS last_seen
  FROM observer_app_operations
  WHERE organization_id = sqlc.arg(organization_id) AND workspace_id = sqlc.arg(workspace_id)
-   AND client_id = sqlc.arg(client_id) AND agent_kind IN ('claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop')
+   AND client_id = sqlc.arg(client_id) AND agent_kind IN ('claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop', 'microsoft-copilot-studio')
    AND session_id <> '' AND run_id IS NULL AND resource_kind <> 'tool'
    AND (sqlc.arg(session_id)::text = '' OR session_id = sqlc.arg(session_id))
  GROUP BY session_id
@@ -3207,7 +3207,7 @@ WITH identities AS (
    AND (op.run_id = candidate.root_id OR op.id = candidate.root_id
      OR (candidate.root_id IS NULL AND op.run_id IS NULL AND op.trace_id = candidate.trace_id))
 )
-SELECT members.logical_trace_id AS trace_id, members.started_at,
+SELECT members.logical_trace_id AS trace_id, members.started_at, MIN(span.agent_kind)::text AS agent_kind,
  MAX(span.end_time)::timestamptz AS ended_at,
  (ARRAY_AGG(span.span_id ORDER BY span.resource_kind <> 'turn', span.start_time, span.id))[1]::bytea AS root_span_id,
  (EXTRACT(EPOCH FROM MAX(span.end_time) - members.started_at) * 1000000000)::bigint AS duration_ns,
@@ -3230,7 +3230,7 @@ SELECT members.logical_trace_id AS trace_id, members.started_at,
  COALESCE(SUM(span.cost_usd) FILTER (WHERE span.span_class = 'llm'), 0)::double precision AS cost_usd,
  COUNT(span.cost_usd) FILTER (WHERE span.span_class = 'llm') > 0
    AND COUNT(span.cost_usd) FILTER (WHERE span.span_class = 'llm') = COUNT(*) FILTER (WHERE span.span_class = 'llm') AS cost_usd_known,
- CASE WHEN BOOL_OR(span.status_code = 'ERROR') THEN 'ERROR' ELSE 'OK' END::text AS status_code,
+ CASE WHEN BOOL_OR(span.status_code = 'ERROR') THEN 'ERROR' WHEN MIN(span.agent_kind) = 'microsoft-copilot-studio' THEN 'UNSET' ELSE 'OK' END::text AS status_code,
  MAX(span.ingested_at)::timestamptz AS updated_at
 FROM members JOIN observer_app_spans span ON span.id = members.id
 WHERE span.visible
@@ -3323,30 +3323,32 @@ ORDER BY array_position(sqlc.arg(operation_ids)::bigint[], span.id);
 
 -- name: GatewayGetAppMCPGraph :many
 WITH selected AS (
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_spans op
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time, op.agent_kind, op.operation_name FROM observer_app_spans op
  WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
-   AND op.visible AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp'
+   AND op.visible AND op.client_id = sqlc.arg(client_id) AND (op.resource_kind = 'mcp' OR (op.agent_kind = 'microsoft-copilot-studio' AND op.resource_kind = 'tool' AND op.operation_name IN ('allow_tool', 'block_tool')))
    AND op.start_time >= sqlc.arg(start_time_after) AND op.start_time < sqlc.arg(start_time_before)
    AND sqlc.arg(session_id)::text = ''
  UNION ALL
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_spans op
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time, op.agent_kind, op.operation_name FROM observer_app_spans op
  WHERE op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
-   AND op.visible AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp'
+   AND op.visible AND op.client_id = sqlc.arg(client_id) AND (op.resource_kind = 'mcp' OR (op.agent_kind = 'microsoft-copilot-studio' AND op.resource_kind = 'tool' AND op.operation_name IN ('allow_tool', 'block_tool')))
    AND op.start_time >= sqlc.arg(start_time_after) AND op.start_time < sqlc.arg(start_time_before)
    AND sqlc.arg(session_id)::text <> '' AND op.session_id = sqlc.arg(session_id)
  UNION ALL
- SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time FROM observer_app_operations run JOIN observer_app_spans op ON op.run_id = run.id
+ SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name, op.duration_ns, op.status_code, op.start_time, op.agent_kind, op.operation_name FROM observer_app_operations run JOIN observer_app_spans op ON op.run_id = run.id
  WHERE run.organization_id = sqlc.arg(organization_id) AND run.workspace_id = sqlc.arg(workspace_id)
    AND run.client_id = sqlc.arg(client_id) AND run.resource_kind = 'turn'
    AND run.session_id = sqlc.arg(session_id) AND sqlc.arg(session_id)::text <> ''
    AND op.organization_id = sqlc.arg(organization_id) AND op.workspace_id = sqlc.arg(workspace_id)
-   AND op.visible AND op.client_id = sqlc.arg(client_id) AND op.resource_kind = 'mcp' AND op.session_id = ''
+   AND op.visible AND op.client_id = sqlc.arg(client_id) AND (op.resource_kind = 'mcp' OR (op.agent_kind = 'microsoft-copilot-studio' AND op.resource_kind = 'tool' AND op.operation_name IN ('allow_tool', 'block_tool'))) AND op.session_id = ''
    AND op.start_time >= sqlc.arg(start_time_after) AND op.start_time < sqlc.arg(start_time_before)
 )
 SELECT op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name,
- AVG(op.duration_ns::double precision / 1000000)::double precision AS avg_latency_ms,
- COUNT(*) FILTER (WHERE op.status_code <> 'ERROR')::bigint AS success_count,
- COUNT(*) FILTER (WHERE op.status_code = 'ERROR')::bigint AS failed_count,
+ COALESCE(AVG(op.duration_ns::double precision / 1000000) FILTER (WHERE op.agent_kind <> 'microsoft-copilot-studio'), 0)::double precision AS avg_latency_ms,
+ COUNT(*) FILTER (WHERE op.operation_name = 'allow_tool')::bigint AS allowed_count,
+ COUNT(*) FILTER (WHERE op.operation_name = 'block_tool')::bigint AS blocked_count,
+ COUNT(*) FILTER (WHERE op.agent_kind <> 'microsoft-copilot-studio' AND op.status_code <> 'ERROR')::bigint AS success_count,
+ COUNT(*) FILTER (WHERE op.agent_kind <> 'microsoft-copilot-studio' AND op.status_code = 'ERROR')::bigint AS failed_count,
  MAX(op.start_time)::timestamptz AS last_called_at
 FROM selected op
 GROUP BY op.resource_uid, op.resource_name, op.resource_namespace, op.tool_name
@@ -3384,7 +3386,8 @@ WITH event AS (
     AND w.deleted_at IS NULL
     AND w.id = event.workspace_id
   JOIN observer_app_operations op ON op.organization_id = event.organization_id
-    AND op.workspace_id = w.id AND op.span_class = 'llm'
+    AND op.workspace_id = w.id
+    AND (op.span_class = 'llm' OR (op.agent_kind = 'microsoft-copilot-studio' AND op.operation_name IN ('allow_tool', 'block_tool')))
     AND event.client_id <> '' AND op.client_id = event.client_id
     AND ((op.trace_id = event.trace_id AND op.span_id = event.span_id)
       OR (event.session_id <> '' AND op.session_id = event.session_id
@@ -3617,3 +3620,105 @@ SELECT pg_notify('agentz_chat_sessions', workspace_id) FROM changed;
 SELECT locked FROM chat_sessions
 WHERE workspace_id = @workspace_id AND agent_name = @agent_name
 FOR UPDATE;
+
+-- name: GatewayListCopilotStudioIntegrations :many
+SELECT i.* FROM copilot_studio_integrations i
+WHERE i.organization_id = @organization_id AND i.workspace_id = @workspace_id
+  AND (NOT @cursor_set::boolean OR i.id > @cursor_id::text)
+ORDER BY i.id
+LIMIT @page_size;
+
+-- name: GatewayListCopilotStudioAgents :many
+SELECT a.client_id, a.agent_id, COALESCE(c.name, a.agent_id)::text AS name,
+  e.created_at, a.last_seen_at, COALESCE(c.disabled, false)::boolean AS disabled
+FROM copilot_studio_agents a
+JOIN copilot_studio_integrations i ON i.id = a.integration_id
+JOIN external_agents e ON e.client_id = a.client_id
+JOIN oauth_clients c ON c.client_id = a.client_id
+WHERE i.id = @integration_id AND i.organization_id = @organization_id AND i.workspace_id = @workspace_id
+  AND (@administer::boolean OR e.user_id = @user_id)
+  AND (NOT @cursor_set::boolean OR a.agent_id > @cursor_id::text)
+ORDER BY a.agent_id
+LIMIT @page_size;
+
+-- name: GatewayGetCopilotStudioIntegration :one
+SELECT * FROM copilot_studio_integrations WHERE id = @id;
+
+-- name: GatewaySaveCopilotStudioIntegration :one
+WITH integration AS (
+INSERT INTO copilot_studio_integrations (id, organization_id, workspace_id, user_id, name, tenant_id, application_id, environment_id, enabled, failure_mode, policies)
+VALUES (@id, @organization_id, @workspace_id, @user_id, @name, @tenant_id, @application_id, @environment_id, @enabled, @failure_mode, @policies)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, enabled = EXCLUDED.enabled, failure_mode = EXCLUDED.failure_mode, policies = EXCLUDED.policies
+WHERE copilot_studio_integrations.organization_id = EXCLUDED.organization_id
+  AND copilot_studio_integrations.workspace_id = EXCLUDED.workspace_id
+  AND copilot_studio_integrations.tenant_id = EXCLUDED.tenant_id
+  AND copilot_studio_integrations.application_id = EXCLUDED.application_id
+  AND copilot_studio_integrations.environment_id = EXCLUDED.environment_id
+RETURNING id, workspace_id
+), notification AS (
+ SELECT pg_notify('agentz_external_agents', workspace_id) FROM integration
+)
+SELECT integration.id FROM integration CROSS JOIN notification;
+
+-- name: GatewayCopilotStudioTenants :many
+SELECT DISTINCT tenant_id FROM copilot_studio_integrations WHERE enabled ORDER BY tenant_id;
+
+-- name: GatewayCopilotStudioRuntimeSubjects :many
+SELECT i.id, i.workspace_id, i.policies
+FROM copilot_studio_integrations i WHERE i.enabled
+UNION
+SELECT i.id, i.workspace_id, g.policies
+FROM copilot_studio_integrations i JOIN copilot_studio_agents a ON a.integration_id = i.id
+JOIN oauth_clients c ON c.client_id = a.client_id AND c.disabled IS NOT TRUE
+JOIN guardrail_client_access g ON g.client_id = a.client_id AND g.organization_id = i.organization_id AND g.workspace_id = i.workspace_id
+WHERE i.enabled;
+
+-- name: GatewayUpdateCopilotStudioRuntime :exec
+WITH changed AS (
+ UPDATE copilot_studio_integrations SET runtime_error = @runtime_error
+ WHERE id = @id AND runtime_error IS DISTINCT FROM @runtime_error
+ RETURNING workspace_id
+)
+SELECT pg_notify('agentz_external_agents', workspace_id) FROM changed;
+
+-- name: GatewayTouchCopilotStudio :exec
+WITH integration AS (
+ UPDATE copilot_studio_integrations ci SET
+ validated_at = CASE WHEN @validated::boolean THEN now() ELSE ci.validated_at END,
+ last_seen_at = CASE WHEN @validated::boolean THEN ci.last_seen_at ELSE now() END
+ WHERE ci.id = @id AND ci.enabled
+   AND (@validated::boolean OR ci.last_seen_at IS NULL OR ci.last_seen_at < now() - interval '15 seconds')
+ RETURNING ci.workspace_id
+), activity AS (
+ UPDATE copilot_studio_agents a SET last_seen_at = now()
+ FROM copilot_studio_integrations i
+ WHERE a.integration_id = i.id AND i.id = @id AND i.enabled
+   AND a.agent_id = @agent_id AND NOT @validated::boolean
+)
+SELECT pg_notify('agentz_external_agents', workspace_id) FROM integration WHERE @validated::boolean;
+
+-- name: GatewayRegisterCopilotStudioAgent :one
+WITH integration AS (
+ SELECT ci.* FROM copilot_studio_integrations ci WHERE ci.id = @integration_id AND ci.enabled FOR KEY SHARE
+), identity AS (
+ INSERT INTO oauth_clients (id, client_id, user_id, name, redirect_uris, scopes, grant_types, created_at, updated_at)
+ SELECT @client_id, @client_id, i.user_id, @name, '{}', '{}', '{}', now(), now()
+ FROM integration i WHERE NOT EXISTS (
+  SELECT 1 FROM copilot_studio_agents a WHERE a.integration_id = i.id AND a.agent_id = @agent_id
+ ) ON CONFLICT DO NOTHING RETURNING client_id
+), registered AS (
+ INSERT INTO external_agents (client_id, organization_id, workspace_id, user_id, kind)
+ SELECT c.client_id, i.organization_id, i.workspace_id, i.user_id, 'microsoft-copilot-studio'
+ FROM identity c CROSS JOIN integration i RETURNING *
+), mapping AS (
+ INSERT INTO copilot_studio_agents (integration_id, agent_id, client_id)
+ SELECT @integration_id, @agent_id, client_id FROM registered RETURNING copilot_studio_agents.client_id
+), notification AS (
+ SELECT pg_notify('agentz_external_agents', workspace_id) FROM registered
+)
+SELECT r.* FROM registered r JOIN mapping m USING (client_id) CROSS JOIN notification
+UNION ALL
+SELECT e.* FROM copilot_studio_agents a JOIN external_agents e ON e.client_id = a.client_id
+JOIN oauth_clients c ON c.client_id = a.client_id AND c.disabled IS NOT TRUE
+WHERE a.integration_id = @integration_id AND a.agent_id = @agent_id
+LIMIT 1;

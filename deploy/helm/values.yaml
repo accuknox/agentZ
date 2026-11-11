@@ -6,6 +6,7 @@ global:
     umbrella: true
     # Disable delegation consistently across gateway, manager and web.
     delegationEnabled: true
+    copilotStudioEnabled: false
 
 migrations:
   # Umbrella installs/upgrades prepare the complete shared database before

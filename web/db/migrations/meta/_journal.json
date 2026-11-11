@@ -64,6 +64,13 @@
       "when": 1794311929775,
       "tag": "0008_external_agents",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794385839435,
+      "tag": "0009_copilot-studio",
+      "breakpoints": true
     }
   ]
 }

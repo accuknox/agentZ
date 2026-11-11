@@ -20,7 +20,7 @@
 {{- $delegationNamespace := .Values.delegation.namespace }}
 {{- if $umbrella }}
 {{- $delegationNamespace = "" }}
-{{- if (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
+{{- if (or (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) (dig "agentz" "copilotStudioEnabled" false (.Values.global | default dict))) }}
 {{- $delegationNamespace = default (printf "%s-gateway-delegations" .Release.Name | trunc 63 | trimSuffix "-") .Values.delegation.namespace }}
 {{- end }}
 {{- end }}

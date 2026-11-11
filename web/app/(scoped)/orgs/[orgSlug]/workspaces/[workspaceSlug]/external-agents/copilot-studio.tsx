@@ -13,6 +13,13 @@ import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSet } from "@/com
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
@@ -128,7 +135,7 @@ function CopilotStudioConnection({
     tenant_id: integration?.tenant_id ?? "",
     application_id: integration?.application_id ?? "",
     environment_id: integration?.environment_id ?? "",
-    enabled: integration?.enabled ?? false,
+    enabled: integration?.enabled ?? true,
     failure_mode: integration?.failure_mode ?? "closed",
     assignment: integration?.assignment ?? { policies: [] },
   })
@@ -277,31 +284,37 @@ function CopilotStudioConnection({
                 <FieldDescription>
                   Tool-call checks only. Response checks and masking aren&apos;t supported.
                 </FieldDescription>
-                <Field orientation="horizontal">
-                  <div className="flex-1">
-                    <FieldLabel htmlFor="copilot-studio-failure">
-                      Block when evaluation is unavailable
-                    </FieldLabel>
-                    <FieldDescription>Match the Power Platform error behavior.</FieldDescription>
-                  </div>
-                  <Switch
-                    id="copilot-studio-failure"
-                    checked={input.failure_mode === "closed"}
-                    onCheckedChange={(checked) =>
-                      setInput({ ...input, failure_mode: checked ? "closed" : "open" })
-                    }
-                  />
+                <Field>
+                  <FieldLabel htmlFor="copilot-studio-failure">Failure mode</FieldLabel>
+                  <Select
+                    value={input.failure_mode}
+                    onValueChange={(failure_mode) => {
+                      if (failure_mode === "closed" || failure_mode === "open")
+                        setInput({ ...input, failure_mode })
+                    }}
+                  >
+                    <SelectTrigger id="copilot-studio-failure" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="closed">Fail closed</SelectItem>
+                      <SelectItem value="open">Fail open</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>Match the Power Platform error behavior.</FieldDescription>
                 </Field>
-                <Field orientation="horizontal">
-                  <div className="flex-1">
-                    <FieldLabel htmlFor="copilot-studio-enabled">Enable connection</FieldLabel>
-                  </div>
-                  <Switch
-                    id="copilot-studio-enabled"
-                    checked={input.enabled}
-                    onCheckedChange={(enabled) => setInput({ ...input, enabled })}
-                  />
-                </Field>
+                {integration ? (
+                  <Field orientation="horizontal">
+                    <div className="flex-1">
+                      <FieldLabel htmlFor="copilot-studio-enabled">Enable connection</FieldLabel>
+                    </div>
+                    <Switch
+                      id="copilot-studio-enabled"
+                      checked={input.enabled}
+                      onCheckedChange={(enabled) => setInput({ ...input, enabled })}
+                    />
+                  </Field>
+                ) : null}
               </FieldGroup>
             </FieldSet>
             <LoadingButton pending={pending || !data} type="submit">

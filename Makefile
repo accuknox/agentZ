@@ -24,6 +24,7 @@ SKILLS_S3_SECRET_ACCESS_KEY ?= admin
 # Host development uses the same gateway for management and delegated requests.
 DELEGATION_NAMESPACE ?= agentz-delegations
 DELEGATION_GATEWAY_URL ?= http://localhost:8080
+GATEWAY_FLAGS ?=
 
 KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize
@@ -136,7 +137,8 @@ run-gateway:
 		--openbao-k8s-auth-token-path=$(OPENBAO_TOKEN_PATH) \
 		--skills-s3-endpoint=$(SKILLS_S3_ENDPOINT) \
 		--skills-s3-region=$(SKILLS_S3_REGION) \
-		--skills-s3-bucket=$(SKILLS_S3_BUCKET)
+		--skills-s3-bucket=$(SKILLS_S3_BUCKET) \
+		$(GATEWAY_FLAGS)
 
 .PHONY: run-manager
 run-manager:

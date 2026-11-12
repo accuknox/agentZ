@@ -1057,7 +1057,10 @@ function ExternalAgentEditor({
         if (!open && !pending) onClose()
       }}
     >
-      <SheetContent size="default">
+      <SheetContent
+        size="default"
+        className={studio ? "sm:w-[34.56rem] sm:max-w-[34.56rem]" : undefined}
+      >
         <SheetHeader>
           <SheetTitle>
             {agent ? "Rename agent" : (environment?.name ?? "Add external agent")}
@@ -1071,7 +1074,9 @@ function ExternalAgentEditor({
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="external-agent-kind">Agent</FieldLabel>
+                  <FieldLabel htmlFor="external-agent-kind" required>
+                    Agent
+                  </FieldLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}

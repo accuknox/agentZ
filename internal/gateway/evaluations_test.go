@@ -24,6 +24,31 @@ type evaluationScoreCase struct {
 	want                    float64
 }
 
+func TestCopilotStudioWithoutOptionalPolicies(t *testing.T) {
+	service := sandboxTestService(t, nil)
+	assignment := agentzv1alpha1.GuardrailAssignment{}
+	result, err := service.evaluateCopilotStudio(t.Context(), testWorkspaceNS, assignment, gatewayapi.CopilotStudioEvaluationRequest{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Blocked || len(result.Evaluations) != 0 || result.Revision == "" {
+		t.Fatalf("empty effective policy must allow without calling the runtime: %+v", result)
+	}
+
+	tenant := &agentzv1alpha1.Tenant{}
+	key := client.ObjectKey{Name: agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, testOrganizationID)}
+	if err := service.k8sClient.Get(t.Context(), key, tenant); err != nil {
+		t.Fatal(err)
+	}
+	tenant.Spec.Guardrails.MandatoryPolicies = []string{"missing-baseline"}
+	if err := service.k8sClient.Update(t.Context(), tenant); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.evaluateCopilotStudio(t.Context(), testWorkspaceNS, assignment, gatewayapi.CopilotStudioEvaluationRequest{}, nil); err == nil {
+		t.Fatal("empty optional policies must not bypass a missing organization baseline")
+	}
+}
+
 // TestEvaluationScore checks quality gates and missing measurements.
 func TestEvaluationScore(t *testing.T) {
 	tests := []evaluationScoreCase{

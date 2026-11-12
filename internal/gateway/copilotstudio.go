@@ -89,6 +89,7 @@ func (s *Service) ListCopilotStudioIntegrations(w http.ResponseWriter, r *http.R
 	})
 	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListCopilotStudioIntegrationsResponse{
 		Enabled: s.cfg.CopilotStudioAudience != "", Integrations: items, NextPageToken: next,
+		Audience: s.cfg.CopilotStudioAudience, BaseUrl: s.cfg.CopilotStudioBaseURL,
 	})
 }
 
@@ -242,9 +243,6 @@ func (s *Service) saveCopilotStudioIntegration(w http.ResponseWriter, r *http.Re
 	bundle, err := guardrails.Resolve(r.Context(), s.k8sClient, access.namespace, assignment)
 	if err == nil {
 		err = copilotStudioPolicyCompatibility(bundle)
-	}
-	if err == nil && input.Enabled && len(bundle.Checks) == 0 {
-		err = errors.New("assign at least one guardrail policy before enabling the integration")
 	}
 	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(400, "invalid_request", err.Error(), err))
@@ -562,7 +560,7 @@ func (s *Service) evaluateCopilotStudio(ctx context.Context, namespace string, a
 	}
 	result.Revision = bundle.Revision
 	if len(bundle.Checks) == 0 {
-		return result, fmt.Errorf("%w: assign at least one guardrail check", errCopilotStudioPolicy)
+		return result, nil
 	}
 	name := "guard-" + bundle.Revision[:24]
 	requestURL := strings.TrimSuffix(s.cfg.DelegationGatewayURL, "/") + "/" + name + "/v1/chat/completions"

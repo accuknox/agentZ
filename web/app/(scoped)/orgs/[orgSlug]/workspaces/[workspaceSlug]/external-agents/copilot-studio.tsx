@@ -1,15 +1,31 @@
 "use client"
 
 import { useState, type TransitionStartFunction } from "react"
+import { Controller, useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { zCopilotStudioIntegrationInput } from "@/lib/gateway/client/zod.gen"
 import { queryOptions, useQuery } from "@tanstack/react-query"
-import { BrickWallShield, Link2, ShieldCheck } from "lucide-react"
+import { BrickWallShield, Link2, ShieldCheck, Terminal } from "lucide-react"
 import { toast } from "sonner"
 import type { CopilotStudioIntegrationInput } from "@/lib/gateway/client"
 import { loadCopilotStudioAction, saveCopilotStudioAction } from "./actions"
 import { RequestError } from "@/components/request-error"
 import { SubjectGuardrails } from "@/components/guardrails/subject-guardrails"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldSet,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
@@ -17,6 +33,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectGroup,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -49,35 +66,41 @@ export function CopilotStudio({
   )
   if (query.isPending && integrationId)
     return (
-      <Tabs defaultValue="installation" className="min-h-0 gap-4" aria-busy>
+      <Tabs defaultValue="setup" className="min-h-0 gap-4" aria-busy>
         <TabsList className="w-full">
-          <TabsTrigger value="connection" disabled>
-            Connection
+          <TabsTrigger value="setup" disabled>
+            Setup
           </TabsTrigger>
-          <TabsTrigger value="installation" disabled>
-            Installation
+          <TabsTrigger value="policies" disabled>
+            Policies
           </TabsTrigger>
         </TabsList>
-        <FieldGroup
-          role="status"
-          aria-label="Loading installation"
-          className="overflow-y-auto px-1 pb-1"
-        >
-          <Field aria-hidden>
-            <FieldLabel>1. Configure Microsoft Entra</FieldLabel>
-            <Skeleton className="h-10 w-full" />
-          </Field>
-          {["Issuer", "Subject identifier", "Audience", "AgentZ provider application ID"].map(
-            (label) => (
-              <Field key={label} aria-hidden>
-                <FieldLabel>{label}</FieldLabel>
-                <div className="flex items-start gap-2">
-                  <Skeleton className="h-9 flex-1" />
-                  <Skeleton className="size-9 shrink-0" />
-                </div>
-              </Field>
-            )
-          )}
+        <FieldGroup role="status" aria-label="Loading setup" className="overflow-y-auto px-1 pb-1">
+          {[
+            "AgentZ provider application ID",
+            "Public gateway origin",
+            "Connection name",
+            "Directory tenant ID",
+            "Application client ID",
+            "Power Platform environment ID",
+            "Failure mode",
+          ].map((label) => (
+            <Field key={label} aria-hidden>
+              <FieldLabel
+                required={
+                  label !== "AgentZ provider application ID" && label !== "Public gateway origin"
+                }
+              >
+                {label}
+              </FieldLabel>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-8 flex-1" />
+                {label === "AgentZ provider application ID" || label === "Public gateway origin" ? (
+                  <Skeleton className="size-6 shrink-0" />
+                ) : null}
+              </div>
+            </Field>
+          ))}
         </FieldGroup>
       </Tabs>
     )
@@ -130,17 +153,32 @@ function CopilotStudioConnection({
   onSaved: (id: string) => void
 }) {
   const integration = data?.integration
-  const [input, setInput] = useState<CopilotStudioIntegrationInput>({
-    name: integration?.name ?? "Copilot Studio",
-    tenant_id: integration?.tenant_id ?? "",
-    application_id: integration?.application_id ?? "",
-    environment_id: integration?.environment_id ?? "",
-    enabled: integration?.enabled ?? true,
-    failure_mode: integration?.failure_mode ?? "closed",
-    assignment: integration?.assignment ?? { policies: [] },
+  const form = useForm<CopilotStudioIntegrationInput>({
+    resolver: zodResolver(zCopilotStudioIntegrationInput),
+    reValidateMode: "onBlur",
+    defaultValues: {
+      name: integration?.name ?? "Copilot Studio",
+      tenant_id: integration?.tenant_id ?? "",
+      application_id: integration?.application_id ?? "",
+      environment_id: integration?.environment_id ?? "",
+      enabled: integration?.enabled ?? true,
+      failure_mode: integration?.failure_mode ?? "closed",
+      assignment: integration?.assignment ?? { policies: [] },
+    },
   })
-  const [tab, setTab] = useState(integration ? "installation" : "connection")
-  const [error, setError] = useState("")
+  const [tab, setTab] = useState("setup")
+  const credentialCommand = integration
+    ? `az ad app federated-credential create --id ${integration.application_id} --parameters '${JSON.stringify(
+        {
+          name: `agentz-${integration.id}`,
+          issuer: integration.federated_credential.issuer,
+          subject: integration.federated_credential.subject,
+          audiences: [integration.federated_credential.audience],
+        },
+        null,
+        2
+      )}'`
+    : ""
 
   return (
     <Tabs
@@ -150,42 +188,139 @@ function CopilotStudioConnection({
       aria-busy={!data || undefined}
     >
       <TabsList className="w-full">
-        <TabsTrigger value="connection">Connection</TabsTrigger>
-        <TabsTrigger value="installation" disabled={!integration}>
-          Installation
+        <TabsTrigger value="setup">Setup</TabsTrigger>
+        <TabsTrigger value="policies" disabled={!integration}>
+          Policies
         </TabsTrigger>
       </TabsList>
       <div className="min-h-0 overflow-y-auto overscroll-contain px-1 pb-1">
-        {error ? (
-          <Alert variant="destructive" className="mb-4">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        <TabsContent value="connection" className="mt-0">
-          <form
-            autoComplete="off"
-            className="flex flex-col gap-5"
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (!data) return
-              setError("")
-              startTransition(async () => {
-                const result = await saveCopilotStudioAction(
-                  scope.orgSlug,
-                  scope.workspaceSlug,
-                  input,
-                  integration?.id
-                )
-                if (result.data === undefined) {
-                  setError(result.error)
-                  return
-                }
-                onSaved(result.data.id)
-                setTab("installation")
-                toast.success("Copilot Studio connection saved")
-              })
-            }}
-          >
+        <FieldGroup className={tab === "policies" ? "hidden" : "mb-5 gap-4"}>
+          {[
+            { label: "AgentZ provider application ID", value: data?.audience },
+            { label: "Public gateway origin", value: data?.baseURL },
+          ].map(({ label, value }) => (
+            <Field key={label}>
+              <FieldLabel>{label}</FieldLabel>
+              <div className="flex items-center gap-2">
+                {value === undefined ? (
+                  <>
+                    <Skeleton className="h-8 flex-1" />
+                    <Skeleton className="size-6 shrink-0" />
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      readOnly
+                      value={value}
+                      aria-label={`${label} to copy`}
+                      className="font-mono text-xs md:text-xs"
+                    />
+                    <CopyButton content={value} label={`Copy ${label.toLowerCase()}`} />
+                  </>
+                )}
+              </div>
+            </Field>
+          ))}
+        </FieldGroup>
+        <FieldError errors={[form.formState.errors.root]} />
+        <form
+          autoComplete="off"
+          noValidate
+          className="flex flex-col gap-5"
+          onSubmit={form.handleSubmit((input) => {
+            if (!data) return
+            form.clearErrors("root")
+            startTransition(async () => {
+              const result = await saveCopilotStudioAction(
+                scope.orgSlug,
+                scope.workspaceSlug,
+                input,
+                integration?.id
+              )
+              if (result.data === undefined) {
+                form.setError("root", { message: result.error })
+                return
+              }
+              onSaved(result.data.id)
+              toast.success("Copilot Studio connection saved")
+            })
+          })}
+        >
+          <TabsContent value="setup" className="mt-0 flex flex-col gap-5">
+            <Accordion
+              type="single"
+              collapsible
+              defaultValue={integration ? undefined : "azure"}
+              className="mb-5 border-b"
+            >
+              <AccordionItem value="azure">
+                <AccordionTrigger className="items-center gap-2 py-3 hover:no-underline">
+                  <span className="shrink-0 font-mono text-xs text-primary">1</span>
+                  <span className="flex-1">Set up Azure</span>
+                </AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-4 pb-4">
+                  <FieldDescription>
+                    Requires Cloud Application Administrator and Power Platform Administrator. Run
+                    in Azure CLI with Bash.
+                  </FieldDescription>
+                  {[
+                    {
+                      label: "Sign in",
+                      command:
+                        "az login --tenant CUSTOMER_TENANT_ID --allow-no-subscriptions\naz account show --query tenantId -o tsv",
+                      description: "Use your tenant ID from Azure → Microsoft Entra ID → Overview.",
+                    },
+                    {
+                      label: "Create an app",
+                      command:
+                        'CALLER_APP_ID=$(az ad app create --display-name "AgentZ Microsoft Copilot Studio" --sign-in-audience AzureADMyOrg --query appId -o tsv)\naz ad sp create --id "$CALLER_APP_ID" --query appId -o tsv',
+                      description: "Paste the result into Application client ID.",
+                    },
+                    {
+                      label: "Add AgentZ",
+                      command: data ? `az ad sp create --id ${data.audience}` : "",
+                      description: "",
+                    },
+                  ].map(({ label, command, description }) => (
+                    <Field key={label}>
+                      <FieldLabel>
+                        <Terminal aria-hidden className="size-3.5 text-primary" />
+                        {label}
+                      </FieldLabel>
+                      <div className="flex items-start gap-2">
+                        <Textarea
+                          readOnly
+                          value={command}
+                          aria-label={label}
+                          className="field-sizing-content min-h-0 resize-none border-primary/15 bg-muted/40 font-mono text-xs leading-5 text-foreground shadow-none md:text-xs"
+                        />
+                        {command ? (
+                          <CopyButton
+                            content={command}
+                            label={`Copy ${label.toLowerCase()} command`}
+                          />
+                        ) : (
+                          <Skeleton className="size-6 shrink-0" />
+                        )}
+                      </div>
+                      {description ? <FieldDescription>{description}</FieldDescription> : null}
+                    </Field>
+                  ))}
+                  <FieldDescription>
+                    Copy Environment ID from{" "}
+                    <a
+                      className="underline"
+                      href="https://admin.powerplatform.microsoft.com/"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Power Platform admin center
+                    </a>
+                    → Manage → Environments → your environment → Details. Fill in the form and save.
+                  </FieldDescription>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
             <FieldSet
               disabled={pending || !data}
               className={
@@ -195,30 +330,36 @@ function CopilotStudioConnection({
               }
             >
               <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="copilot-studio-name">Connection name</FieldLabel>
+                <Field data-invalid={!!form.formState.errors.name}>
+                  <FieldLabel htmlFor="copilot-studio-name" required>
+                    Connection name
+                  </FieldLabel>
                   <Input
                     id="copilot-studio-name"
                     required
                     maxLength={120}
-                    value={input.name}
-                    onChange={(event) => setInput({ ...input, name: event.target.value })}
+                    aria-invalid={!!form.formState.errors.name}
+                    {...form.register("name")}
                   />
+                  <FieldError errors={[form.formState.errors.name]} />
                 </Field>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="copilot-studio-tenant">Directory tenant ID</FieldLabel>
+                <FieldGroup className="grid gap-4 sm:grid-cols-2">
+                  <Field data-invalid={!!form.formState.errors.tenant_id}>
+                    <FieldLabel htmlFor="copilot-studio-tenant" required>
+                      Directory tenant ID
+                    </FieldLabel>
                     <Input
                       id="copilot-studio-tenant"
                       required
                       readOnly={!!integration}
                       placeholder="00000000-0000-0000-0000-000000000000"
-                      value={input.tenant_id}
-                      onChange={(event) => setInput({ ...input, tenant_id: event.target.value })}
+                      aria-invalid={!!form.formState.errors.tenant_id}
+                      {...form.register("tenant_id")}
                     />
+                    <FieldError errors={[form.formState.errors.tenant_id]} />
                   </Field>
-                  <Field>
-                    <FieldLabel htmlFor="copilot-studio-application">
+                  <Field data-invalid={!!form.formState.errors.application_id}>
+                    <FieldLabel htmlFor="copilot-studio-application" required>
                       Application client ID
                     </FieldLabel>
                     <Input
@@ -226,232 +367,244 @@ function CopilotStudioConnection({
                       required
                       readOnly={!!integration}
                       placeholder="00000000-0000-0000-0000-000000000000"
-                      value={input.application_id}
-                      onChange={(event) =>
-                        setInput({ ...input, application_id: event.target.value })
-                      }
+                      aria-invalid={!!form.formState.errors.application_id}
+                      {...form.register("application_id")}
                     />
+                    <FieldError errors={[form.formState.errors.application_id]} />
                   </Field>
-                </div>
-                {!integration ? (
-                  <FieldDescription>
-                    In the{" "}
-                    <a
-                      className="underline"
-                      href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Azure portal
-                    </a>
-                    , register a single-tenant app and enter its tenant and client IDs above.
-                  </FieldDescription>
-                ) : null}
-                <Field>
-                  <FieldLabel htmlFor="copilot-studio-environment">
+                </FieldGroup>
+                <Field data-invalid={!!form.formState.errors.environment_id}>
+                  <FieldLabel htmlFor="copilot-studio-environment" required>
                     Power Platform environment ID
                   </FieldLabel>
                   <Input
                     id="copilot-studio-environment"
                     required
                     readOnly={!!integration}
-                    value={input.environment_id}
-                    onChange={(event) => setInput({ ...input, environment_id: event.target.value })}
+                    aria-invalid={!!form.formState.errors.environment_id}
+                    {...form.register("environment_id")}
                   />
+                  <FieldError errors={[form.formState.errors.environment_id]} />
                 </Field>
                 <FieldDescription>
-                  Requires generative orchestration in Copilot Studio.
+                  Enable Settings → Generative AI → Generative orchestration in Microsoft Copilot
+                  Studio.
                 </FieldDescription>
-                {data ? (
-                  <SubjectGuardrails
-                    assignment={input.assignment}
-                    disabled={pending}
-                    policies={data.policies}
-                    settings={data.settings}
-                    onChange={(value) => setInput({ ...input, assignment: value })}
-                  />
-                ) : (
-                  <FieldGroup className="min-w-0 gap-6" role="status" aria-label="Loading policies">
-                    <Field>
-                      <FieldLabel>
-                        <BrickWallShield aria-hidden className="size-4 text-primary" />
-                        Policies
+                <Controller
+                  name="failure_mode"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="copilot-studio-failure" required>
+                        Failure mode
                       </FieldLabel>
-                      <Skeleton className="h-8 w-full" />
+                      <Select
+                        name={field.name}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={pending}
+                      >
+                        <SelectTrigger
+                          id="copilot-studio-failure"
+                          ref={field.ref}
+                          onBlur={field.onBlur}
+                          aria-invalid={fieldState.invalid}
+                          className="w-full"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="closed">Fail closed</SelectItem>
+                            <SelectItem value="open">Fail open</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FieldError errors={[fieldState.error]} />
                     </Field>
-                  </FieldGroup>
-                )}
-                <FieldDescription>
-                  Tool-call checks only. Response checks and masking aren&apos;t supported.
-                </FieldDescription>
-                <Field>
-                  <FieldLabel htmlFor="copilot-studio-failure">Failure mode</FieldLabel>
-                  <Select
-                    value={input.failure_mode}
-                    onValueChange={(failure_mode) => {
-                      if (failure_mode === "closed" || failure_mode === "open")
-                        setInput({ ...input, failure_mode })
-                    }}
-                  >
-                    <SelectTrigger id="copilot-studio-failure" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="closed">Fail closed</SelectItem>
-                      <SelectItem value="open">Fail open</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>Match the Power Platform error behavior.</FieldDescription>
-                </Field>
+                  )}
+                />
                 {integration ? (
                   <Field orientation="horizontal">
                     <div className="flex-1">
                       <FieldLabel htmlFor="copilot-studio-enabled">Enable connection</FieldLabel>
                     </div>
-                    <Switch
-                      id="copilot-studio-enabled"
-                      checked={input.enabled}
-                      onCheckedChange={(enabled) => setInput({ ...input, enabled })}
+                    <Controller
+                      name="enabled"
+                      control={form.control}
+                      render={({ field }) => (
+                        <Switch
+                          id="copilot-studio-enabled"
+                          name={field.name}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      )}
                     />
                   </Field>
                 ) : null}
               </FieldGroup>
             </FieldSet>
             <LoadingButton pending={pending || !data} type="submit">
-              Save connection
+              {integration ? "Save changes" : "Continue"}
             </LoadingButton>
-          </form>
-        </TabsContent>
-        <TabsContent value="installation" className="mt-0 flex flex-col gap-5">
-          {integration ? (
-            <>
-              {!integration.enabled ? (
-                <Alert>
-                  <AlertTitle>Connection paused</AlertTitle>
-                  <AlertDescription>
-                    Enable this connection before saving in Power Platform.
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-              {integration.runtime_error ? (
-                <Alert variant="destructive">
-                  <AlertTitle>Protection needs attention</AlertTitle>
-                  <AlertDescription>{integration.runtime_error}</AlertDescription>
-                </Alert>
-              ) : null}
-              <Field>
-                <FieldLabel>1. Configure Microsoft Entra</FieldLabel>
-                <FieldDescription>
-                  App registrations → your app → Certificates &amp; secrets → Federated credentials.
-                  Add Other issuer, choose Explicit subject identifier, and enter these values.
-                </FieldDescription>
-              </Field>
-              {[
-                { label: "Issuer", value: integration.federated_credential.issuer },
-                {
-                  label: "Subject identifier",
-                  value: integration.federated_credential.subject,
-                },
-                { label: "Audience", value: integration.federated_credential.audience },
-              ].map(({ label, value }) => (
-                <Field key={label}>
-                  <FieldLabel>{label}</FieldLabel>
+            {integration ? (
+              <FieldGroup className="gap-5">
+                <Separator />
+                {!integration.enabled ? (
+                  <Alert>
+                    <AlertTitle>Connection paused</AlertTitle>
+                    <AlertDescription>
+                      Enable this connection before saving in Power Platform.
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+                {integration.runtime_error ? (
+                  <Alert variant="destructive">
+                    <AlertTitle>Protection needs attention</AlertTitle>
+                    <AlertDescription>{integration.runtime_error}</AlertDescription>
+                  </Alert>
+                ) : null}
+                <Field>
+                  <FieldLabel className="gap-2 text-sm font-medium">
+                    <span className="shrink-0 font-mono text-xs text-primary">2</span>
+                    Connect Microsoft Copilot Studio
+                  </FieldLabel>
+
                   <div className="flex items-start gap-2">
                     <Textarea
                       readOnly
-                      value={value}
-                      className="field-sizing-content min-h-0 resize-none font-mono text-xs md:text-xs"
-                      aria-label={`${label} to copy`}
+                      value={credentialCommand}
+                      aria-label="Federated credential command"
+                      className="field-sizing-content min-h-0 resize-none border-primary/15 bg-muted/40 font-mono text-xs leading-5 text-foreground shadow-none md:text-xs"
                     />
-                    <CopyButton content={value} label={`Copy ${label.toLowerCase()}`} />
+                    <CopyButton
+                      content={credentialCommand}
+                      label="Copy federated credential command"
+                    />
                   </div>
                 </Field>
-              ))}
-              <Field>
-                <FieldLabel>AgentZ provider application ID</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <Input
-                    readOnly
-                    value={integration.audience}
-                    aria-label="Provider application ID to copy"
-                  />
-                  <CopyButton content={integration.audience} label="Copy provider application ID" />
-                </div>
-                <FieldDescription>
-                  Provision this enterprise application in your Entra tenant.
-                </FieldDescription>
-              </Field>
-              <Separator />
-              <Field>
-                <FieldLabel>2. Connect Power Platform</FieldLabel>
-                <FieldDescription>
-                  Open Security → Threat detection → Additional threat detection in the{" "}
-                  <a
-                    className="underline"
-                    href="https://admin.powerplatform.microsoft.com/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Power Platform admin center
-                  </a>
-                  . Select this environment and enable data sharing. Power Platform Administrator
-                  required.
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel>Azure Entra App ID</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <Input
-                    readOnly
-                    value={integration.application_id}
-                    aria-label="Application ID to copy"
-                  />
-                  <CopyButton
-                    content={integration.application_id}
-                    label="Copy caller application ID"
-                  />
-                </div>
-              </Field>
-              <Field>
-                <FieldLabel>Endpoint</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <Input
-                    readOnly
-                    value={integration.endpoint}
-                    aria-label="Webhook endpoint to copy"
-                  />
-                  <CopyButton content={integration.endpoint} label="Copy webhook endpoint" />
-                </div>
-              </Field>
-              <Alert>
-                <ShieldCheck />
-                <AlertDescription>
-                  Set error behavior to{" "}
-                  <strong>
-                    {integration.failure_mode === "closed"
-                      ? "Block the query"
-                      : "Allow the agent to respond"}
-                  </strong>
-                  , then save.
-                </AlertDescription>
-              </Alert>
-              <Separator />
-              <div className="flex items-start gap-3">
-                <Link2 className="mt-0.5 size-4 text-muted-foreground" />
-                <div className="text-sm">
-                  <p>
-                    {integration.validated_at ? "Validated by Microsoft" : "Waiting for validation"}
-                  </p>
-                  {!integration.last_seen_at ? (
-                    <p className="mt-1 text-muted-foreground">
-                      Invoke a tool to discover the agent in AgentZ.
+                <Separator />
+                <Field>
+                  <FieldLabel className="gap-2 text-sm font-medium">
+                    <span className="shrink-0 font-mono text-xs text-primary">3</span>
+                    Connect Power Platform
+                  </FieldLabel>
+                  <FieldDescription>
+                    In the{" "}
+                    <a
+                      className="underline"
+                      href="https://admin.powerplatform.microsoft.com/"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Power Platform admin center
+                    </a>
+                    , open:
+                  </FieldDescription>
+                  <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm text-muted-foreground marker:text-primary">
+                    <li>Security → Threat detection → Additional threat detection.</li>
+                    <li>Your environment → Set up.</li>
+                    <li>Turn on data sharing and paste these values.</li>
+                  </ol>
+                </Field>
+                <Field>
+                  <FieldLabel>Azure Entra App ID</FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={integration.application_id}
+                      aria-label="Application ID to copy"
+                    />
+                    <CopyButton
+                      content={integration.application_id}
+                      label="Copy caller application ID"
+                    />
+                  </div>
+                </Field>
+                <Field>
+                  <FieldLabel>Endpoint</FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={integration.endpoint}
+                      aria-label="Webhook endpoint to copy"
+                    />
+                    <CopyButton content={integration.endpoint} label="Copy webhook endpoint" />
+                  </div>
+                </Field>
+                <Alert className="rounded-none border-0 bg-transparent p-0 [&>svg]:text-primary">
+                  <ShieldCheck />
+                  <AlertDescription>
+                    Set error behavior to{" "}
+                    <strong>
+                      {integration.failure_mode === "closed"
+                        ? "Block the query"
+                        : "Allow the agent to respond"}
+                    </strong>
+                    , then save.
+                  </AlertDescription>
+                </Alert>
+                <Separator />
+                <Field>
+                  <FieldLabel className="gap-2 text-sm font-medium">
+                    <span className="shrink-0 font-mono text-xs text-primary">4</span>
+                    Try it
+                  </FieldLabel>
+                  <FieldDescription>
+                    Run a tool in Microsoft Copilot Studio. See it in Lens → Traces and MCP
+                    activity.
+                  </FieldDescription>
+                </Field>
+                <div className="flex items-start gap-3">
+                  <Link2 className="mt-0.5 size-4 text-muted-foreground" />
+                  <div className="text-sm">
+                    <p>
+                      {integration.validated_at
+                        ? "Validated by Microsoft"
+                        : "Waiting for validation"}
                     </p>
-                  ) : null}
+                  </div>
                 </div>
-              </div>
-            </>
-          ) : null}
-        </TabsContent>
+              </FieldGroup>
+            ) : null}
+          </TabsContent>
+          <TabsContent value="policies" className="mt-0 flex flex-col gap-5">
+            {data ? (
+              <Controller
+                name="assignment"
+                control={form.control}
+                render={({ field }) => (
+                  <SubjectGuardrails
+                    assignment={field.value}
+                    disabled={pending}
+                    policies={data.policies}
+                    settings={data.settings}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+            ) : (
+              <FieldGroup className="min-w-0 gap-6" role="status" aria-label="Loading policies">
+                <Field>
+                  <FieldLabel>
+                    <BrickWallShield aria-hidden className="size-4 text-primary" />
+                    Policies
+                  </FieldLabel>
+                  <Skeleton className="h-8 w-full" />
+                </Field>
+              </FieldGroup>
+            )}
+            <FieldDescription>
+              Tool-call checks only. Response checks and masking aren&apos;t supported.
+            </FieldDescription>
+            <LoadingButton pending={pending || !data} type="submit">
+              Save guardrails
+            </LoadingButton>
+          </TabsContent>
+        </form>
       </div>
     </Tabs>
   )

@@ -835,9 +835,6 @@ func (s *Service) GetEffectiveGuardrails(w http.ResponseWriter, r *http.Request,
 		}
 		if agent.Kind == "microsoft-copilot-studio" {
 			err = copilotStudioPolicyCompatibility(bundle)
-			if err == nil && len(bundle.Checks) == 0 {
-				err = fmt.Errorf("%w: assign at least one guardrail check", errCopilotStudioPolicy)
-			}
 		}
 	}
 	if err != nil {

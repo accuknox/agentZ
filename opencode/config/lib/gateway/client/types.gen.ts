@@ -63,6 +63,14 @@ export type CopilotStudioFederatedCredential = {
 
 export type ListCopilotStudioIntegrationsResponse = {
   enabled: boolean
+  /**
+   * Provider application client ID configured by the AgentZ operator.
+   */
+  audience: string
+  /**
+   * Public gateway origin configured by the AgentZ operator.
+   */
+  base_url: string
   integrations: Array<CopilotStudioIntegration>
   next_page_token: string
 }

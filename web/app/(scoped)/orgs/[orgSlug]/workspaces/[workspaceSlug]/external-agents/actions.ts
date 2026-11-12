@@ -127,6 +127,8 @@ export async function loadCopilotStudioAction(
   if (settings.error) throw new Error(settings.error.message)
   return {
     enabled: platform.data.enabled,
+    audience: platform.data.audience,
+    baseURL: platform.data.base_url,
     integration: integration?.data,
     policies: policies.data.items,
     settings: settings.data,

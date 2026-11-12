@@ -787,11 +787,11 @@ func (s *Service) projectCopilotStudioRuntime(ctx context.Context) error {
 		if resolveErr == nil {
 			resolveErr = copilotStudioPolicyCompatibility(bundle)
 		}
-		if resolveErr == nil && len(bundle.Checks) == 0 {
-			resolveErr = errors.New("assign a guardrail policy before enabling protection")
-		}
 		if resolveErr != nil {
 			messages[subject.ID] = resolveErr.Error()
+			continue
+		}
+		if len(bundle.Checks) == 0 {
 			continue
 		}
 		name := "guard-" + bundle.Revision[:24]

@@ -851,6 +851,8 @@ export const zCopilotStudioIntegration = z.object({
 
 export const zListCopilotStudioIntegrationsResponse = z.object({
   enabled: z.boolean(),
+  audience: z.string(),
+  base_url: z.string(),
   integrations: z.array(zCopilotStudioIntegration),
   next_page_token: z.string(),
 })

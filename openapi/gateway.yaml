@@ -12,8 +12,7 @@ components:
       schema:
         $ref: '#/components/schemas/ObservabilityAction'
     AgentNameFilterQuery:
-      description: Optional agent name filters. Repeat the query parameter for multiple
-        agents.
+      description: Optional agent name filters. Repeat the query parameter for multiple agents.
       explode: true
       in: query
       name: agent_name
@@ -830,8 +829,7 @@ components:
       additionalProperties: false
       properties:
         instruction:
-          description: Additional Markdown instructions. Omit to preserve saved instructions,
-            or send an empty string to clear them. Limited to 32000 Unicode characters.
+          description: Additional Markdown instructions. Omit to preserve saved instructions, or send an empty string to clear them. Limited to 32000 Unicode characters.
           format: markdown
           maxLength: 32000
           type: string
@@ -1101,8 +1099,7 @@ components:
       type: object
     AppOperationResponse:
       additionalProperties: false
-      description: Content fields contain serialized JSON, including the JSON literal
-        null for absent values.
+      description: Content fields contain serialized JSON, including the JSON literal null for absent values.
       properties:
         payload:
           $ref: '#/components/schemas/AppPayload'
@@ -1117,8 +1114,7 @@ components:
       type: object
     AppPayload:
       additionalProperties: false
-      description: Serialized JSON documents preserve numeric precision when displayed
-        by browser clients.
+      description: Serialized JSON documents preserve numeric precision when displayed by browser clients.
       properties:
         input_messages:
           type: string
@@ -1718,8 +1714,7 @@ components:
           format: date-time
           type: string
         has_workflow_schedule_subscription:
-          description: Whether a workflow schedule delivers results to this thread,
-            including paused schedules.
+          description: Whether a workflow schedule delivers results to this thread, including paused schedules.
           type: boolean
         kind:
           $ref: '#/components/schemas/ChatSessionKind'
@@ -2474,9 +2469,7 @@ components:
       type: object
     CodingTextRequest:
       additionalProperties: false
-      description: Generate source-control text using the explicit request model,
-        otherwise the sandbox small model, otherwise the thread model. A configured
-        model that fails does not fall back to another model.
+      description: Generate source-control text using the explicit request model, otherwise the sandbox small model, otherwise the thread model. A configured model that fails does not fall back to another model.
       properties:
         expected_tree:
           pattern: ^[a-f0-9]{40,64}$
@@ -2789,8 +2782,7 @@ components:
       type: object
     CopilotStudioFederatedCredential:
       additionalProperties: false
-      description: Values to copy into the caller application's Microsoft Entra federated
-        credential.
+      description: Values to copy into the caller application's Microsoft Entra federated credential.
       properties:
         audience:
           type: string
@@ -3188,8 +3180,7 @@ components:
           minItems: 1
           type: array
         replace:
-          description: Atomically replace an existing workflow graph while preserving
-            its identity and schedules.
+          description: Atomically replace an existing workflow graph while preserving its identity and schedules.
           type: boolean
         summary:
           maxLength: 4096
@@ -3990,8 +3981,7 @@ components:
           minimum: 0
           type: number
         judge_context_compacted:
-          description: The judge continued after native context compaction. Informational
-            only; does not affect scoring.
+          description: The judge continued after native context compaction. Informational only; does not affect scoring.
           type: boolean
         judgment:
           $ref: '#/components/schemas/EvaluationJudgment'
@@ -4036,8 +4026,7 @@ components:
           minimum: 0
           type: integer
         transcript:
-          description: Complete native session messages and metadata, including delegated
-            sessions. Never truncated or summarized.
+          description: Complete native session messages and metadata, including delegated sessions. Never truncated or summarized.
           items:
             $ref: '#/components/schemas/EvaluationTranscriptSession'
           type: array
@@ -4935,8 +4924,7 @@ components:
         organization_id:
           type: string
         request_body:
-          description: Complete JSON request captured before gateway checks. Returned
-            only on event detail with authorized Lens access.
+          description: Complete JSON request captured before gateway checks. Returned only on event detail with authorized Lens access.
           type: string
         revision:
           type: string
@@ -5161,9 +5149,7 @@ components:
           maxLength: 8192
           type: string
         parent:
-          description: Guardrail ID or ARN for versions; projects/PROJECT for locations;
-            projects/PROJECT/locations/LOCATION for templates. Omit for guardrails
-            or projects.
+          description: Guardrail ID or ARN for versions; projects/PROJECT for locations; projects/PROJECT/locations/LOCATION for templates. Omit for guardrails or projects.
           maxLength: 2048
           type: string
         scope:
@@ -5185,8 +5171,7 @@ components:
         context:
           $ref: '#/components/schemas/GuardrailContext'
         error:
-          description: Checker failure recorded for investigation. Never included
-            in model-facing rejection details.
+          description: Checker failure recorded for investigation. Never included in model-facing rejection details.
           maxLength: 4096
           type: string
         guard:
@@ -6117,9 +6102,7 @@ components:
         next_page_token:
           type: string
         recording:
-          description: Conversation content in page order when include_recording is
-            true; otherwise empty. Model input histories are omitted except for the
-            first model request on the initial page.
+          description: Conversation content in page order when include_recording is true; otherwise empty. Model input histories are omitted except for the first model request on the initial page.
           items:
             $ref: '#/components/schemas/AppOperationResponse'
           type: array
@@ -6195,6 +6178,12 @@ components:
     ListCopilotStudioIntegrationsResponse:
       additionalProperties: false
       properties:
+        audience:
+          description: Provider application client ID configured by the AgentZ operator.
+          type: string
+        base_url:
+          description: Public gateway origin configured by the AgentZ operator.
+          type: string
         enabled:
           type: boolean
         integrations:
@@ -6205,6 +6194,8 @@ components:
           type: string
       required:
       - enabled
+      - audience
+      - base_url
       - integrations
       - next_page_token
       type: object
@@ -6467,8 +6458,7 @@ components:
         next_page_token:
           type: string
         recording:
-          description: Conversation content in page order when include_recording is
-            true; otherwise empty. Only the first model request includes input history.
+          description: Conversation content in page order when include_recording is true; otherwise empty. Only the first model request includes input history.
           items:
             $ref: '#/components/schemas/SpanRecording'
           type: array
@@ -6644,8 +6634,7 @@ components:
         auth:
           $ref: '#/components/schemas/MCPConnectionAuth'
         can_delete:
-          description: Whether the current principal may delete this connection in
-            the selected scope.
+          description: Whether the current principal may delete this connection in the selected scope.
           type: boolean
         can_reauthenticate:
           type: boolean
@@ -6825,8 +6814,7 @@ components:
         auth_mode:
           type: string
         can_delete:
-          description: Whether the current principal may delete this connection in
-            the selected scope.
+          description: Whether the current principal may delete this connection in the selected scope.
           type: boolean
         created_at:
           format: date-time
@@ -7880,8 +7868,7 @@ components:
           - enum:
             - notify
             type: string
-          description: Automatically update to the latest version. Set to true to
-            auto-update, false to disable, or 'notify' to show update notifications
+          description: Automatically update to the latest version. Set to true to auto-update, false to disable, or 'notify' to show update notifications
         command:
           additionalProperties:
             additionalProperties: false
@@ -7981,8 +7968,7 @@ components:
                   type: array
               type: object
             type: object
-          description: Enable or configure formatters. Omit or set to false to disable,
-            true to enable built-ins, or an object to enable built-ins with overrides.
+          description: Enable or configure formatters. Omit or set to false to disable, true to enable built-ins, or an object to enable built-ins with overrides.
         instructions:
           items:
             type: string
@@ -8027,8 +8013,7 @@ components:
                 - command
                 type: object
             type: object
-          description: Enable or configure LSP servers. Omit or set to false to disable,
-            true to enable built-ins, or an object to enable built-ins with overrides.
+          description: Enable or configure LSP servers. Omit or set to false to disable, true to enable built-ins, or an object to enable built-ins with overrides.
         mcp:
           additionalProperties:
             anyOf:
@@ -15580,8 +15565,7 @@ components:
           - enum:
             - false
             type: boolean
-          description: OAuth authentication configuration for the MCP server. Set
-            to false to disable OAuth auto-detection.
+          description: OAuth authentication configuration for the MCP server. Set to false to disable OAuth auto-detection.
         timeout:
           exclusiveMinimum: true
           minimum: 0
@@ -17914,8 +17898,7 @@ components:
               - enum:
                 - false
                 type: boolean
-              description: Timeout in milliseconds to wait for response headers. Provider
-                integrations may set defaults. Set to false to disable timeout.
+              description: Timeout in milliseconds to wait for response headers. Provider integrations may set defaults. Set to false to disable timeout.
             setCacheKey:
               type: boolean
             timeout:
@@ -17926,8 +17909,7 @@ components:
               - enum:
                 - false
                 type: boolean
-              description: Timeout in milliseconds for full requests to this provider.
-                Set to false to disable timeout.
+              description: Timeout in milliseconds for full requests to this provider. Set to false to disable timeout.
           type: object
         whitelist:
           items:
@@ -18629,8 +18611,7 @@ components:
       additionalProperties: false
       properties:
         answers:
-          description: User answers in order of questions (each answer is an array
-            of selected labels)
+          description: User answers in order of questions (each answer is an array of selected labels)
           items:
             $ref: '#/components/schemas/OpencodeQuestionV2Answer'
           type: array
@@ -24524,8 +24505,7 @@ components:
           description: 'Priority level of the task: high, medium, low'
           type: string
         status:
-          description: 'Current status of the task: pending, in_progress, completed,
-            cancelled'
+          description: 'Current status of the task: pending, in_progress, completed, cancelled'
           type: string
       required:
       - content
@@ -25567,8 +25547,7 @@ components:
         name:
           type: string
         startCommand:
-          description: Additional startup script to run after the project's start
-            command
+          description: Additional startup script to run after the project's start command
           type: string
       type: object
     OpencodeWorktreeError:
@@ -26794,8 +26773,7 @@ components:
       type: object
     SpanRecording:
       additionalProperties: false
-      description: Captured native activity with serialized JSON payloads for display
-        without numeric precision loss.
+      description: Captured native activity with serialized JSON payloads for display without numeric precision loss.
       properties:
         payload:
           $ref: '#/components/schemas/AppPayload'
@@ -27623,8 +27601,7 @@ components:
       properties:
         concurrency:
           default: 1
-          description: Maximum number of executions running or awaiting judgment in
-            this evaluation. Each slot is held until judging finishes.
+          description: Maximum number of executions running or awaiting judgment in this evaluation. Each slot is held until judging finishes.
           maximum: 5
           minimum: 1
           type: integer
@@ -27636,8 +27613,7 @@ components:
         judge:
           $ref: '#/components/schemas/EvaluationModel'
         judge_instructions:
-          description: Optional judging instructions or expected workflow output.
-            Sent only to the judge.
+          description: Optional judging instructions or expected workflow output. Sent only to the judge.
           type: string
         models:
           items:
@@ -28393,8 +28369,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: A workflow is locked. A user must unlock it in Workflows before
-            retrying.
+          description: A workflow is locked. A user must unlock it in Workflows before retrying.
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -28988,8 +28963,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/AgentModelCatalogEntry'
                 type: array
-          description: Provider branding for the agent's configured models, including
-            pools and inherited providers.
+          description: Provider branding for the agent's configured models, including pools and inherited providers.
         default:
           $ref: '#/components/responses/InternalError'
       security:
@@ -30599,8 +30573,7 @@ paths:
       operationId: getDelegationCatalog
       parameters:
       - $ref: '#/components/parameters/WorkspaceIDHeader'
-      - description: Include unhealthy resources when rechecking an existing grant's
-          permissions. New consent must use the healthy catalog.
+      - description: Include unhealthy resources when rechecking an existing grant's permissions. New consent must use the healthy catalog.
         in: query
         name: include_unavailable
         schema:
@@ -30724,8 +30697,7 @@ paths:
                 required:
                 - items
                 type: object
-          description: Scoped resources, including explicitly inherited organization
-            resources.
+          description: Scoped resources, including explicitly inherited organization resources.
         default:
           $ref: '#/components/responses/InternalError'
       security:
@@ -30967,8 +30939,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListGuardrailEventsResponse'
-          description: Retained blocks, masks, audit findings, and guardrail failures,
-            newest first.
+          description: Retained blocks, masks, audit findings, and guardrail failures, newest first.
         default:
           $ref: '#/components/responses/InternalError'
       security:
@@ -31110,8 +31081,7 @@ paths:
                 required:
                 - items
                 type: object
-          description: Scoped resources, including explicitly inherited organization
-            resources.
+          description: Scoped resources, including explicitly inherited organization resources.
         default:
           $ref: '#/components/responses/InternalError'
       security:
@@ -31210,8 +31180,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GuardrailSettings'
-          description: Organization baseline and audit settings, inherited read-only
-            by workspaces.
+          description: Organization baseline and audit settings, inherited read-only by workspaces.
         default:
           $ref: '#/components/responses/InternalError'
       security:
@@ -31613,8 +31582,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Subscription credentials are unavailable. Re-authenticate and
-            save the provider.
+          description: Subscription credentials are unavailable. Re-authenticate and save the provider.
       security:
       - GatewayBearer:
         - inference_provider.read
@@ -31825,8 +31793,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DelegationCatalog'
-          description: Approved models in the immutable grant's order, with current
-            API compatibility.
+          description: Approved models in the immutable grant's order, with current API compatibility.
         default:
           $ref: '#/components/responses/BadRequest'
       security:
@@ -31858,8 +31825,7 @@ paths:
       security:
       - GatewayBearer:
         - inference:use
-      summary: Export native GitHub Copilot traces with current delegated inference
-        authorization.
+      summary: Export native GitHub Copilot traces with current delegated inference authorization.
       tags:
       - inference
   /api/lens/{agentName}/{sessionID}/trace:
@@ -32188,8 +32154,7 @@ paths:
       - lens
   /api/lens/apps:
     get:
-      description: Includes approved resource selections and historical operations
-        after app access is revoked or the app is deleted.
+      description: Includes approved resource selections and historical operations after app access is revoked or the app is deleted.
       operationId: listLensApps
       responses:
         "200":
@@ -32303,8 +32268,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListAppSessionsResponse'
-          description: Observed sessions, ordered by last activity and native session
-            ID.
+          description: Observed sessions, ordered by last activity and native session ID.
         "400":
           $ref: '#/components/responses/BadRequest'
         "403":
@@ -32321,8 +32285,7 @@ paths:
       - lens
   /api/lens/apps/{clientID}/traces:
     get:
-      description: Groups attributed inference and MCP tool operations by trace ID.
-        Apps do not require an Agent or an OpenCode session.
+      description: Groups attributed inference and MCP tool operations by trace ID. Apps do not require an Agent or an OpenCode session.
       operationId: listAppTraces
       parameters:
       - in: path
@@ -32374,9 +32337,7 @@ paths:
           $ref: '#/components/schemas/TraceID'
       - $ref: '#/components/parameters/LimitQuery'
       - $ref: '#/components/parameters/PageTokenQuery'
-      - description: Include conversation content in page order, with only the initial
-          page's first model request and model completion text. Full payloads remain
-          available from the operation endpoint.
+      - description: Include conversation content in page order, with only the initial page's first model request and model completion text. Full payloads remain available from the operation endpoint.
         in: query
         name: include_recording
         schema:
@@ -33017,8 +32978,7 @@ paths:
         type: string
   /api/opencode/{agentName}/api/fs/find:
     get:
-      description: Find recursively ranked filesystem entries relative to the requested
-        location.
+      description: Find recursively ranked filesystem entries relative to the requested location.
       operationId: v2.fs.find
       parameters:
       - explode: true
@@ -33108,8 +33068,7 @@ paths:
         type: string
   /api/opencode/{agentName}/api/fs/list:
     get:
-      description: List direct children of one directory relative to the requested
-        location.
+      description: List direct children of one directory relative to the requested location.
       operationId: v2.fs.list
       parameters:
       - explode: true
@@ -34136,8 +34095,7 @@ paths:
         type: string
   /api/opencode/{agentName}/api/provider:
     get:
-      description: Retrieve active AI providers so clients can show provider availability
-        and configuration.
+      description: Retrieve active AI providers so clients can show provider availability and configuration.
       operationId: v2.provider.list
       parameters:
       - explode: true
@@ -34215,8 +34173,7 @@ paths:
         type: string
   /api/opencode/{agentName}/api/provider/{providerID}:
     get:
-      description: Retrieve a single AI provider so clients can inspect its availability
-        and endpoint settings.
+      description: Retrieve a single AI provider so clients can inspect its availability and endpoint settings.
       operationId: v2.provider.get
       parameters:
       - in: path
@@ -34303,8 +34260,7 @@ paths:
         type: string
   /api/opencode/{agentName}/api/pty:
     get:
-      description: List PTY sessions for a location, including exited sessions retained
-        until removal.
+      description: List PTY sessions for a location, including exited sessions retained until removal.
       operationId: v2.pty.list
       parameters:
       - explode: true
@@ -34696,8 +34652,7 @@ paths:
           })
   /api/opencode/{agentName}/api/pty/{ptyID}/connect:
     get:
-      description: Establish a WebSocket connection streaming PTY output and accepting
-        terminal input.
+      description: Establish a WebSocket connection streaming PTY output and accepting terminal input.
       operationId: v2.pty.connect
       parameters:
       - in: path
@@ -34789,8 +34744,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Create a short-lived single-use ticket for opening a PTY WebSocket
-        connection.
+      description: Create a short-lived single-use ticket for opening a PTY WebSocket connection.
       operationId: v2.pty.connectToken
       parameters:
       - in: path
@@ -35002,9 +34956,7 @@ paths:
         type: string
   /api/opencode/{agentName}/api/session:
     get:
-      description: Retrieve sessions in the requested order. Items keep that order
-        across pages; use cursor.next or cursor.previous to move through the ordered
-        list.
+      description: Retrieve sessions in the requested order. Items keep that order across pages; use cursor.next or cursor.previous to move through the ordered list.
       operationId: v2.session.list
       parameters:
       - in: query
@@ -35050,8 +35002,7 @@ paths:
         name: cursor
         required: false
         schema:
-          description: Opaque pagination cursor returned as cursor.previous or cursor.next
-            in the previous response.
+          description: Opaque pagination cursor returned as cursor.previous or cursor.next in the previous response.
           type: string
       responses:
         "200":
@@ -35364,8 +35315,7 @@ paths:
           })
   /api/opencode/{agentName}/api/session/{sessionID}/context:
     get:
-      description: Retrieve the active context messages for a session (all messages
-        after the last compaction).
+      description: Retrieve the active context messages for a session (all messages after the last compaction).
       operationId: v2.session.context
       parameters:
       - in: path
@@ -35441,8 +35391,7 @@ paths:
         type: string
   /api/opencode/{agentName}/api/session/{sessionID}/event:
     get:
-      description: Replay durable events after an aggregate sequence, then continue
-        with new durable events.
+      description: Replay durable events after an aggregate sequence, then continue with new durable events.
       operationId: v2.session.events
       parameters:
       - in: path
@@ -35566,8 +35515,7 @@ paths:
         type: string
   /api/opencode/{agentName}/api/session/{sessionID}/history:
     get:
-      description: Read one finite page of public durable Session events after an
-        exclusive aggregate sequence. Newly committed events may appear on later pages.
+      description: Read one finite page of public durable Session events after an exclusive aggregate sequence. Newly committed events may appear on later pages.
       operationId: v2.session.history
       parameters:
       - in: path
@@ -35648,8 +35596,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Interrupt active execution owned by this OpenCode process. Idle
-        interruption is a no-op.
+      description: Interrupt active execution owned by this OpenCode process. Idle interruption is a no-op.
       operationId: v2.session.interrupt
       parameters:
       - in: path
@@ -35698,9 +35645,7 @@ paths:
           })
   /api/opencode/{agentName}/api/session/{sessionID}/message:
     get:
-      description: Retrieve projected messages for a session. Items keep the requested
-        order across pages; use cursor.next or cursor.previous to move through the
-        ordered timeline.
+      description: Retrieve projected messages for a session. Items keep the requested order across pages; use cursor.next or cursor.previous to move through the ordered timeline.
       operationId: v2.session.messages
       parameters:
       - in: path
@@ -35726,8 +35671,7 @@ paths:
         name: cursor
         required: false
         schema:
-          description: Opaque pagination cursor returned as cursor.previous or cursor.next
-            in the previous response. Do not combine with order.
+          description: Opaque pagination cursor returned as cursor.previous or cursor.next in the previous response. Do not combine with order.
           type: string
       responses:
         "200":
@@ -36004,8 +35948,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Evaluate and, when approval is required, create a permission request
-        for a session.
+      description: Evaluate and, when approval is required, create a permission request for a session.
       operationId: v2.session.permission.create
       parameters:
       - in: path
@@ -36267,8 +36210,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Durably admit one session input and schedule agent-loop execution
-        unless resume is false.
+      description: Durably admit one session input and schedule agent-loop execution unless resume is false.
       operationId: v2.session.prompt
       parameters:
       - in: path
@@ -36690,8 +36632,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Stage or move a reversible session boundary and optionally apply
-        its file changes.
+      description: Stage or move a reversible session boundary and optionally apply its file changes.
       operationId: v2.session.revert.stage
       parameters:
       - in: path
@@ -36836,8 +36777,7 @@ paths:
           })
   /api/opencode/{agentName}/api/session/active:
     get:
-      description: Retrieve foreground Session drains currently owned by this OpenCode
-        process. Sessions absent from the result are inactive.
+      description: Retrieve foreground Session drains currently owned by this OpenCode process. Sessions absent from the result are inactive.
       operationId: v2.session.active
       parameters: []
       responses:
@@ -37380,8 +37320,7 @@ paths:
         type: string
   /api/opencode/{agentName}/experimental/console:
     get:
-      description: Get the active Console org name and the set of provider IDs managed
-        by that Console org.
+      description: Get the active Console org name and the set of provider IDs managed by that Console org.
       operationId: experimental.console.get
       parameters:
       - in: query
@@ -37439,8 +37378,7 @@ paths:
         type: string
   /api/opencode/{agentName}/experimental/console/orgs:
     get:
-      description: Get the available Console orgs across logged-in accounts, including
-        the current active org.
+      description: Get the available Console orgs across logged-in accounts, including the current active org.
       operationId: experimental.console.listOrgs
       parameters:
       - in: query
@@ -37537,8 +37475,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Persist a new active Console account/org selection for the current
-        local OpenCode state.
+      description: Persist a new active Console account/org selection for the current local OpenCode state.
       operationId: experimental.console.switchOrg
       parameters:
       - in: query
@@ -37599,8 +37536,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Move a session to another project directory, optionally transferring
-        local changes.
+      description: Move a session to another project directory, optionally transferring local changes.
       operationId: experimental.controlPlane.moveSession
       parameters: []
       requestBody:
@@ -37912,8 +37848,7 @@ paths:
           })
   /api/opencode/{agentName}/experimental/resource:
     get:
-      description: Get all available MCP resources from connected servers. Optionally
-        filter by name.
+      description: Get all available MCP resources from connected servers. Optionally filter by name.
       operationId: experimental.resource.list
       parameters:
       - in: query
@@ -37968,8 +37903,7 @@ paths:
         type: string
   /api/opencode/{agentName}/experimental/session:
     get:
-      description: Get a list of all OpenCode sessions across projects, sorted by
-        most recently updated. Archived sessions are excluded by default.
+      description: Get a list of all OpenCode sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.
       operationId: experimental.session.list
       parameters:
       - in: query
@@ -38073,8 +38007,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Detach any synchronous subagents currently blocking the session
-        and continue them in the background.
+      description: Detach any synchronous subagents currently blocking the session and continue them in the background.
       operationId: experimental.session.background
       parameters:
       - in: path
@@ -38126,8 +38059,7 @@ paths:
           })
   /api/opencode/{agentName}/experimental/tool:
     get:
-      description: Get a list of available tools with their JSON schema parameters
-        for a specific provider and model combination.
+      description: Get a list of available tools with their JSON schema parameters for a specific provider and model combination.
       operationId: tool.list
       parameters:
       - in: query
@@ -38191,8 +38123,7 @@ paths:
         type: string
   /api/opencode/{agentName}/experimental/tool/ids:
     get:
-      description: Get a list of all available tool IDs, including both built-in tools
-        and dynamically registered tools.
+      description: Get a list of all available tool IDs, including both built-in tools and dynamically registered tools.
       operationId: tool.ids
       parameters:
       - in: query
@@ -38604,8 +38535,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Move a session's sync history into the target workspace, or detach
-        it to the local project.
+      description: Move a session's sync history into the target workspace, or detach it to the local project.
       operationId: experimental.workspace.warp
       parameters:
       - in: query
@@ -38778,8 +38708,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Create a new git worktree for the current project and run any configured
-        startup scripts.
+      description: Create a new git worktree for the current project and run any configured startup scripts.
       operationId: worktree.create
       parameters:
       - in: query
@@ -39175,8 +39104,7 @@ paths:
         type: string
   /api/opencode/{agentName}/find/file:
     get:
-      description: Search for files or directories by name or pattern in the project
-        directory.
+      description: Search for files or directories by name or pattern in the project directory.
       operationId: find.files
       parameters:
       - in: query
@@ -39259,8 +39187,7 @@ paths:
         type: string
   /api/opencode/{agentName}/find/symbol:
     get:
-      description: Search for workspace symbols like functions, classes, and variables
-        using LSP.
+      description: Search for workspace symbols like functions, classes, and variables using LSP.
       operationId: find.symbols
       parameters:
       - in: query
@@ -39375,8 +39302,7 @@ paths:
         type: string
   /api/opencode/{agentName}/global/config:
     get:
-      description: Retrieve the current global OpenCode configuration settings and
-        preferences.
+      description: Retrieve the current global OpenCode configuration settings and preferences.
       operationId: global.config.get
       parameters: []
       responses:
@@ -39500,8 +39426,7 @@ paths:
           })
   /api/opencode/{agentName}/global/event:
     get:
-      description: Subscribe to global events from the OpenCode system using server-sent
-        events.
+      description: Subscribe to global events from the OpenCode system using server-sent events.
       operationId: global.event
       parameters: []
       responses:
@@ -39684,8 +39609,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Clean up and dispose the current OpenCode instance, releasing all
-        resources.
+      description: Clean up and dispose the current OpenCode instance, releasing all resources.
       operationId: instance.dispose
       parameters:
       - in: query
@@ -39921,8 +39845,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Dynamically add a new Model Context Protocol (MCP) server to the
-        system.
+      description: Dynamically add a new Model Context Protocol (MCP) server to the system.
       operationId: mcp.add
       parameters:
       - in: query
@@ -40057,8 +39980,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Start OAuth authentication flow for a Model Context Protocol (MCP)
-        server.
+      description: Start OAuth authentication flow for a Model Context Protocol (MCP) server.
       operationId: mcp.auth.start
       parameters:
       - in: path
@@ -40198,8 +40120,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Complete OAuth authentication for a Model Context Protocol (MCP)
-        server using the authorization code.
+      description: Complete OAuth authentication for a Model Context Protocol (MCP) server using the authorization code.
       operationId: mcp.auth.callback
       parameters:
       - in: path
@@ -40392,8 +40313,7 @@ paths:
           })
   /api/opencode/{agentName}/path:
     get:
-      description: Retrieve the current working directory and related path information
-        for the OpenCode instance.
+      description: Retrieve the current working directory and related path information for the OpenCode instance.
       operationId: path.get
       parameters:
       - in: query
@@ -40774,8 +40694,7 @@ paths:
         type: string
   /api/opencode/{agentName}/project/current:
     get:
-      description: Retrieve the currently active project that OpenCode is working
-        with.
+      description: Retrieve the currently active project that OpenCode is working with.
       operationId: project.current
       parameters:
       - in: query
@@ -40836,8 +40755,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Create a git repository for the current project and return the
-        refreshed project info.
+      description: Create a git repository for the current project and return the refreshed project info.
       operationId: project.initGit
       parameters:
       - in: query
@@ -40880,8 +40798,7 @@ paths:
           })
   /api/opencode/{agentName}/provider:
     get:
-      description: Get a list of all available AI providers, including both available
-        and connected ones.
+      description: Get a list of all available AI providers, including both available and connected ones.
       operationId: provider.list
       parameters:
       - in: query
@@ -41158,8 +41075,7 @@ paths:
         type: string
   /api/opencode/{agentName}/pty:
     get:
-      description: Get a list of all active pseudo-terminal (PTY) sessions managed
-        by OpenCode.
+      description: Get a list of all active pseudo-terminal (PTY) sessions managed by OpenCode.
       operationId: pty.list
       parameters:
       - in: query
@@ -41213,8 +41129,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Create a new pseudo-terminal (PTY) session for running shell commands
-        and processes.
+      description: Create a new pseudo-terminal (PTY) session for running shell commands and processes.
       operationId: pty.create
       parameters:
       - in: query
@@ -41335,8 +41250,7 @@ paths:
             ...
           })
     get:
-      description: Retrieve detailed information about a specific pseudo-terminal
-        (PTY) session.
+      description: Retrieve detailed information about a specific pseudo-terminal (PTY) session.
       operationId: pty.get
       parameters:
       - in: path
@@ -41480,8 +41394,7 @@ paths:
           })
   /api/opencode/{agentName}/pty/{ptyID}/connect:
     get:
-      description: Establish a WebSocket connection to interact with a pseudo-terminal
-        (PTY) session in real-time.
+      description: Establish a WebSocket connection to interact with a pseudo-terminal (PTY) session in real-time.
       operationId: pty.connect
       parameters:
       - in: path
@@ -41846,8 +41759,7 @@ paths:
               additionalProperties: false
               properties:
                 answers:
-                  description: User answers in order of questions (each answer is
-                    an array of selected labels)
+                  description: User answers in order of questions (each answer is an array of selected labels)
                   items:
                     $ref: '#/components/schemas/OpencodeQuestionAnswer'
                   type: array
@@ -41984,8 +41896,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Create a new OpenCode session for interacting with AI assistants
-        and managing conversations.
+      description: Create a new OpenCode session for interacting with AI assistants and managing conversations.
       operationId: session.create
       parameters:
       - in: query
@@ -42053,8 +41964,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}:
     delete:
-      description: Delete a session and permanently remove all associated data, including
-        messages and history.
+      description: Delete a session and permanently remove all associated data, including messages and history.
       operationId: session.delete
       parameters:
       - in: path
@@ -42176,8 +42086,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     patch:
-      description: Update properties of an existing session, such as title or other
-        metadata.
+      description: Update properties of an existing session, such as title or other metadata.
       operationId: session.update
       parameters:
       - in: path
@@ -42262,8 +42171,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Abort an active session and stop any ongoing AI processing or command
-        execution.
+      description: Abort an active session and stop any ongoing AI processing or command execution.
       operationId: session.abort
       parameters:
       - in: path
@@ -42315,8 +42223,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/children:
     get:
-      description: Retrieve all child sessions that were forked from the specified
-        parent session.
+      description: Retrieve all child sessions that were forked from the specified parent session.
       operationId: session.children
       parameters:
       - in: path
@@ -42509,8 +42416,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/diff:
     get:
-      description: Get the file changes (diff) that resulted from a specific user
-        message in the session.
+      description: Get the file changes (diff) that resulted from a specific user message in the session.
       operationId: session.diff
       parameters:
       - in: path
@@ -42586,8 +42492,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Create a new session by forking an existing session at a specific
-        message point.
+      description: Create a new session by forking an existing session at a specific message point.
       operationId: session.fork
       parameters:
       - in: path
@@ -42663,8 +42568,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Analyze the current application and create an AGENTS.md file with
-        project-specific agent configurations.
+      description: Analyze the current application and create an AGENTS.md file with project-specific agent configurations.
       operationId: session.init
       parameters:
       - in: path
@@ -42740,8 +42644,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/message:
     get:
-      description: Retrieve all messages in a session, including user prompts and
-        AI responses.
+      description: Retrieve all messages in a session, including user prompts and AI responses.
       operationId: session.messages
       parameters:
       - in: path
@@ -42931,8 +42834,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/message/{messageID}:
     delete:
-      description: Permanently delete a specific message and all of its parts from
-        a session without reverting file changes.
+      description: Permanently delete a specific message and all of its parts from a session without reverting file changes.
       operationId: session.deleteMessage
       parameters:
       - in: path
@@ -43335,8 +43237,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Create and send a new message to a session asynchronously, starting
-        the session if needed and returning immediately.
+      description: Create and send a new message to a session asynchronously, starting the session if needed and returning immediately.
       operationId: session.prompt_async
       parameters:
       - in: path
@@ -43430,8 +43331,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Revert a specific message in a session, undoing its effects and
-        restoring the previous state.
+      description: Revert a specific message in a session, undoing its effects and restoring the previous state.
       operationId: session.revert
       parameters:
       - in: path
@@ -43578,8 +43478,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Create a shareable link for a session, allowing others to view
-        the conversation.
+      description: Create a shareable link for a session, allowing others to view the conversation.
       operationId: session.share
       parameters:
       - in: path
@@ -43649,8 +43548,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Execute a shell command within the session context and return the
-        AI's response.
+      description: Execute a shell command within the session context and return the AI's response.
       operationId: session.shell
       parameters:
       - in: path
@@ -43762,8 +43660,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Generate a concise summary of the session using AI compaction to
-        preserve key information.
+      description: Generate a concise summary of the session using AI compaction to preserve key information.
       operationId: session.summarize
       parameters:
       - in: path
@@ -43837,8 +43734,7 @@ paths:
           })
   /api/opencode/{agentName}/session/{sessionID}/todo:
     get:
-      description: Retrieve the todo list associated with a specific session, showing
-        tasks and action items.
+      description: Retrieve the todo list associated with a specific session, showing tasks and action items.
       operationId: session.todo
       parameters:
       - in: path
@@ -43979,8 +43875,7 @@ paths:
           })
   /api/opencode/{agentName}/session/status:
     get:
-      description: Retrieve the current status of all sessions, including active,
-        idle, and completed states.
+      description: Retrieve the current status of all sessions, including active, idle, and completed states.
       operationId: session.status
       parameters:
       - in: query
@@ -44115,10 +44010,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: List sync events for all aggregates. Keys are aggregate IDs the
-        client already knows about, values are the last known sequence ID. Events
-        with seq > value are returned for those aggregates. Aggregates not listed
-        in the input get their full history.
+      description: List sync events for all aggregates. Keys are aggregate IDs the client already knows about, values are the last known sequence ID. Events with seq > value are returned for those aggregates. Aggregates not listed in the input get their full history.
       operationId: sync.history.list
       parameters:
       - in: query
@@ -44301,8 +44193,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Start sync loops for workspaces in the current project that have
-        active sessions.
+      description: Start sync loops for workspaces in the current project that have active sessions.
       operationId: sync.start
       parameters:
       - in: query
@@ -44355,8 +44246,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Update a session to belong to the current workspace through the
-        sync event system.
+      description: Update a session to belong to the current workspace through the sync event system.
       operationId: sync.steal
       parameters:
       - in: query
@@ -44610,8 +44500,7 @@ paths:
         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
         type: string
     post:
-      description: Submit a response to the TUI request queue to complete a pending
-        request.
+      description: Submit a response to the TUI request queue to complete a pending request.
       operationId: tui.control.response
       parameters:
       - in: query
@@ -45206,8 +45095,7 @@ paths:
           })
   /api/opencode/{agentName}/vcs:
     get:
-      description: Retrieve version control system (VCS) information for the current
-        project, such as git branch.
+      description: Retrieve version control system (VCS) information for the current project, such as git branch.
       operationId: vcs.get
       parameters:
       - in: query
@@ -45331,8 +45219,7 @@ paths:
           })
   /api/opencode/{agentName}/vcs/diff:
     get:
-      description: Retrieve the current git diff for the working tree or against the
-        default branch.
+      description: Retrieve the current git diff for the working tree or against the default branch.
       operationId: vcs.diff
       parameters:
       - in: query
@@ -46215,8 +46102,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: A workflow is locked. A user must unlock it in Workflows before
-            retrying.
+          description: A workflow is locked. A user must unlock it in Workflows before retrying.
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -46288,8 +46174,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: A workflow is locked. A user must unlock it in Workflows before
-            retrying.
+          description: A workflow is locked. A user must unlock it in Workflows before retrying.
         "500":
           $ref: '#/components/responses/InternalError'
       security:
@@ -46397,8 +46282,7 @@ paths:
     get:
       operationId: getWorkflowEvaluation
       parameters:
-      - description: Include native transcripts and the workflow run record for this
-          execution only.
+      - description: Include native transcripts and the workflow run record for this execution only.
         in: query
         name: transcript_run
         schema:
@@ -46446,8 +46330,7 @@ paths:
                 judge:
                   $ref: '#/components/schemas/EvaluationModel'
                 judge_instructions:
-                  description: Additional judging guidance. Omit to preserve saved
-                    instructions, or send an empty string to clear them.
+                  description: Additional judging guidance. Omit to preserve saved instructions, or send an empty string to clear them.
                   type: string
               required:
               - action

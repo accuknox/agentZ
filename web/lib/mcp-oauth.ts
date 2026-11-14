@@ -44,7 +44,8 @@ export type PendingOAuthInitiator = {
   userId: string
 }
 
-const httpsURLSchema = z.url().superRefine((value, ctx) => {
+// URL checks must abort before the refinement constructs a URL.
+const httpsURLSchema = z.url({ abort: true }).superRefine((value, ctx) => {
   const url = new URL(value)
   if (url.protocol !== "https:") {
     ctx.addIssue({

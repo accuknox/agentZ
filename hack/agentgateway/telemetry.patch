@@ -1992,42 +1992,6 @@ index c2f878b..25b33bf 100644
  			.into_iter()
  			.filter_map(|(event_name, event)| {
  				serde_json::to_vec(&event)
-diff --git a/crates/llm/src/parse/parse_tests.rs b/crates/llm/src/parse/parse_tests.rs
-index 1339a1a..910a63e 100644
---- a/crates/llm/src/parse/parse_tests.rs
-+++ b/crates/llm/src/parse/parse_tests.rs
-@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
- use tokio_sse_codec::{Event, Frame, SseDecoder};
- use tokio_util::codec::Decoder;
- 
-+use super::passthrough::PassthroughEvent;
- use super::{passthrough, sse};
- 
- #[tokio::test]
-@@ -34,11 +35,10 @@ async fn test_parser() {
- 	let events = Arc::new(Mutex::new(vec![]));
- 	let ev_clone = events.clone();
- 	let body = passthrough::parser(body, decoder, move |o| match o {
--		Frame::Comment(_) => {},
--		Frame::Event(Event::<Bytes> { data, .. }) => {
-+		PassthroughEvent::Eof | PassthroughEvent::Item(Frame::Comment(_) | Frame::Retry(_)) => {},
-+		PassthroughEvent::Item(Frame::Event(Event::<Bytes> { data, .. })) => {
- 			events.clone().lock().unwrap().push(data);
- 		},
--		Frame::Retry(_) => {},
- 	});
- 	let got = body.collect().await.unwrap();
- 	assert_eq!(Some(&trailers), got.trailers());
-@@ -83,6 +83,9 @@ async fn test_sse_json() {
- 	let events = Arc::new(Mutex::new(vec![]));
- 	let ev_clone = events.clone();
- 	let body = passthrough::parser(body, decoder, move |o| {
-+		let PassthroughEvent::Item(o) = o else {
-+			return;
-+		};
- 		events
- 			.clone()
- 			.lock()
 diff --git a/crates/llm/src/parse/passthrough.rs b/crates/llm/src/parse/passthrough.rs
 index 12d15bb..498415c 100644
 --- a/crates/llm/src/parse/passthrough.rs

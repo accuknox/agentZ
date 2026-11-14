@@ -24,6 +24,7 @@ type evaluationScoreCase struct {
 	want                    float64
 }
 
+// TestCopilotStudioWithoutOptionalPolicies preserves mandatory baseline checks.
 func TestCopilotStudioWithoutOptionalPolicies(t *testing.T) {
 	service := sandboxTestService(t, nil)
 	assignment := agentzv1alpha1.GuardrailAssignment{}
@@ -36,7 +37,9 @@ func TestCopilotStudioWithoutOptionalPolicies(t *testing.T) {
 	}
 
 	tenant := &agentzv1alpha1.Tenant{}
-	key := client.ObjectKey{Name: agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, testOrganizationID)}
+	key := client.ObjectKey{
+		Name: agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, testOrganizationID),
+	}
 	if err := service.k8sClient.Get(t.Context(), key, tenant); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +47,8 @@ func TestCopilotStudioWithoutOptionalPolicies(t *testing.T) {
 	if err := service.k8sClient.Update(t.Context(), tenant); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.evaluateCopilotStudio(t.Context(), testWorkspaceNS, assignment, gatewayapi.CopilotStudioEvaluationRequest{}, nil); err == nil {
+	_, err = service.evaluateCopilotStudio(t.Context(), testWorkspaceNS, assignment, gatewayapi.CopilotStudioEvaluationRequest{}, nil)
+	if err == nil {
 		t.Fatal("empty optional policies must not bypass a missing organization baseline")
 	}
 }

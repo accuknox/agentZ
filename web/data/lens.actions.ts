@@ -897,9 +897,6 @@ function payloadSection(key: string, label: string, json: string): SpanDetailPay
 
 function operationLabel(span: Span | AppSpan) {
   if (span.operation_name === "observe_context") return "Copilot Studio context"
-  if (span.operation_name === "allow_tool") return `Allow ${span.tool_name}`
-  if (span.operation_name === "block_tool") return `Block ${span.tool_name}`
-  if (span.operation_name === "observe_tool_result") return `Observed ${span.tool_name} output`
   if (span.operation_name === "invoke_agent") {
     return "Agent run"
   }

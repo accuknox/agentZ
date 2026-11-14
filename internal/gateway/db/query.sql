@@ -3645,20 +3645,19 @@ LIMIT @page_size;
 SELECT * FROM copilot_studio_integrations WHERE id = @id;
 
 -- name: GatewaySaveCopilotStudioIntegration :one
-WITH integration AS (
+WITH notification AS (
+ SELECT pg_notify('agentz_external_agents', @workspace_id::text)
+)
 INSERT INTO copilot_studio_integrations (id, organization_id, workspace_id, user_id, name, tenant_id, application_id, environment_id, enabled, failure_mode, policies)
-VALUES (@id, @organization_id, @workspace_id, @user_id, @name, @tenant_id, @application_id, @environment_id, @enabled, @failure_mode, @policies)
+SELECT @id, @organization_id, @workspace_id, @user_id, @name, @tenant_id, @application_id, @environment_id, @enabled, @failure_mode, @policies
+FROM notification
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, enabled = EXCLUDED.enabled, failure_mode = EXCLUDED.failure_mode, policies = EXCLUDED.policies
 WHERE copilot_studio_integrations.organization_id = EXCLUDED.organization_id
   AND copilot_studio_integrations.workspace_id = EXCLUDED.workspace_id
   AND copilot_studio_integrations.tenant_id = EXCLUDED.tenant_id
   AND copilot_studio_integrations.application_id = EXCLUDED.application_id
   AND copilot_studio_integrations.environment_id = EXCLUDED.environment_id
-RETURNING id, workspace_id
-), notification AS (
- SELECT pg_notify('agentz_external_agents', workspace_id) FROM integration
-)
-SELECT integration.id FROM integration CROSS JOIN notification;
+RETURNING *;
 
 -- name: GatewayCopilotStudioTenants :many
 SELECT DISTINCT tenant_id FROM copilot_studio_integrations WHERE enabled ORDER BY tenant_id;

@@ -1,5 +1,5 @@
 {
-  "id": "a892a9e2-a505-4d67-89e2-36a2bc5c0831",
+  "id": "9b4696a3-a25c-477a-b0bf-954c1853e293",
   "prevId": "ae074223-d259-418d-b626-1cb354a65d93",
   "version": "7",
   "dialect": "postgresql",
@@ -1405,7 +1405,7 @@
           "name": "client_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "last_seen_at": {
           "name": "last_seen_at",
@@ -1431,7 +1431,7 @@
           "tableTo": "external_agents",
           "columnsFrom": ["client_id"],
           "columnsTo": ["client_id"],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

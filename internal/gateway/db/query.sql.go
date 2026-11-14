@@ -5465,7 +5465,7 @@ type GatewayListCopilotStudioAgentsParams struct {
 }
 
 type GatewayListCopilotStudioAgentsRow struct {
-	ClientID   pgtype.Text        `json:"client_id"`
+	ClientID   string             `json:"client_id"`
 	AgentID    string             `json:"agent_id"`
 	Name       string             `json:"name"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
@@ -8836,20 +8836,19 @@ func (q *Queries) GatewaySaveCodingSnapshot(ctx context.Context, arg GatewaySave
 }
 
 const gatewaySaveCopilotStudioIntegration = `-- name: GatewaySaveCopilotStudioIntegration :one
-WITH integration AS (
+WITH notification AS (
+ SELECT pg_notify('agentz_external_agents', $3::text)
+)
 INSERT INTO copilot_studio_integrations (id, organization_id, workspace_id, user_id, name, tenant_id, application_id, environment_id, enabled, failure_mode, policies)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+FROM notification
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, enabled = EXCLUDED.enabled, failure_mode = EXCLUDED.failure_mode, policies = EXCLUDED.policies
 WHERE copilot_studio_integrations.organization_id = EXCLUDED.organization_id
   AND copilot_studio_integrations.workspace_id = EXCLUDED.workspace_id
   AND copilot_studio_integrations.tenant_id = EXCLUDED.tenant_id
   AND copilot_studio_integrations.application_id = EXCLUDED.application_id
   AND copilot_studio_integrations.environment_id = EXCLUDED.environment_id
-RETURNING id, workspace_id
-), notification AS (
- SELECT pg_notify('agentz_external_agents', workspace_id) FROM integration
-)
-SELECT integration.id FROM integration CROSS JOIN notification
+RETURNING id, organization_id, workspace_id, user_id, name, tenant_id, application_id, environment_id, enabled, failure_mode, policies, created_at, validated_at, last_seen_at, runtime_error
 `
 
 type GatewaySaveCopilotStudioIntegrationParams struct {
@@ -8866,7 +8865,7 @@ type GatewaySaveCopilotStudioIntegrationParams struct {
 	Policies       []v1alpha1.ResourceReference `json:"policies"`
 }
 
-func (q *Queries) GatewaySaveCopilotStudioIntegration(ctx context.Context, arg GatewaySaveCopilotStudioIntegrationParams) (string, error) {
+func (q *Queries) GatewaySaveCopilotStudioIntegration(ctx context.Context, arg GatewaySaveCopilotStudioIntegrationParams) (CopilotStudioIntegration, error) {
 	row := q.db.QueryRow(ctx, gatewaySaveCopilotStudioIntegration,
 		arg.ID,
 		arg.OrganizationID,
@@ -8880,9 +8879,25 @@ func (q *Queries) GatewaySaveCopilotStudioIntegration(ctx context.Context, arg G
 		arg.FailureMode,
 		arg.Policies,
 	)
-	var id string
-	err := row.Scan(&id)
-	return id, err
+	var i CopilotStudioIntegration
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.Name,
+		&i.TenantID,
+		&i.ApplicationID,
+		&i.EnvironmentID,
+		&i.Enabled,
+		&i.FailureMode,
+		&i.Policies,
+		&i.CreatedAt,
+		&i.ValidatedAt,
+		&i.LastSeenAt,
+		&i.RuntimeError,
+	)
+	return i, err
 }
 
 const gatewaySaveDelegationMCPSession = `-- name: GatewaySaveDelegationMCPSession :execrows

@@ -94,7 +94,7 @@ WITH operation AS (
     $35
   )
   ON CONFLICT (organization_id, workspace_id, client_id, trace_id, span_id, start_time) DO NOTHING
-  RETURNING id, organization_id, workspace_id, client_id, app_name, grant_id, user_id, resource_kind, resource_namespace, resource_name, resource_uid, target_id, trace_id, span_id, parent_span_id, start_time, end_time, duration_ns, name, span_class, operation_name, status_code, error_type, error_message, model, tool_name, session_id, agent_kind, turn_id, tool_call_id, run_id, source_operation_id, result_id, input_tokens, output_tokens, reasoning_tokens, cached_input_tokens, cached_write_tokens, cost_usd, ingested_at, native
+  RETURNING id, organization_id, workspace_id, client_id, app_name, grant_id, user_id, resource_kind, resource_namespace, resource_name, resource_uid, target_id, trace_id, span_id, parent_span_id, start_time, end_time, duration_ns, name, span_class, operation_name, status_code, error_type, error_message, model, tool_name, session_id, agent_kind, turn_id, tool_call_id, external_tool_id, run_id, source_operation_id, result_id, input_tokens, output_tokens, reasoning_tokens, cached_input_tokens, cached_write_tokens, cost_usd, ingested_at, native
 ), run AS (
   INSERT INTO observer_app_operations (
     organization_id, workspace_id, client_id, app_name, grant_id, user_id,
@@ -425,6 +425,7 @@ WITH operation AS (
     turn_id,
     agent_kind,
     tool_call_id,
+    external_tool_id,
     input_tokens,
     output_tokens,
     reasoning_tokens,
@@ -466,13 +467,14 @@ WITH operation AS (
     $32,
     $33,
     $34,
-    $35, true
+    $35,
+    $36, true
   )
   ON CONFLICT DO NOTHING
-  RETURNING id, organization_id, workspace_id, client_id, app_name, grant_id, user_id, resource_kind, resource_namespace, resource_name, resource_uid, target_id, trace_id, span_id, parent_span_id, start_time, end_time, duration_ns, name, span_class, operation_name, status_code, error_type, error_message, model, tool_name, session_id, agent_kind, turn_id, tool_call_id, run_id, source_operation_id, result_id, input_tokens, output_tokens, reasoning_tokens, cached_input_tokens, cached_write_tokens, cost_usd, ingested_at, native
+  RETURNING id, organization_id, workspace_id, client_id, app_name, grant_id, user_id, resource_kind, resource_namespace, resource_name, resource_uid, target_id, trace_id, span_id, parent_span_id, start_time, end_time, duration_ns, name, span_class, operation_name, status_code, error_type, error_message, model, tool_name, session_id, agent_kind, turn_id, tool_call_id, external_tool_id, run_id, source_operation_id, result_id, input_tokens, output_tokens, reasoning_tokens, cached_input_tokens, cached_write_tokens, cost_usd, ingested_at, native
 ), payload AS (
   INSERT INTO observer_app_operation_payloads (operation_id, input_messages, output_messages, tool_arguments, tool_result, tool_error)
-  SELECT id, $36, $37, $38, $39, $40
+  SELECT id, $37, $38, $39, $40, $41
   FROM operation
 )
 SELECT COALESCE((SELECT id FROM operation), 0)::bigint AS id
@@ -514,6 +516,7 @@ type InsertNativeAppOperationParams struct {
 	TurnID            string        `json:"turn_id"`
 	AgentKind         string        `json:"agent_kind"`
 	ToolCallID        string        `json:"tool_call_id"`
+	ExternalToolID    string        `json:"external_tool_id"`
 	InputTokens       pgtype.Int8   `json:"input_tokens"`
 	OutputTokens      pgtype.Int8   `json:"output_tokens"`
 	ReasoningTokens   pgtype.Int8   `json:"reasoning_tokens"`
@@ -560,6 +563,7 @@ func (q *Queries) InsertNativeAppOperation(ctx context.Context, arg []InsertNati
 			a.TurnID,
 			a.AgentKind,
 			a.ToolCallID,
+			a.ExternalToolID,
 			a.InputTokens,
 			a.OutputTokens,
 			a.ReasoningTokens,
@@ -1078,6 +1082,88 @@ func (b *RefreshTraceSummaryBatchResults) Exec(f func(int, error)) {
 }
 
 func (b *RefreshTraceSummaryBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const updateCopilotStudioToolResult = `-- name: UpdateCopilotStudioToolResult :batchexec
+WITH calls AS MATERIALIZED (
+  SELECT op.id, op.operation_name, op.end_time FROM observer_app_operations op
+  WHERE op.organization_id = $2
+    AND op.workspace_id = $3
+    AND op.client_id = $4 AND op.user_id = $5
+    AND op.session_id = $6 AND op.external_tool_id = $7
+    AND op.native AND op.agent_kind = 'microsoft-copilot-studio' AND op.resource_kind = 'tool'
+  LIMIT 2
+), changed AS (
+  -- A reused definition ID cannot identify which invocation produced a result.
+  UPDATE observer_app_operation_payloads SET tool_result = $8::jsonb
+  WHERE operation_id = (
+    SELECT MIN(id) FROM calls
+    HAVING COUNT(*) = 1 AND BOOL_AND(operation_name = 'allow_tool')
+  ) AND (tool_result IS DISTINCT FROM $8::jsonb
+    OR $1::timestamptz > (SELECT MIN(end_time) FROM calls))
+  RETURNING operation_id
+)
+UPDATE observer_app_operations op
+SET end_time = GREATEST(op.end_time, COALESCE($1::timestamptz, op.end_time)),
+    ingested_at = now()
+FROM changed WHERE op.id = changed.operation_id
+`
+
+type UpdateCopilotStudioToolResultBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpdateCopilotStudioToolResultParams struct {
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ClientID       string             `json:"client_id"`
+	UserID         string             `json:"user_id"`
+	SessionID      string             `json:"session_id"`
+	ToolID         string             `json:"tool_id"`
+	ToolResult     []byte             `json:"tool_result"`
+}
+
+func (q *Queries) UpdateCopilotStudioToolResult(ctx context.Context, arg []UpdateCopilotStudioToolResultParams) *UpdateCopilotStudioToolResultBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.CompletedAt,
+			a.OrganizationID,
+			a.WorkspaceID,
+			a.ClientID,
+			a.UserID,
+			a.SessionID,
+			a.ToolID,
+			a.ToolResult,
+		}
+		batch.Queue(updateCopilotStudioToolResult, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpdateCopilotStudioToolResultBatchResults{br, len(arg), false}
+}
+
+func (b *UpdateCopilotStudioToolResultBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpdateCopilotStudioToolResultBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }

@@ -225,9 +225,6 @@ export function TraceConversation({
                           {step.span.operation_name === "block_tool" ? (
                             <Badge variant="destructive">Blocked</Badge>
                           ) : null}
-                          {step.span.operation_name === "observe_tool_result" ? (
-                            <Badge variant="outline">Observed output</Badge>
-                          ) : null}
                           <span className="truncate font-mono text-sm text-muted-foreground">
                             {step.arguments.text.slice(0, 300)}
                           </span>
@@ -238,12 +235,10 @@ export function TraceConversation({
                     </div>
                     <CollapsibleContent>
                       <div className="my-2 flex min-w-0 flex-col gap-3 pl-3">
-                        {step.span.operation_name !== "observe_tool_result" ? (
-                          <div className="flex min-w-0 flex-col gap-1.5">
-                            <span className="text-xs text-muted-foreground">Input</span>
-                            <RecordedText {...step.arguments} />
-                          </div>
-                        ) : null}
+                        <div className="flex min-w-0 flex-col gap-1.5">
+                          <span className="text-xs text-muted-foreground">Input</span>
+                          <RecordedText {...step.arguments} />
+                        </div>
                         {step.result ? (
                           <div className="flex min-w-0 flex-col gap-1.5">
                             <span className="text-xs text-muted-foreground">Output</span>

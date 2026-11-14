@@ -121,7 +121,14 @@ export function GuardrailEventDetail({
     : messageSection
   const payload = captured?.span?.payload.find((item) => item.key === section && !item.empty)
   const requestBody = evaluation.phase === "request" ? captured?.requestBody : undefined
-  let capturedContent = requestBody ? JSON.stringify(JSON.parse(requestBody), null, 2) : undefined
+  let capturedContent = requestBody
+  if (requestBody) {
+    try {
+      capturedContent = JSON.stringify(JSON.parse(requestBody), null, 2)
+    } catch {
+      // Preserve truncated or non-JSON evidence without crashing the detail view.
+    }
+  }
   if (!requestBody && payload)
     capturedContent = "text" in payload.content ? payload.content.text : payload.content.code
   let contentHeading = content

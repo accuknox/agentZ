@@ -1,6 +1,16 @@
 import { z } from "zod"
 import type { AppOperationResponse, AppSpan, Span, SpanRecording } from "@/lib/gateway/client"
 
+// Captured provider payloads can be truncated or contain non-JSON errors.
+const capturedJSON = z.string().transform((raw, ctx): unknown => {
+  try {
+    return JSON.parse(raw)
+  } catch {
+    ctx.addIssue({ code: "custom", message: "Captured payload is not valid JSON" })
+    return z.NEVER
+  }
+})
+
 // These are the text-bearing fields of Messages, Chat Completions, and
 // Responses requests. Provider extensions stay in the original span payload.
 const textBlock = z.object({ type: z.string(), text: z.string().optional() })
@@ -29,18 +39,24 @@ const message = z.union([
   z.object({ role: z.string().optional(), content: messageContent.nullish() }),
 ])
 const messages = z.array(message)
-const request = z.union([
-  messages,
-  z.object({ messages }).transform((input) => input.messages),
-  z.object({ input: messages }).transform((input) => input.input),
-  z.object({ input: z.string() }).transform((input) => [{ role: "user", content: [input.input] }]),
-])
-const response = z.union([
-  z.object({ completion: z.array(z.string()) }).transform((output) => output.completion),
-  messages.transform((output) =>
-    output.flatMap((message) => (message.role === "assistant" ? (message.content ?? []) : []))
-  ),
-])
+const request = capturedJSON.pipe(
+  z.union([
+    messages,
+    z.object({ messages }).transform((input) => input.messages),
+    z.object({ input: messages }).transform((input) => input.input),
+    z
+      .object({ input: z.string() })
+      .transform((input) => [{ role: "user", content: [input.input] }]),
+  ])
+)
+const response = capturedJSON.pipe(
+  z.union([
+    z.object({ completion: z.array(z.string()) }).transform((output) => output.completion),
+    messages.transform((output) =>
+      output.flatMap((message) => (message.role === "assistant" ? (message.content ?? []) : []))
+    ),
+  ])
+)
 const toolContent = z.union([
   z.string(),
   z
@@ -94,7 +110,7 @@ export function readTraceRecording(
 
     if (span.span_class !== "llm" && span.operation_name !== "observe_context") continue
     if (payload.input_messages !== "null") {
-      const input = request.safeParse(JSON.parse(payload.input_messages))
+      const input = request.safeParse(payload.input_messages)
       if (input.success) {
         const texts = input.data.findLast((message) => message.role === "user")?.content ?? []
         const context: string[] = []
@@ -117,7 +133,7 @@ export function readTraceRecording(
     }
 
     if (span.operation_name === "observe_context") continue
-    const output = response.safeParse(JSON.parse(payload.output_messages))
+    const output = response.safeParse(payload.output_messages)
     steps.push({
       key: `response:${span.id}`,
       kind: "response",
@@ -134,8 +150,9 @@ export function readToolContent(
   kind: "arguments" | "result" | "error"
 ): RecordedContent | undefined {
   if (raw === "null") return undefined
-  const value: unknown = JSON.parse(raw)
-  const text = (kind === "result" ? toolContent : z.string()).safeParse(value)
+  const value = capturedJSON.safeParse(raw)
+  if (!value.success) return { format: "text", text: raw }
+  const text = (kind === "result" ? toolContent : z.string()).safeParse(value.data)
   if (text.success) return { format: "text", text: text.data }
   // Keep the serialized bytes, including integers beyond JavaScript precision.
   return { format: "json", text: raw }

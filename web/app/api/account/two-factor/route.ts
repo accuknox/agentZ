@@ -68,7 +68,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 })
   }
 
-  if (referer && new URL(referer).origin !== baseURL) {
+  if (referer && (!URL.canParse(referer) || new URL(referer).origin !== baseURL)) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 })
   }
 

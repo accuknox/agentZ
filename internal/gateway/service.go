@@ -916,11 +916,16 @@ func (s *Service) routes() http.Handler {
 	if s.cfg.CopilotStudioAudience != "" {
 		r.Post("/api/copilot-studio/webhooks/{integrationId}/validate", s.copilotStudioWebhook)
 		r.Post("/api/copilot-studio/webhooks/{integrationId}/analyze-tool-execution", s.copilotStudioWebhook)
-		r.Post("/internal/guardrails/completion", func(w http.ResponseWriter, r *http.Request) {
+		r.Post("/internal/guardrails/completion", func(w http.ResponseWriter, _ *http.Request) {
 			apiutil.WriteJSON(w, http.StatusOK, map[string]any{
-				"id": "guardrail-evaluation", "object": "chat.completion", "created": 0,
-				"model": "guardrail-evaluation", "choices": []map[string]any{{
-					"index": 0, "message": map[string]string{"role": "assistant", "content": ""}, "finish_reason": "stop",
+				"id":      "guardrail-evaluation",
+				"object":  "chat.completion",
+				"created": 0,
+				"model":   "guardrail-evaluation",
+				"choices": []map[string]any{{
+					"index":         0,
+					"message":       map[string]string{"role": "assistant", "content": ""},
+					"finish_reason": "stop",
 				}},
 			})
 		})

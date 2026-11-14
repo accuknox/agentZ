@@ -430,6 +430,7 @@ CREATE TABLE observer_app_operations (
   agent_kind TEXT NOT NULL DEFAULT '' CHECK (agent_kind IN ('', 'claude', 'codex', 'github-copilot-cli', 'github-copilot-desktop', 'chatgpt-desktop', 'claude-desktop', 'microsoft-copilot-studio')),
   turn_id TEXT NOT NULL DEFAULT '',
   tool_call_id TEXT NOT NULL DEFAULT '',
+  external_tool_id TEXT NOT NULL DEFAULT '',
   run_id BIGINT REFERENCES observer_app_operations(id) ON DELETE SET NULL,
   source_operation_id BIGINT REFERENCES observer_app_operations(id) ON DELETE SET NULL,
   result_id BIGINT,
@@ -472,6 +473,9 @@ CREATE UNIQUE INDEX observer_app_operations_source_tool_idx
 CREATE INDEX observer_app_operations_call_idx
   ON observer_app_operations (organization_id, workspace_id, client_id, user_id, tool_call_id)
   WHERE tool_call_id <> '';
+CREATE INDEX observer_app_operations_copilot_tool_idx
+  ON observer_app_operations (organization_id, workspace_id, client_id, user_id, session_id, external_tool_id)
+  WHERE native AND agent_kind = 'microsoft-copilot-studio' AND resource_kind = 'tool';
 CREATE INDEX observer_app_operations_run_idx
   ON observer_app_operations (organization_id, workspace_id, client_id, run_id, start_time, id);
 CREATE INDEX observer_app_operations_roots_idx

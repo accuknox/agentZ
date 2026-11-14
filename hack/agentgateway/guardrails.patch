@@ -1,15 +1,3 @@
-diff --git a/crates/agentgateway/src/cel/tests.rs b/crates/agentgateway/src/cel/tests.rs
-index 6d2d0d0..c3cd8bc 100644
---- a/crates/agentgateway/src/cel/tests.rs
-+++ b/crates/agentgateway/src/cel/tests.rs
-@@ -687,6 +687,7 @@ fn log_guardrails_binding() {
- 					"piiEntities": [{"type": "EMAIL", "action": "BLOCKED", "detected": true}]
- 				}
- 			})],
-+			..Default::default()
- 		},
- 	}];
- 	let exec = Executor::new_logger(None, None, None, None, Some(&entries), None, None);
 diff --git a/crates/agentgateway/src/cel/types.rs b/crates/agentgateway/src/cel/types.rs
 index 6d5f31f..7f2441c 100644
 --- a/crates/agentgateway/src/cel/types.rs
@@ -1108,26 +1096,3 @@ index 4c14126..a6b267b 100644
  	}
  
  	fn visit_text_mut(&mut self, f: &mut dyn FnMut(ContentScope, &mut String)) {
-diff --git a/crates/agentgateway/src/cel/types.rs b/crates/agentgateway/src/cel/types.rs
---- a/crates/agentgateway/src/cel/types.rs
-+++ b/crates/agentgateway/src/cel/types.rs
-@@ -607,6 +607,7 @@
- 	}
- 	fn set_response(&mut self, resp: &'a crate::http::Response) {
- 		self.response = Some(resp.into());
-+		self.guardrails = resp.extensions().get::<Vec<GuardrailInfo>>();
- 		self.proxy = ExtensionOrDirect::Extension(resp.extensions());
- 		if let Some(llm) = resp.extensions().get::<LLMContext>() {
- 			self.llm = ExtensionOrDirect::Direct(Some(llm));
-diff --git a/crates/agentgateway/src/proxy/httpproxy.rs b/crates/agentgateway/src/proxy/httpproxy.rs
---- a/crates/agentgateway/src/proxy/httpproxy.rs
-+++ b/crates/agentgateway/src/proxy/httpproxy.rs
-@@ -777,6 +777,8 @@
- 			.await
- 			.map_err(|e| e.0);
- 		let (mut resp, mut reason) = resolve_response(ret, log.as_mut().unwrap(), is_grpc_request);
-+		// Share completed guard evaluations with explicitly configured response transformations.
-+		resp.extensions_mut().insert(log.as_ref().unwrap().guardrails.load_clone().unwrap_or_default());
- 		let is_upstream_response = reason == ProxyResponseReason::Upstream;
- 		if let Some(l) = log.as_mut() {
- 			l.cel.ctx().maybe_buffer_response_body(&mut resp).await;

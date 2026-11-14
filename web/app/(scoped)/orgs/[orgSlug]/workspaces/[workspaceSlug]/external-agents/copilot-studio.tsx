@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, type TransitionStartFunction } from "react"
+import type { TransitionStartFunction } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { zCopilotStudioIntegrationInput } from "@/lib/gateway/client/zod.gen"
-import { queryOptions, useQuery } from "@tanstack/react-query"
-import { BrickWallShield, Link2, ShieldCheck, Terminal } from "lucide-react"
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Link2, ShieldCheck, Terminal, TriangleAlert } from "lucide-react"
 import { toast } from "sonner"
-import type { CopilotStudioIntegrationInput } from "@/lib/gateway/client"
+import type { CopilotStudioIntegration, CopilotStudioIntegrationInput } from "@/lib/gateway/client"
 import { loadCopilotStudioAction, saveCopilotStudioAction } from "./actions"
 import { RequestError } from "@/components/request-error"
 import { SubjectGuardrails } from "@/components/guardrails/subject-guardrails"
@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -39,6 +38,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import { Separator } from "@/components/ui/separator"
 import { CopyButton } from "@/components/interior/copy-button"
 import { LoadingButton } from "@/components/interior/loading-button"
@@ -51,22 +51,36 @@ type CopilotStudioProps = {
 }
 type CopilotStudioData = Awaited<ReturnType<typeof loadCopilotStudioAction>>
 
+export function copilotStudioOptions(
+  orgSlug: string,
+  workspaceSlug: string,
+  integrationId?: string
+) {
+  return queryOptions({
+    queryKey: ["copilotStudio", orgSlug, workspaceSlug, integrationId],
+    meta: { externalAgentScope: `${orgSlug}/${workspaceSlug}` },
+    queryFn: () => loadCopilotStudioAction(orgSlug, workspaceSlug, integrationId),
+    retry: false,
+  })
+}
+
 export function CopilotStudio({
   integrationId,
   onSaved,
   ...scope
-}: CopilotStudioProps & { integrationId?: string; onSaved: (id: string) => void }) {
-  const query = useQuery(
-    queryOptions({
-      queryKey: ["copilotStudio", scope.orgSlug, scope.workspaceSlug, integrationId],
-      meta: { externalAgentScope: `${scope.orgSlug}/${scope.workspaceSlug}` },
-      queryFn: () => loadCopilotStudioAction(scope.orgSlug, scope.workspaceSlug, integrationId),
-      retry: false,
-    })
-  )
-  if (query.isPending && integrationId)
+}: CopilotStudioProps & { integrationId?: string; onSaved: () => void }) {
+  const queryClient = useQueryClient()
+  const query = useQuery(copilotStudioOptions(scope.orgSlug, scope.workspaceSlug, integrationId))
+  if (query.isPending && !integrationId)
     return (
-      <Tabs defaultValue="setup" className="min-h-0 gap-4" aria-busy>
+      <Alert>
+        <Spinner aria-hidden="true" />
+        <AlertDescription>Checking Copilot Studio availability…</AlertDescription>
+      </Alert>
+    )
+  if (query.isPending)
+    return (
+      <Tabs defaultValue="setup" className="gap-4" aria-busy>
         <TabsList className="w-full">
           <TabsTrigger value="setup" disabled>
             Setup
@@ -75,7 +89,7 @@ export function CopilotStudio({
             Policies
           </TabsTrigger>
         </TabsList>
-        <FieldGroup role="status" aria-label="Loading setup" className="overflow-y-auto px-1 pb-1">
+        <FieldGroup role="status" aria-label="Loading setup" className="pb-1">
           {[
             "AgentZ provider application ID",
             "Public gateway origin",
@@ -104,7 +118,7 @@ export function CopilotStudio({
         </FieldGroup>
       </Tabs>
     )
-  if (query.error)
+  if (query.isError)
     return (
       <RequestError
         compact
@@ -115,14 +129,15 @@ export function CopilotStudio({
         }}
       />
     )
-  if (query.data && !query.data.enabled)
+  if (!query.data.enabled)
     return (
-      <Alert>
+      <Alert variant="warning">
+        <TriangleAlert aria-hidden="true" />
         <AlertTitle>Copilot Studio unavailable</AlertTitle>
         <AlertDescription>Contact your platform administrator to enable it.</AlertDescription>
       </Alert>
     )
-  const integration = query.data?.integration
+  const integration = query.data.integration
   if (integrationId && !integration)
     return (
       <Alert variant="destructive">
@@ -134,9 +149,12 @@ export function CopilotStudio({
       key={integration?.id ?? "new"}
       {...scope}
       data={query.data}
-      onSaved={(id) => {
-        if (integrationId) void query.refetch()
-        onSaved(id)
+      onSaved={(saved) => {
+        queryClient.setQueryData(
+          copilotStudioOptions(scope.orgSlug, scope.workspaceSlug, saved.id).queryKey,
+          { ...query.data, integration: saved }
+        )
+        onSaved()
       }}
     />
   )
@@ -149,10 +167,10 @@ function CopilotStudioConnection({
   startTransition,
   ...scope
 }: CopilotStudioProps & {
-  data?: CopilotStudioData
-  onSaved: (id: string) => void
+  data: CopilotStudioData
+  onSaved: (integration: CopilotStudioIntegration) => void
 }) {
-  const integration = data?.integration
+  const integration = data.integration
   const form = useForm<CopilotStudioIntegrationInput>({
     resolver: zodResolver(zCopilotStudioIntegrationInput),
     reValidateMode: "onBlur",
@@ -166,7 +184,6 @@ function CopilotStudioConnection({
       assignment: integration?.assignment ?? { policies: [] },
     },
   })
-  const [tab, setTab] = useState("setup")
   const credentialCommand = integration
     ? `az ad app federated-credential create --id ${integration.application_id} --parameters '${JSON.stringify(
         {
@@ -181,54 +198,20 @@ function CopilotStudioConnection({
     : ""
 
   return (
-    <Tabs
-      value={tab}
-      onValueChange={setTab}
-      className="min-h-0 gap-4"
-      aria-busy={!data || undefined}
-    >
+    <Tabs defaultValue="setup" className="gap-4" aria-busy={pending || undefined}>
       <TabsList className="w-full">
         <TabsTrigger value="setup">Setup</TabsTrigger>
         <TabsTrigger value="policies" disabled={!integration}>
           Policies
         </TabsTrigger>
       </TabsList>
-      <div className="min-h-0 overflow-y-auto overscroll-contain px-1 pb-1">
-        <FieldGroup className={tab === "policies" ? "hidden" : "mb-5 gap-4"}>
-          {[
-            { label: "AgentZ provider application ID", value: data?.audience },
-            { label: "Public gateway origin", value: data?.baseURL },
-          ].map(({ label, value }) => (
-            <Field key={label}>
-              <FieldLabel>{label}</FieldLabel>
-              <div className="flex items-center gap-2">
-                {value === undefined ? (
-                  <>
-                    <Skeleton className="h-8 flex-1" />
-                    <Skeleton className="size-6 shrink-0" />
-                  </>
-                ) : (
-                  <>
-                    <Input
-                      readOnly
-                      value={value}
-                      aria-label={`${label} to copy`}
-                      className="font-mono text-xs md:text-xs"
-                    />
-                    <CopyButton content={value} label={`Copy ${label.toLowerCase()}`} />
-                  </>
-                )}
-              </div>
-            </Field>
-          ))}
-        </FieldGroup>
+      <div className="pb-1">
         <FieldError errors={[form.formState.errors.root]} />
         <form
           autoComplete="off"
           noValidate
           className="flex flex-col gap-5"
           onSubmit={form.handleSubmit((input) => {
-            if (!data) return
             form.clearErrors("root")
             startTransition(async () => {
               const result = await saveCopilotStudioAction(
@@ -241,12 +224,31 @@ function CopilotStudioConnection({
                 form.setError("root", { message: result.error })
                 return
               }
-              onSaved(result.data.id)
               toast.success("Copilot Studio connection saved")
+              onSaved(result.data)
             })
           })}
         >
           <TabsContent value="setup" className="mt-0 flex flex-col gap-5">
+            <FieldGroup className="gap-4">
+              {[
+                { label: "AgentZ provider application ID", value: data.audience },
+                { label: "Public gateway origin", value: data.baseURL },
+              ].map(({ label, value }) => (
+                <Field key={label}>
+                  <FieldLabel>{label}</FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={value}
+                      aria-label={`${label} to copy`}
+                      className="font-mono text-xs md:text-xs"
+                    />
+                    <CopyButton content={value} label={`Copy ${label.toLowerCase()}`} />
+                  </div>
+                </Field>
+              ))}
+            </FieldGroup>
             <Accordion
               type="single"
               collapsible
@@ -260,14 +262,13 @@ function CopilotStudioConnection({
                 </AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-4 pb-4">
                   <FieldDescription>
-                    Requires Cloud Application Administrator and Power Platform Administrator. Run
-                    in Azure CLI with Bash.
+                    Requires Cloud Application Administrator and Power Platform Administrator role.
                   </FieldDescription>
                   {[
                     {
                       label: "Sign in",
                       command:
-                        "az login --tenant CUSTOMER_TENANT_ID --allow-no-subscriptions\naz account show --query tenantId -o tsv",
+                        "az login --tenant YOUR_TENANT_ID --allow-no-subscriptions\naz account show --query tenantId -o tsv",
                       description: "Use your tenant ID from Azure → Microsoft Entra ID → Overview.",
                     },
                     {
@@ -278,7 +279,7 @@ function CopilotStudioConnection({
                     },
                     {
                       label: "Add AgentZ",
-                      command: data ? `az ad sp create --id ${data.audience}` : "",
+                      command: `az ad sp create --id ${data.audience}`,
                       description: "",
                     },
                   ].map(({ label, command, description }) => (
@@ -294,14 +295,10 @@ function CopilotStudioConnection({
                           aria-label={label}
                           className="field-sizing-content min-h-0 resize-none border-primary/15 bg-muted/40 font-mono text-xs leading-5 text-foreground shadow-none md:text-xs"
                         />
-                        {command ? (
-                          <CopyButton
-                            content={command}
-                            label={`Copy ${label.toLowerCase()} command`}
-                          />
-                        ) : (
-                          <Skeleton className="size-6 shrink-0" />
-                        )}
+                        <CopyButton
+                          content={command}
+                          label={`Copy ${label.toLowerCase()} command`}
+                        />
                       </div>
                       {description ? <FieldDescription>{description}</FieldDescription> : null}
                     </Field>
@@ -321,14 +318,7 @@ function CopilotStudioConnection({
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
-            <FieldSet
-              disabled={pending || !data}
-              className={
-                !data
-                  ? "**:data-[slot=input]:animate-pulse **:data-[slot=input]:bg-muted **:data-[slot=input]:text-transparent **:data-[slot=input]:placeholder:text-transparent"
-                  : undefined
-              }
-            >
+            <FieldSet disabled={pending}>
               <FieldGroup>
                 <Field data-invalid={!!form.formState.errors.name}>
                   <FieldLabel htmlFor="copilot-studio-name" required>
@@ -424,31 +414,10 @@ function CopilotStudioConnection({
                     </Field>
                   )}
                 />
-                {integration ? (
-                  <Field orientation="horizontal">
-                    <div className="flex-1">
-                      <FieldLabel htmlFor="copilot-studio-enabled">Enable connection</FieldLabel>
-                    </div>
-                    <Controller
-                      name="enabled"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Switch
-                          id="copilot-studio-enabled"
-                          name={field.name}
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          onBlur={field.onBlur}
-                          ref={field.ref}
-                        />
-                      )}
-                    />
-                  </Field>
-                ) : null}
               </FieldGroup>
             </FieldSet>
-            <LoadingButton pending={pending || !data} type="submit">
-              {integration ? "Save changes" : "Continue"}
+            <LoadingButton pending={pending} type="submit">
+              {integration ? "Save changes" : "Add connection"}
             </LoadingButton>
             {integration ? (
               <FieldGroup className="gap-5">
@@ -572,35 +541,23 @@ function CopilotStudioConnection({
             ) : null}
           </TabsContent>
           <TabsContent value="policies" className="mt-0 flex flex-col gap-5">
-            {data ? (
-              <Controller
-                name="assignment"
-                control={form.control}
-                render={({ field }) => (
-                  <SubjectGuardrails
-                    assignment={field.value}
-                    disabled={pending}
-                    policies={data.policies}
-                    settings={data.settings}
-                    onChange={field.onChange}
-                  />
-                )}
-              />
-            ) : (
-              <FieldGroup className="min-w-0 gap-6" role="status" aria-label="Loading policies">
-                <Field>
-                  <FieldLabel>
-                    <BrickWallShield aria-hidden className="size-4 text-primary" />
-                    Policies
-                  </FieldLabel>
-                  <Skeleton className="h-8 w-full" />
-                </Field>
-              </FieldGroup>
-            )}
+            <Controller
+              name="assignment"
+              control={form.control}
+              render={({ field }) => (
+                <SubjectGuardrails
+                  assignment={field.value}
+                  disabled={pending}
+                  policies={data.policies}
+                  settings={data.settings}
+                  onChange={field.onChange}
+                />
+              )}
+            />
             <FieldDescription>
               Tool-call checks only. Response checks and masking aren&apos;t supported.
             </FieldDescription>
-            <LoadingButton pending={pending || !data} type="submit">
+            <LoadingButton pending={pending} type="submit">
               Save guardrails
             </LoadingButton>
           </TabsContent>

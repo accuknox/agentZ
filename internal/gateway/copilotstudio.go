@@ -71,25 +71,37 @@ func (s *Service) ListCopilotStudioIntegrations(w http.ResponseWriter, r *http.R
 		return
 	}
 	pageScope := copilotStudioPageScope{
-		OrganizationID: access.organizationID, WorkspaceID: access.workspaceID, UserID: access.userID,
+		OrganizationID: access.organizationID,
+		WorkspaceID:    access.workspaceID,
+		UserID:         access.userID,
 	}
 	if set && (cursor.Scope != pageScope || cursor.ID == "") {
 		writeInvalidPageToken(w, r, errBadRequest)
 		return
 	}
 	rows, err := s.queries.GatewayListCopilotStudioIntegrations(r.Context(), gatewaydb.GatewayListCopilotStudioIntegrationsParams{
-		OrganizationID: access.organizationID, WorkspaceID: access.workspaceID, CursorSet: set, CursorID: cursor.ID, PageSize: int32(limit + 1),
+		OrganizationID: access.organizationID,
+		WorkspaceID:    access.workspaceID,
+		CursorSet:      set,
+		CursorID:       cursor.ID,
+		PageSize:       int32(limit + 1),
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
 		return
 	}
-	items, next := cursorPage(rows, limit, s.copilotStudioIntegrationView, func(row gatewaydb.CopilotStudioIntegration) copilotStudioPageCursor {
-		return copilotStudioPageCursor{Scope: pageScope, ID: row.ID}
-	})
+	items, next := cursorPage(
+		rows, limit, s.copilotStudioIntegrationView,
+		func(row gatewaydb.CopilotStudioIntegration) copilotStudioPageCursor {
+			return copilotStudioPageCursor{Scope: pageScope, ID: row.ID}
+		},
+	)
 	apiutil.WriteJSON(w, http.StatusOK, gatewayapi.ListCopilotStudioIntegrationsResponse{
-		Enabled: s.cfg.CopilotStudioAudience != "", Integrations: items, NextPageToken: next,
-		Audience: s.cfg.CopilotStudioAudience, BaseUrl: s.cfg.CopilotStudioBaseURL,
+		Enabled:       s.cfg.CopilotStudioAudience != "",
+		Integrations:  items,
+		NextPageToken: next,
+		Audience:      s.cfg.CopilotStudioAudience,
+		BaseUrl:       s.cfg.CopilotStudioBaseURL,
 	})
 }
 
@@ -126,7 +138,10 @@ func (s *Service) ListCopilotStudioAgents(w http.ResponseWriter, r *http.Request
 		return
 	}
 	pageScope := copilotStudioPageScope{
-		OrganizationID: access.organizationID, WorkspaceID: access.workspaceID, IntegrationID: id, UserID: access.userID,
+		OrganizationID: access.organizationID,
+		WorkspaceID:    access.workspaceID,
+		IntegrationID:  id,
+		UserID:         access.userID,
 	}
 	if set && (cursor.Scope != pageScope || cursor.ID == "") {
 		writeInvalidPageToken(w, r, errBadRequest)
@@ -142,12 +157,18 @@ func (s *Service) ListCopilotStudioAgents(w http.ResponseWriter, r *http.Request
 		return
 	}
 	scope := authorization.Scope{
-		OrganizationID: access.organizationID, WorkspaceID: access.workspaceID,
+		OrganizationID: access.organizationID,
+		WorkspaceID:    access.workspaceID,
 	}
 	rows, err := s.queries.GatewayListCopilotStudioAgents(r.Context(), gatewaydb.GatewayListCopilotStudioAgentsParams{
-		IntegrationID: id, OrganizationID: access.organizationID, WorkspaceID: access.workspaceID,
-		Administer: access.effective.CanAdminister(scope), UserID: access.userID,
-		CursorSet: set, CursorID: cursor.ID, PageSize: int32(limit + 1),
+		IntegrationID:  id,
+		OrganizationID: access.organizationID,
+		WorkspaceID:    access.workspaceID,
+		Administer:     access.effective.CanAdminister(scope),
+		UserID:         access.userID,
+		CursorSet:      set,
+		CursorID:       cursor.ID,
+		PageSize:       int32(limit + 1),
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -155,8 +176,11 @@ func (s *Service) ListCopilotStudioAgents(w http.ResponseWriter, r *http.Request
 	}
 	items, next := cursorPage(rows, limit, func(row gatewaydb.GatewayListCopilotStudioAgentsRow) gatewayapi.CopilotStudioAgentSummary {
 		item := gatewayapi.CopilotStudioAgentSummary{
-			ClientId: row.ClientID.String, AgentId: row.AgentID, Name: row.Name,
-			CreatedAt: row.CreatedAt.Time, Disabled: row.Disabled,
+			ClientId:  row.ClientID,
+			AgentId:   row.AgentID,
+			Name:      row.Name,
+			CreatedAt: row.CreatedAt.Time,
+			Disabled:  row.Disabled,
 		}
 		if row.LastSeenAt.Valid {
 			item.LastActiveAt = &row.LastSeenAt.Time
@@ -184,7 +208,8 @@ func (s *Service) copilotStudioAdministrator(w http.ResponseWriter, r *http.Requ
 		return access, false
 	}
 	scope := authorization.Scope{
-		OrganizationID: access.organizationID, WorkspaceID: access.workspaceID,
+		OrganizationID: access.organizationID,
+		WorkspaceID:    access.workspaceID,
 	}
 	if !access.effective.CanAdminister(scope) {
 		apiutil.WriteError(w, r, resourceForbidden(errors.New("workspace administrator access is required")))
@@ -201,7 +226,8 @@ func (s *Service) copilotStudioAccess(w http.ResponseWriter, r *http.Request) (r
 		return access, false
 	}
 	effective, err := authorization.New(s.queries).Resolve(r.Context(), authorization.Subject{
-		UserID: claims.UserID, OrganizationID: claims.OrganizationID,
+		UserID:         claims.UserID,
+		OrganizationID: claims.OrganizationID,
 	})
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -218,8 +244,13 @@ func (s *Service) copilotStudioAccess(w http.ResponseWriter, r *http.Request) (r
 		return access, false
 	}
 	return resourceAccess{
-		userID: claims.UserID, organizationID: claims.OrganizationID,
-		workspaceID: claims.WorkspaceID, namespace: namespace, authorized: true, claims: claims, effective: effective,
+		userID:         claims.UserID,
+		organizationID: claims.OrganizationID,
+		workspaceID:    claims.WorkspaceID,
+		namespace:      namespace,
+		authorized:     true,
+		claims:         claims,
+		effective:      effective,
 	}, true
 }
 
@@ -259,18 +290,21 @@ func (s *Service) saveCopilotStudioIntegration(w http.ResponseWriter, r *http.Re
 			return
 		}
 	}
-	_, err = s.queries.GatewaySaveCopilotStudioIntegration(r.Context(), gatewaydb.GatewaySaveCopilotStudioIntegrationParams{
-		ID: id, OrganizationID: access.organizationID, WorkspaceID: access.workspaceID, UserID: access.userID, Name: input.Name,
-		TenantID: input.TenantId.String(), ApplicationID: input.ApplicationId.String(), EnvironmentID: input.EnvironmentId,
-		Enabled: input.Enabled, FailureMode: string(input.FailureMode), Policies: assignment.Policies,
+	row, err := s.queries.GatewaySaveCopilotStudioIntegration(r.Context(), gatewaydb.GatewaySaveCopilotStudioIntegrationParams{
+		ID:             id,
+		OrganizationID: access.organizationID,
+		WorkspaceID:    access.workspaceID,
+		UserID:         access.userID,
+		Name:           input.Name,
+		TenantID:       input.TenantId.String(),
+		ApplicationID:  input.ApplicationId.String(),
+		EnvironmentID:  input.EnvironmentId,
+		Enabled:        input.Enabled,
+		FailureMode:    string(input.FailureMode),
+		Policies:       assignment.Policies,
 	})
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("save integration", err))
-		return
-	}
-	row, err := s.queries.GatewayGetCopilotStudioIntegration(r.Context(), id)
-	if err != nil {
-		apiutil.WriteError(w, r, mapGatewayStoreError("get integration", err))
 		return
 	}
 	status := http.StatusOK
@@ -282,10 +316,18 @@ func (s *Service) saveCopilotStudioIntegration(w http.ResponseWriter, r *http.Re
 
 func (s *Service) copilotStudioIntegrationView(row gatewaydb.CopilotStudioIntegration) gatewayapi.CopilotStudioIntegration {
 	result := gatewayapi.CopilotStudioIntegration{
-		Id: row.ID, Name: row.Name, TenantId: uuid.MustParse(row.TenantID), ApplicationId: uuid.MustParse(row.ApplicationID),
-		EnvironmentId: row.EnvironmentID, Enabled: row.Enabled, FailureMode: gatewayapi.CopilotStudioIntegrationFailureMode(row.FailureMode),
-		Assignment: gatewayapi.GuardrailAssignment{Policies: row.Policies}, CreatedAt: row.CreatedAt.Time, RuntimeError: row.RuntimeError,
-		Endpoint: strings.TrimSuffix(s.cfg.CopilotStudioBaseURL, "/") + "/api/copilot-studio/webhooks/" + row.ID, Audience: s.cfg.CopilotStudioAudience,
+		Id:            row.ID,
+		Name:          row.Name,
+		TenantId:      uuid.MustParse(row.TenantID),
+		ApplicationId: uuid.MustParse(row.ApplicationID),
+		EnvironmentId: row.EnvironmentID,
+		Enabled:       row.Enabled,
+		FailureMode:   gatewayapi.CopilotStudioIntegrationFailureMode(row.FailureMode),
+		Assignment:    gatewayapi.GuardrailAssignment{Policies: row.Policies},
+		CreatedAt:     row.CreatedAt.Time,
+		RuntimeError:  row.RuntimeError,
+		Endpoint:      strings.TrimSuffix(s.cfg.CopilotStudioBaseURL, "/") + "/api/copilot-studio/webhooks/" + row.ID,
+		Audience:      s.cfg.CopilotStudioAudience,
 	}
 	// Microsoft encodes the first three GUID fields in .NET's little-endian order.
 	tenant := result.TenantId
@@ -331,7 +373,8 @@ func copilotStudioPolicyCompatibility(bundle *guardrails.Bundle) error {
 }
 
 func (s *Service) copilotStudioWebhook(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 800*time.Millisecond)
+	// Reserve the remaining webhook budget for durable decision recording.
+	ctx, cancel := context.WithTimeout(r.Context(), 600*time.Millisecond)
 	defer cancel()
 	r = r.WithContext(ctx)
 	integration, err := s.queries.GatewayGetCopilotStudioIntegration(ctx, chi.URLParam(r, "integrationId"))
@@ -418,8 +461,10 @@ func (s *Service) copilotStudioWebhook(w http.ResponseWriter, r *http.Request) {
 		name = *agent.Name
 	}
 	registration := gatewaydb.GatewayRegisterCopilotStudioAgentParams{
-		IntegrationID: integration.ID, ClientID: clientID, AgentID: agent.Id,
-		Name: pgtype.Text{String: name, Valid: true},
+		IntegrationID: integration.ID,
+		ClientID:      clientID,
+		AgentID:       agent.Id,
+		Name:          pgtype.Text{String: name, Valid: true},
 	}
 	registered, err := s.queries.GatewayRegisterCopilotStudioAgent(ctx, registration)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -436,7 +481,9 @@ func (s *Service) copilotStudioWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	assignment := api.GuardrailAssignment{Policies: integration.Policies}
 	selected, selectErr := s.queries.GatewayGetExternalAgentGuardrails(ctx, gatewaydb.GatewayGetExternalAgentGuardrailsParams{
-		OrganizationID: integration.OrganizationID, WorkspaceID: integration.WorkspaceID, ClientID: clientID,
+		OrganizationID: integration.OrganizationID,
+		WorkspaceID:    integration.WorkspaceID,
+		ClientID:       clientID,
 	})
 	if selectErr == nil {
 		assignment.Policies = selected
@@ -461,7 +508,8 @@ func (s *Service) copilotStudioWebhook(w http.ResponseWriter, r *http.Request) {
 			switch message.Role {
 			case "user", "assistant":
 				messages = append(messages, gatewayapi.GuardrailEvaluationMessage{
-					Role: gatewayapi.GuardrailEvaluationMessageRole(message.Role), Content: message.Content,
+					Role:    gatewayapi.GuardrailEvaluationMessageRole(message.Role),
+					Content: message.Content,
 				})
 			}
 		}
@@ -473,7 +521,8 @@ func (s *Service) copilotStudioWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	if !currentMessageIncluded {
 		messages = append(messages, gatewayapi.GuardrailEvaluationMessage{
-			Role: gatewayapi.GuardrailEvaluationMessageRoleUser, Content: input.PlannerContext.UserMessage,
+			Role:    gatewayapi.GuardrailEvaluationMessageRoleUser,
+			Content: input.PlannerContext.UserMessage,
 		})
 	}
 	outputs := input.PlannerContext.PreviousToolOutputs
@@ -485,40 +534,45 @@ func (s *Service) copilotStudioWebhook(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			messages = append(messages, gatewayapi.GuardrailEvaluationMessage{
-				Role: gatewayapi.GuardrailEvaluationMessageRoleTool, Content: string(content), ToolCallId: &output.ToolId,
+				Role:       gatewayapi.GuardrailEvaluationMessageRoleTool,
+				Content:    string(content),
+				ToolCallId: &output.ToolId,
 			})
 		}
 	}
 	namespace := api.ScopeNamespace(api.ResourceScopeWorkspace, integration.WorkspaceID)
-	evaluationCtx, finishEvaluation := context.WithTimeout(ctx, 600*time.Millisecond)
-	result, err := s.evaluateCopilotStudio(evaluationCtx, namespace, assignment, input, messages)
-	finishEvaluation()
-	decision := gatewayapi.CopilotStudioEvaluationResponse{}
+	result, err := s.evaluateCopilotStudio(ctx, namespace, assignment, input, messages)
+	decision := gatewayapi.CopilotStudioEvaluationResponse{BlockAction: result.Blocked}
+	if result.Blocked {
+		decision.Reason = new("The proposed tool invocation was blocked by an AgentZ guardrail policy.")
+	}
 	if err != nil {
 		decision.BlockAction = integration.FailureMode == "closed" || errors.Is(err, errCopilotStudioPolicy)
-		decision.Reason = new("The assigned guardrail policy could not be evaluated.")
+		message := "The current policy could not be evaluated by the guardrail runtime."
+		switch {
+		case errors.Is(err, context.Canceled):
+			message = "The webhook caller disconnected before the guardrail evaluation completed."
+		case errors.Is(err, context.DeadlineExceeded):
+			message = "The guardrail evaluation exceeded its time limit."
+		}
+		decision.Reason = &message
 		action := gatewayapi.GuardrailRuntimeEvaluationActionFailOpen
 		if decision.BlockAction {
 			action = gatewayapi.GuardrailRuntimeEvaluationActionReject
 		}
 		result.Evaluations = append(result.Evaluations, gatewayapi.GuardrailRuntimeEvaluation{
-			Phase: gatewayapi.GuardrailRuntimeEvaluationPhaseRequest, Guard: "copilot-studio-runtime", Action: action,
-			Error: new("The current policy could not be evaluated by the guardrail runtime."),
+			Phase:  gatewayapi.GuardrailRuntimeEvaluationPhaseRequest,
+			Guard:  "copilot-studio-runtime",
+			Action: action,
+			Error:  &message,
 		})
 		slog.WarnContext(ctx, "Copilot Studio guardrail evaluation unavailable", "integration", integration.ID, "error", err)
 	}
-	if err == nil {
-		decision.BlockAction = result.Blocked
-		if result.Blocked {
-			decision.Reason = new("The proposed tool invocation was blocked by an AgentZ guardrail policy.")
-		}
-	}
-	if ctx.Err() != nil {
-		http.Error(w, "Evaluation deadline exceeded", http.StatusServiceUnavailable)
-		return
-	}
+	// Evaluation deadlines and caller disconnects must not erase the decision.
+	recordCtx, cancelRecording := context.WithTimeout(context.WithoutCancel(r.Context()), 200*time.Millisecond)
+	defer cancelRecording()
 	err = s.storeCopilotStudioObservation(
-		ctx, integration, registered, input, messages, result, decision, r.Header.Get("x-ms-correlation-id"), body,
+		recordCtx, integration, registered, input, messages, result, decision, r.Header.Get("x-ms-correlation-id"), body,
 	)
 	if err != nil {
 		apiutil.WriteInternalError(w, r, err)
@@ -572,10 +626,20 @@ func (s *Service) evaluateCopilotStudio(ctx context.Context, namespace string, a
 	if err != nil {
 		return result, err
 	}
-	messages = append(messages, map[string]any{"role": "assistant", "content": "", "tool_calls": []map[string]any{{
-		"id": "proposed-tool", "type": "function", "function": map[string]string{"name": input.ToolDefinition.Name, "arguments": string(args)},
-	}}})
-	payload, err := json.Marshal(map[string]any{"model": "guardrail-evaluation", "stream": false, "messages": messages})
+	messages = append(messages, map[string]any{
+		"role":    "assistant",
+		"content": "",
+		"tool_calls": []map[string]any{{
+			"id":       "proposed-tool",
+			"type":     "function",
+			"function": map[string]string{"name": input.ToolDefinition.Name, "arguments": string(args)},
+		}},
+	})
+	payload, err := json.Marshal(map[string]any{
+		"model":    "guardrail-evaluation",
+		"stream":   false,
+		"messages": messages,
+	})
 	if err != nil {
 		return result, err
 	}
@@ -614,6 +678,19 @@ func (s *Service) storeCopilotStudioObservation(ctx context.Context, integration
 	now := time.Now().UTC()
 	metadata := input.ConversationMetadata
 	turn := correlation
+	// A callback identifies a proposed action, not a new user turn. Reuse the
+	// originating message identity so cumulative history is inserted only once.
+	if input.PlannerContext.ChatHistory != nil {
+		for _, message := range slices.Backward(*input.PlannerContext.ChatHistory) {
+			if message.Role != "user" || message.Content != input.PlannerContext.UserMessage {
+				continue
+			}
+			if message.Id != "" {
+				turn = "message:" + message.Id
+			}
+			break
+		}
+	}
 	if metadata.PlanId != nil && *metadata.PlanId != "" {
 		turn = *metadata.PlanId
 	}
@@ -643,20 +720,40 @@ func (s *Service) storeCopilotStudioObservation(ctx context.Context, integration
 		appName = *metadata.Agent.Name
 	}
 	base := observerdb.InsertNativeAppOperationParams{
-		OrganizationID: integration.OrganizationID, WorkspaceID: integration.WorkspaceID, ClientID: agent.ClientID, AppName: appName,
-		UserID: agent.UserID, ResourceNamespace: api.ScopeNamespace(api.ResourceScopeWorkspace, integration.WorkspaceID),
-		ResourceName: agent.ClientID, ResourceUid: agent.ClientID, TargetID: agent.ClientID,
-		TraceID: trace[:16], SpanID: root[:8], ParentSpanID: []byte{}, StartTime: now, EndTime: now,
-		Name: "Copilot Studio context", ResourceKind: "turn", SpanClass: "session",
-		OperationName: "observe_context", StatusCode: "UNSET",
-		SessionID: metadata.ConversationId, TurnID: turn, AgentKind: string(agent.Kind),
-		InputMessages: messages, OutputMessages: []byte("null"), ToolArguments: []byte("null"),
-		ToolResult: []byte("null"), ToolError: []byte("null"),
+		OrganizationID:    integration.OrganizationID,
+		WorkspaceID:       integration.WorkspaceID,
+		ClientID:          agent.ClientID,
+		AppName:           appName,
+		UserID:            agent.UserID,
+		ResourceNamespace: api.ScopeNamespace(api.ResourceScopeWorkspace, integration.WorkspaceID),
+		ResourceName:      agent.ClientID,
+		ResourceUid:       agent.ClientID,
+		TargetID:          agent.ClientID,
+		TraceID:           trace[:16],
+		SpanID:            root[:8],
+		ParentSpanID:      []byte{},
+		StartTime:         now,
+		EndTime:           now,
+		Name:              "Copilot Studio context",
+		ResourceKind:      "turn",
+		SpanClass:         "session",
+		OperationName:     "observe_context",
+		StatusCode:        "UNSET",
+		SessionID:         metadata.ConversationId,
+		TurnID:            turn,
+		AgentKind:         string(agent.Kind),
+		InputMessages:     messages,
+		OutputMessages:    []byte("null"),
+		ToolArguments:     []byte("null"),
+		ToolResult:        []byte("null"),
+		ToolError:         []byte("null"),
 	}
-	rows := []observerdb.InsertNativeAppOperationParams{base}
 	tool := base
 	tool.ResourceKind = "tool"
 	tool.ResourceName = input.ToolDefinition.Type
+	// Definition IDs can be reused. Attach output only when its ID matches
+	// exactly one call in this session; delivery IDs cannot identify results.
+	tool.ExternalToolID = input.ToolDefinition.Id
 	tool.ResourceUid = integration.ID + ":" + input.ToolDefinition.Type
 	tool.Name = input.ToolDefinition.Name
 	tool.ToolName = input.ToolDefinition.Name
@@ -673,32 +770,29 @@ func (s *Service) storeCopilotStudioObservation(ctx context.Context, integration
 		tool.ErrorType = "guardrail_blocked"
 		tool.ErrorMessage = "Blocked before tool execution."
 	}
-	rows = append(rows, tool)
+	rows := []observerdb.InsertNativeAppOperationParams{base, tool}
 	outputs := input.PlannerContext.PreviousToolOutputs
+	var results []observerdb.UpdateCopilotStudioToolResultParams
 	if outputs != nil {
+		results = make([]observerdb.UpdateCopilotStudioToolResultParams, 0, len(*outputs))
 		for _, output := range *outputs {
-			// These outputs have no invocation ID. Keep them as observations rather than guessing a join.
-			observed := base
-			observed.ResourceKind = "tool"
-			observed.SpanClass = "tool"
-			observed.Name = output.ToolName
-			observed.ToolName = output.ToolName
-			observed.ParentSpanID = root[:8]
-			observed.OperationName = "observe_tool_result"
-			observed.InputMessages = []byte("null")
-			observed.ToolResult, err = json.Marshal(output.Outputs)
+			content, err := json.Marshal(output.Outputs)
 			if err != nil {
 				return err
 			}
-			source := output.ToolId + ":" + string(observed.ToolResult)
-			if output.Timestamp != nil {
-				source += output.Timestamp.Format(time.RFC3339Nano)
-				observed.StartTime = *output.Timestamp
-				observed.EndTime = *output.Timestamp
+			update := observerdb.UpdateCopilotStudioToolResultParams{
+				OrganizationID: integration.OrganizationID,
+				WorkspaceID:    integration.WorkspaceID,
+				ClientID:       agent.ClientID,
+				UserID:         agent.UserID,
+				SessionID:      metadata.ConversationId,
+				ToolID:         output.ToolId,
+				ToolResult:     content,
 			}
-			outputID := sha256.Sum256(append(trace[:], []byte(source)...))
-			observed.SpanID = outputID[:8]
-			rows = append(rows, observed)
+			if output.Timestamp != nil {
+				update.CompletedAt = pgtype.Timestamptz{Time: *output.Timestamp, Valid: true}
+			}
+			results = append(results, update)
 		}
 	}
 	tx, err := s.db.Begin(ctx)
@@ -707,13 +801,26 @@ func (s *Service) storeCopilotStudioObservation(ctx context.Context, integration
 	}
 	defer tx.Rollback(ctx)
 	q := observerdb.New(tx)
-	q.InsertNativeAppOperation(ctx, rows).QueryRow(func(_ int, _ int64, next error) { err = errors.Join(err, next) })
+	q.InsertNativeAppOperation(ctx, rows).QueryRow(func(_ int, _ int64, next error) {
+		err = errors.Join(err, next)
+	})
 	if err != nil {
 		return err
 	}
+	if len(results) > 0 {
+		q.UpdateCopilotStudioToolResult(ctx, results).Exec(func(_ int, next error) {
+			err = errors.Join(err, next)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
 	err = q.AssignNativeRuns(ctx, observerdb.AssignNativeRunsParams{
-		OrganizationID: integration.OrganizationID, WorkspaceID: integration.WorkspaceID,
-		ClientID: agent.ClientID, TraceIds: [][]byte{trace[:16]},
+		OrganizationID: integration.OrganizationID,
+		WorkspaceID:    integration.WorkspaceID,
+		ClientID:       agent.ClientID,
+		TraceIds:       [][]byte{trace[:16]},
 	})
 	if err != nil {
 		return err
@@ -724,9 +831,19 @@ func (s *Service) storeCopilotStudioObservation(ctx context.Context, integration
 			return marshalErr
 		}
 		_, err = q.InsertGuardrailEvent(ctx, observerdb.InsertGuardrailEventParams{
-			ID: fmt.Sprintf("%x:%x:%d", trace[:16], step[:8], index), OrganizationID: integration.OrganizationID, WorkspaceID: integration.WorkspaceID,
-			OccurredAt: now, ExpiresAt: now.Add(30 * 24 * time.Hour), ClientID: agent.ClientID, SessionID: metadata.ConversationId,
-			TraceID: trace[:16], SpanID: step[:8], Revision: result.Revision, Phase: string(check.Phase), Action: string(check.Action), Evaluation: evidence,
+			ID:             fmt.Sprintf("%x:%x:%d", trace[:16], step[:8], index),
+			OrganizationID: integration.OrganizationID,
+			WorkspaceID:    integration.WorkspaceID,
+			OccurredAt:     now,
+			ExpiresAt:      now.Add(30 * 24 * time.Hour),
+			ClientID:       agent.ClientID,
+			SessionID:      metadata.ConversationId,
+			TraceID:        trace[:16],
+			SpanID:         step[:8],
+			Revision:       result.Revision,
+			Phase:          string(check.Phase),
+			Action:         string(check.Action),
+			Evaluation:     evidence,
 		})
 		if err != nil {
 			return err
@@ -734,14 +851,18 @@ func (s *Service) storeCopilotStudioObservation(ctx context.Context, integration
 	}
 	if len(result.Evaluations) > 0 {
 		err = q.InsertGuardrailRequest(ctx, observerdb.InsertGuardrailRequestParams{
-			TraceID: trace[:16], SpanID: step[:8], ExpiresAt: now.Add(30 * 24 * time.Hour), Body: body,
+			TraceID:   trace[:16],
+			SpanID:    step[:8],
+			ExpiresAt: now.Add(30 * 24 * time.Hour),
+			Body:      body,
 		})
 		if err != nil {
 			return err
 		}
 	}
 	err = gatewaydb.New(tx).GatewayTouchCopilotStudio(ctx, gatewaydb.GatewayTouchCopilotStudioParams{
-		ID: integration.ID, AgentID: metadata.Agent.Id,
+		ID:      integration.ID,
+		AgentID: metadata.Agent.Id,
 	})
 	if err != nil {
 		return err

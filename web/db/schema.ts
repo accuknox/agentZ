@@ -331,7 +331,9 @@ export const copilotStudioAgents = pgTable(
       .notNull()
       .references(() => copilotStudioIntegrations.id, { onDelete: "cascade" }),
     agentId: text("agent_id").notNull(),
-    clientId: text("client_id").references(() => externalAgents.clientId, { onDelete: "set null" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => externalAgents.clientId, { onDelete: "cascade" }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   },
   (table) => [

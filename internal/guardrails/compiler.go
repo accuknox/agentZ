@@ -399,12 +399,14 @@ func (b *Bundle) compile(namespace string) error {
 		if context.Message != "" {
 			message += ": " + context.Message
 		}
-		body, err := json.Marshal(gatewayapi.GuardrailRejection{Error: gatewayapi.GuardrailError{
-			Type:      gatewayapi.GuardrailErrorTypeInvalidRequestError,
-			Code:      gatewayapi.ContentPolicyViolation,
-			Message:   message,
-			Guardrail: context,
-		}})
+		body, err := json.Marshal(gatewayapi.GuardrailRejection{
+			Error: gatewayapi.GuardrailError{
+				Type:      gatewayapi.GuardrailErrorTypeInvalidRequestError,
+				Code:      gatewayapi.ContentPolicyViolation,
+				Message:   message,
+				Guardrail: context,
+			},
+		})
 		if err != nil {
 			return err
 		}

@@ -70,6 +70,39 @@ export async function loadExternalAgentAction(
   return agent
 }
 
+export async function setCopilotStudioEnabledAction(
+  orgSlug: string,
+  workspaceSlug: string,
+  integrationId: string,
+  enabled: boolean
+) {
+  const id = z.uuid().parse(integrationId)
+  const value = z.boolean().parse(enabled)
+  const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind !== "ready") return { error: "Workspace unavailable." }
+  const result = await getCopilotStudioIntegration({
+    client: getGatewayServerClient(scope.workspace.id),
+    headers: { "X-AgentZ-Workspace-ID": scope.workspace.id },
+    path: { integrationId: id },
+  })
+  if (result.error) return { error: result.error.message }
+  const integration = result.data
+  return saveCopilotStudioAction(
+    orgSlug,
+    workspaceSlug,
+    {
+      name: integration.name,
+      tenant_id: integration.tenant_id,
+      application_id: integration.application_id,
+      environment_id: integration.environment_id,
+      enabled: value,
+      failure_mode: integration.failure_mode,
+      assignment: integration.assignment,
+    },
+    id
+  )
+}
+
 export async function listCopilotStudioAgentsAction(
   orgSlug: string,
   workspaceSlug: string,

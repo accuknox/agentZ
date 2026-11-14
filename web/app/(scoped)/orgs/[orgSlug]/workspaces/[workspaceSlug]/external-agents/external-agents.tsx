@@ -23,6 +23,7 @@ import {
   Brain,
   Bot,
   Cable,
+  CalendarDays,
   CircleCheck,
   ChevronRight,
   Cloud,
@@ -32,6 +33,7 @@ import {
   RefreshCw,
   Pencil,
   Pause,
+  Play,
   Plus,
   TriangleAlert,
   Trash2,
@@ -86,7 +88,7 @@ import {
 } from "@/components/ui/sheet"
 import { RelativeDateTime } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CopilotStudio } from "./copilot-studio"
+import { CopilotStudio, copilotStudioOptions } from "./copilot-studio"
 import { ExternalAgentGuardrailsPanel } from "@/components/guardrails/external-agent-guardrails"
 import { ApplicationAccessDetails } from "@/app/(account)/settings/applications/application-access-sheet"
 import { externalAgentInput } from "@/data/schema"
@@ -103,6 +105,7 @@ import {
   listExternalAgentsAction,
   listCopilotStudioAgentsAction,
   loadExternalAgentAction,
+  setCopilotStudioEnabledAction,
 } from "./actions"
 
 const agentKinds = {
@@ -263,7 +266,7 @@ export function ExternalAgents({
                   </span>
                 </div>
                 <Button
-                  variant="ghost"
+                  variant="plain"
                   size="icon-sm"
                   className="shrink-0"
                   aria-label={`${row.getIsExpanded() ? "Collapse" : "Expand"} ${environment.name}`}
@@ -403,6 +406,7 @@ export function ExternalAgents({
                   <Button
                     variant="ghost"
                     size="icon"
+                    disabled={agentActions.pending}
                     aria-label={`Actions for ${environment.name}`}
                   >
                     <MoreHorizontal aria-hidden />
@@ -416,6 +420,33 @@ export function ExternalAgents({
                       <Pencil aria-hidden />
                       Manage connection
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={agentActions.pending}
+                      onSelect={() =>
+                        startTransition(async () => {
+                          const result = await setCopilotStudioEnabledAction(
+                            orgSlug,
+                            workspaceSlug,
+                            environment.id,
+                            !environment.enabled
+                          )
+                          if ("error" in result) {
+                            toast.error(result.error)
+                            return
+                          }
+                          queryClient.setQueryData(
+                            copilotStudioOptions(orgSlug, workspaceSlug, environment.id).queryKey,
+                            (data) => data && { ...data, integration: result.data }
+                          )
+                          toast.success(
+                            environment.enabled ? "Connection disabled" : "Connection enabled"
+                          )
+                        })
+                      }
+                    >
+                      {environment.enabled ? <Pause aria-hidden /> : <Play aria-hidden />}
+                      {environment.enabled ? "Disable connection" : "Enable connection"}
+                    </DropdownMenuItem>
                   </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -424,7 +455,7 @@ export function ExternalAgents({
         },
       },
     ],
-    [agentActions]
+    [agentActions, orgSlug, workspaceSlug, queryClient]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
@@ -493,22 +524,16 @@ export function ExternalAgents({
         rows={rows}
         table={table}
         layout={layout}
-        tableClassName="[&>tbody>tr[aria-expanded=true]]:bg-primary/5"
         subRowClassName="p-0"
         onRowActivate={(row) => {
           if (row.kind === "copilot-studio") {
-            table.getRow(`copilot-studio:${row.environment.id}`).toggleExpanded()
+            setEditor({ kind: "copilot-studio", environment: row.environment })
             return
           }
           setSelectedId(row.agent.clientId)
         }}
         rowAriaLabel={(row) =>
-          row.kind === "agent" ? `Open ${row.agent.name}` : `Show agents in ${row.environment.name}`
-        }
-        rowAriaExpanded={(row) =>
-          row.kind === "copilot-studio"
-            ? table.getRow(`copilot-studio:${row.environment.id}`).getIsExpanded()
-            : undefined
+          `Open ${row.kind === "agent" ? row.agent.name : row.environment.name}`
         }
         renderSubRow={(row) =>
           row.kind === "copilot-studio" &&
@@ -532,17 +557,11 @@ export function ExternalAgents({
       />
       {editor ? (
         <ExternalAgentEditor
-          agent={editor.kind === "agent" ? editor.agent : undefined}
-          environment={editor.kind === "copilot-studio" ? editor.environment : undefined}
+          editor={editor}
           canManageCopilotStudio={organization.superadmin || workspace.capabilities.administer}
           orgSlug={orgSlug}
           workspaceSlug={workspaceSlug}
           onClose={() => setEditor(undefined)}
-          onStudioSaved={(id) =>
-            setExpanded((current) =>
-              current === true ? current : { ...current, [`copilot-studio:${id}`]: true }
-            )
-          }
           onSaved={(clientId) => {
             setEditor(undefined)
             setSelectedId(clientId)
@@ -573,7 +592,7 @@ export function ExternalAgents({
               {confirmationText.description}{" "}
               {confirmation?.operation === "delete" &&
               confirmation.agent.kind === "microsoft-copilot-studio"
-                ? "This agent will not be rediscovered automatically. "
+                ? "The next tool call can rediscover this agent with the connection's policies. Deleted history and agent-specific settings will not be restored. Disconnect instead to stop callbacks. "
                 : null}
               Requests already running may finish.
             </DialogDescription>
@@ -610,14 +629,13 @@ function ExternalAgentStatus({ agent }: { agent: ExternalAgent }) {
         Paused
       </Badge>
     )
+  let label = "Awaiting login"
+  if (agent.previouslyConnected || agent.kind === "microsoft-copilot-studio") label = "Disconnected"
+  if (agent.connected) label = "Connected"
   return (
     <Badge variant={agent.connected ? "success" : "pending"}>
       {agent.connected ? <CircleCheck aria-hidden data-icon="inline-start" /> : null}
-      {agent.connected
-        ? "Connected"
-        : agent.previouslyConnected || agent.kind === "microsoft-copilot-studio"
-          ? "Disconnected"
-          : "Awaiting login"}
+      {label}
     </Badge>
   )
 }
@@ -730,9 +748,7 @@ function CopilotStudioAgents({
         header: "Studio agent",
         cell: ({ row }) => (
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Bot aria-hidden className="size-4" />
-            </span>
+            <Bot aria-hidden className="size-6 shrink-0 text-muted-foreground" />
             <TruncatedText className="block min-w-0 font-medium" value={row.original.name} />
           </div>
         ),
@@ -806,12 +822,7 @@ function CopilotStudioAgents({
   return (
     <div
       id={`copilot-studio-agents-${environment.id}`}
-      className="min-w-0 border-y bg-primary/3 [contain:inline-size]"
-      style={{
-        backgroundImage:
-          "radial-gradient(color-mix(in oklab, var(--primary) 14%, transparent) 0.5px, transparent 0.5px)",
-        backgroundSize: "8px 8px",
-      }}
+      className="min-w-0 bg-background [contain:inline-size]"
     >
       <AdminDataGrid
         ariaLabel={`${environment.name} agents`}
@@ -819,7 +830,7 @@ function CopilotStudioAgents({
         table={table}
         layout={studioAgentLayout}
         className="gap-0"
-        tableClassName="w-full table-fixed [&>tbody>tr]:bg-background/70 [&>tbody>tr:hover]:bg-primary/5 [&>thead>tr]:bg-transparent [&>thead>tr:hover]:bg-transparent"
+        tableClassName="w-full table-fixed"
         loading={loading}
         loadingRows={Math.max(
           1,
@@ -906,8 +917,11 @@ function ExternalAgentDetails({
                 <span className="truncate">{selected.name}</span>
               </SheetTitle>
             </SheetHeader>
-            <Tabs defaultValue="setup" className="min-h-0 flex-1 gap-4">
-              <TabsList className="mx-4">
+            <Tabs
+              defaultValue="setup"
+              className="min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain"
+            >
+              <TabsList className="mx-4 w-auto shrink-0">
                 <TabsTrigger value="setup">
                   {selected.kind === "microsoft-copilot-studio" ? "Connection" : "Setup"}
                 </TabsTrigger>
@@ -919,10 +933,10 @@ function ExternalAgentDetails({
                   <TabsTrigger value="guardrails">Guardrails</TabsTrigger>
                 ) : null}
               </TabsList>
-              <TabsContent value="setup" className="overflow-y-auto">
+              <TabsContent value="setup" className="flex-none">
                 <AgentSetup agent={selected} />
               </TabsContent>
-              <TabsContent value="access" className="overflow-y-auto">
+              <TabsContent value="access" className="flex-none">
                 {selected.connected ? (
                   <ApplicationAccessDetails
                     workspaceScoped
@@ -967,7 +981,7 @@ function ExternalAgentDetails({
               </TabsContent>
               {(organization.superadmin || workspace.capabilities.administer) &&
               selected.connected ? (
-                <TabsContent className="overflow-y-auto" value="guardrails">
+                <TabsContent className="flex-none" value="guardrails">
                   <ExternalAgentGuardrailsPanel
                     clientId={selected.clientId}
                     orgSlug={orgSlug}
@@ -1006,12 +1020,14 @@ function ExternalAgentDetails({
                   <Skeleton className="size-8 shrink-0" />
                 </div>
               </Field>
-              {["Last active", "Added"].map((label) => (
-                <Field key={label}>
-                  <FieldLabel>{label}</FieldLabel>
-                  <Skeleton className="h-5 w-24" />
-                </Field>
-              ))}
+              <FieldGroup className="grid grid-cols-2">
+                {["Last active", "Added"].map((label) => (
+                  <Field key={label}>
+                    <FieldLabel>{label}</FieldLabel>
+                    <Skeleton className="h-5 w-24" />
+                  </Field>
+                ))}
+              </FieldGroup>
             </FieldGroup>
           </div>
         )}
@@ -1021,24 +1037,22 @@ function ExternalAgentDetails({
 }
 
 function ExternalAgentEditor({
-  agent,
-  environment,
+  editor,
   canManageCopilotStudio,
   orgSlug,
   workspaceSlug,
   onClose,
   onSaved,
-  onStudioSaved,
 }: {
-  agent?: ExternalAgent
-  environment?: CopilotStudioEnvironment
+  editor: ExternalAgentEditorState
   canManageCopilotStudio: boolean
   orgSlug: string
   workspaceSlug: string
   onClose: () => void
   onSaved: (clientId: string) => void
-  onStudioSaved: (integrationId: string) => void
 }) {
+  const agent = editor.kind === "agent" ? editor.agent : undefined
+  const environment = editor.kind === "copilot-studio" ? editor.environment : undefined
   const form = useForm<z.infer<typeof externalAgentInput>>({
     resolver: zodResolver(externalAgentInput),
     defaultValues: {
@@ -1047,7 +1061,6 @@ function ExternalAgentEditor({
     },
   })
   const kind = useWatch({ control: form.control, name: "kind" })
-  const [studioId, setStudioId] = useState(environment?.id)
   const [pending, startTransition] = useTransition()
   const studio = !agent && kind === "microsoft-copilot-studio"
   return (
@@ -1057,133 +1070,129 @@ function ExternalAgentEditor({
         if (!open && !pending) onClose()
       }}
     >
-      <SheetContent
-        size="default"
-        className={studio ? "sm:w-[34.56rem] sm:max-w-[34.56rem]" : undefined}
-      >
+      <SheetContent size="md">
         <SheetHeader>
           <SheetTitle>
             {agent ? "Rename agent" : (environment?.name ?? "Add external agent")}
           </SheetTitle>
           {agent ? <SheetDescription>Choose a name you recognize.</SheetDescription> : null}
         </SheetHeader>
-        {!agent ? (
-          <FieldGroup className="shrink-0 p-4">
-            <Controller
-              name="kind"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="external-agent-kind" required>
-                    Agent
-                  </FieldLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={pending || studioId !== undefined}
-                  >
-                    <SelectTrigger
-                      id="external-agent-kind"
-                      aria-invalid={fieldState.invalid}
-                      className="w-full"
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain">
+          {!agent ? (
+            <FieldGroup className="shrink-0 px-4">
+              <Controller
+                name="kind"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="external-agent-kind" required>
+                      Agent
+                    </FieldLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={pending || environment !== undefined}
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {externalAgentInput.shape.kind.options.map((value) => (
-                          <SelectItem
-                            key={value}
-                            value={value}
-                            disabled={
-                              value === "microsoft-copilot-studio" && !canManageCopilotStudio
-                            }
-                          >
-                            <LensSourceIcon kind={value} />
-                            {agentKinds[value]}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
-          </FieldGroup>
-        ) : null}
-        {studio ? (
-          <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
-            {canManageCopilotStudio ? (
-              <CopilotStudio
-                orgSlug={orgSlug}
-                workspaceSlug={workspaceSlug}
-                integrationId={studioId}
-                pending={pending}
-                startTransition={startTransition}
-                onSaved={(id) => {
-                  setStudioId(id)
-                  onStudioSaved(id)
-                }}
+                      <SelectTrigger
+                        id="external-agent-kind"
+                        aria-invalid={fieldState.invalid}
+                        className="w-full"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {externalAgentInput.shape.kind.options.map((value) => (
+                            <SelectItem
+                              key={value}
+                              value={value}
+                              disabled={
+                                value === "microsoft-copilot-studio" && !canManageCopilotStudio
+                              }
+                            >
+                              <LensSourceIcon kind={value} />
+                              {agentKinds[value]}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
+                )}
               />
-            ) : (
-              <AdministrationState kind="forbidden" />
-            )}
-          </div>
-        ) : (
-          <form
-            className="flex min-h-0 flex-1 flex-col"
-            onSubmit={form.handleSubmit((input) =>
-              startTransition(async () => {
-                if (agent) {
-                  const result = await changeExternalAgentAction(
-                    orgSlug,
-                    workspaceSlug,
-                    agent.clientId,
-                    "rename",
-                    input.name
-                  )
+            </FieldGroup>
+          ) : null}
+          {studio ? (
+            <div className="shrink-0 px-4 pb-4">
+              {canManageCopilotStudio ? (
+                <CopilotStudio
+                  orgSlug={orgSlug}
+                  workspaceSlug={workspaceSlug}
+                  integrationId={environment?.id}
+                  pending={pending}
+                  startTransition={startTransition}
+                  onSaved={onClose}
+                />
+              ) : (
+                <AdministrationState kind="forbidden" />
+              )}
+            </div>
+          ) : (
+            <form
+              className="flex flex-1 flex-col"
+              onSubmit={form.handleSubmit((input) =>
+                startTransition(async () => {
+                  if (agent) {
+                    const result = await changeExternalAgentAction(
+                      orgSlug,
+                      workspaceSlug,
+                      agent.clientId,
+                      "rename",
+                      input.name
+                    )
+                    if ("error" in result) {
+                      form.setError("root", { message: result.error })
+                      return
+                    }
+                    toast.success("Agent renamed")
+                    onSaved(agent.clientId)
+                    return
+                  }
+                  const result = await createExternalAgentAction(orgSlug, workspaceSlug, input)
                   if ("error" in result) {
                     form.setError("root", { message: result.error })
                     return
                   }
-                  toast.success("Agent renamed")
-                  onSaved(agent.clientId)
-                  return
-                }
-                const result = await createExternalAgentAction(orgSlug, workspaceSlug, input)
-                if ("error" in result) {
-                  form.setError("root", { message: result.error })
-                  return
-                }
-                toast.success("Agent added")
-                onSaved(result.clientId)
-              })
-            )}
-          >
-            <FieldGroup className="overflow-y-auto p-4">
-              <Field data-invalid={!!form.formState.errors.name}>
-                <FieldLabel htmlFor="external-agent-name">Name</FieldLabel>
-                <Input
-                  id="external-agent-name"
-                  placeholder="e.g. Work laptop"
-                  autoComplete="off"
-                  maxLength={100}
-                  disabled={pending}
-                  aria-invalid={!!form.formState.errors.name}
-                  {...form.register("name")}
-                />
-                <FieldError errors={[form.formState.errors.name]} />
-              </Field>
-              <FieldError errors={[form.formState.errors.root]} />
-            </FieldGroup>
-            <SheetFooter className="mt-auto border-t">
-              <LoadingButton pending={pending} type="submit">
-                {agent ? "Save" : "Add agent"}
-              </LoadingButton>
-            </SheetFooter>
-          </form>
-        )}
+                  toast.success("Agent added")
+                  onSaved(result.clientId)
+                })
+              )}
+            >
+              <FieldGroup className="px-4 pb-4">
+                <Field data-invalid={!!form.formState.errors.name}>
+                  <FieldLabel htmlFor="external-agent-name">Name</FieldLabel>
+                  <Input
+                    id="external-agent-name"
+                    placeholder="e.g. Work laptop"
+                    autoComplete="off"
+                    maxLength={100}
+                    disabled={pending}
+                    aria-invalid={!!form.formState.errors.name}
+                    {...form.register("name")}
+                  />
+                  <FieldError errors={[form.formState.errors.name]} />
+                </Field>
+                <FieldError errors={[form.formState.errors.root]} />
+              </FieldGroup>
+              <SheetFooter className="mt-auto border-t">
+                <LoadingButton pending={pending} type="submit">
+                  {agent ? "Save" : "Add agent"}
+                </LoadingButton>
+              </SheetFooter>
+            </form>
+          )}
+        </div>
       </SheetContent>
     </Sheet>
   )
@@ -1206,7 +1215,10 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
     return (
       <FieldGroup className="p-4 pt-0">
         <Field>
-          <FieldLabel>Agent ID</FieldLabel>
+          <FieldLabel>
+            <Fingerprint aria-hidden className="size-4 text-muted-foreground" />
+            Agent ID
+          </FieldLabel>
           <div className="flex items-center gap-2">
             <Input
               readOnly
@@ -1216,22 +1228,30 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
             <CopyButton content={agent.copilotStudioAgentId ?? ""} label="Copy agent ID" />
           </div>
         </Field>
-        <Field>
-          <FieldLabel>Last active</FieldLabel>
-          <FieldDescription>
-            {agent.lastActiveAt ? (
-              <RelativeDateTime value={agent.lastActiveAt} />
-            ) : (
-              "No activity yet"
-            )}
-          </FieldDescription>
-        </Field>
-        <Field>
-          <FieldLabel>Added</FieldLabel>
-          <FieldDescription>
-            <RelativeDateTime value={agent.createdAt} />
-          </FieldDescription>
-        </Field>
+        <FieldGroup className="grid grid-cols-2">
+          <Field>
+            <FieldLabel>
+              <Activity aria-hidden className="size-4 text-muted-foreground" />
+              Last active
+            </FieldLabel>
+            <FieldDescription>
+              {agent.lastActiveAt ? (
+                <RelativeDateTime value={agent.lastActiveAt} />
+              ) : (
+                "No activity yet"
+              )}
+            </FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel>
+              <CalendarDays aria-hidden className="size-4 text-muted-foreground" />
+              Added
+            </FieldLabel>
+            <FieldDescription>
+              <RelativeDateTime value={agent.createdAt} />
+            </FieldDescription>
+          </Field>
+        </FieldGroup>
       </FieldGroup>
     )
   const config = `externalAgents:

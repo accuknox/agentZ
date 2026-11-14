@@ -32,7 +32,6 @@ type AdminDataGridProps<T> = {
   renderSubRow?: (row: T) => ReactNode
   subRowClassName?: string
   rowAriaLabel?: (row: T) => string
-  rowAriaExpanded?: (row: T) => boolean | undefined
   rowCanActivate?: (row: T) => boolean
   rowHref?: (row: T) => Route | undefined
   viewportClassName?: string
@@ -63,7 +62,6 @@ export function AdminDataGrid<T>({
   renderSubRow,
   subRowClassName,
   rowAriaLabel,
-  rowAriaExpanded,
   rowCanActivate,
   rowHref,
   rows,
@@ -245,29 +243,25 @@ export function AdminDataGrid<T>({
                     >
                       {cell(row)}
                     </RoutedTableRow>
-                  ) : canActivate ? (
+                  ) : (
                     <TableRow
-                      aria-label={ariaLabel}
-                      aria-expanded={rowAriaExpanded?.(row.original)}
-                      className="group cursor-pointer focus-visible:ring-2 focus-visible:ring-inset"
+                      aria-label={canActivate ? ariaLabel : undefined}
+                      className={cn(
+                        "group",
+                        canActivate &&
+                          "cursor-pointer focus-visible:ring-2 focus-visible:ring-inset"
+                      )}
                       data-state={row.getIsSelected() && "selected"}
                       key={row.id}
-                      onClick={() => onRowActivate(row.original)}
+                      onClick={canActivate ? () => onRowActivate(row.original) : undefined}
                       onKeyDown={(event) => {
+                        if (!canActivate || event.target !== event.currentTarget) return
                         if (event.key !== "Enter" && event.key !== " ") return
                         event.preventDefault()
                         onRowActivate(row.original)
                       }}
-                      role="button"
-                      tabIndex={0}
-                    >
-                      {cell(row)}
-                    </TableRow>
-                  ) : (
-                    <TableRow
-                      className="group"
-                      data-state={row.getIsSelected() && "selected"}
-                      key={row.id}
+                      role={canActivate ? "button" : undefined}
+                      tabIndex={canActivate ? 0 : undefined}
                     >
                       {cell(row)}
                     </TableRow>

@@ -23,13 +23,16 @@ var gatewayServeCmd = &cli.Command{
 	Usage: "Run the gateway HTTP server",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name: "copilot-studio-base-url", Usage: "Public HTTPS gateway origin for Copilot Studio webhooks",
+			Name:  "copilot-studio-base-url",
+			Usage: "Public HTTPS gateway origin for Copilot Studio webhooks",
 		},
 		&cli.StringFlag{
-			Name: "copilot-studio-audience", Usage: "Entra resource application ID; enables Copilot Studio",
+			Name:  "copilot-studio-audience",
+			Usage: "Entra resource application ID; enables Copilot Studio",
 		},
 		&cli.StringFlag{
-			Name: "guardrail-stub-url", Usage: "Private completion stub URL used by guardrail evaluations",
+			Name:  "guardrail-stub-url",
+			Usage: "Private completion stub URL used by guardrail evaluations",
 		},
 		&cli.StringFlag{
 			Name:  "delegation-namespace",

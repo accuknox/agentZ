@@ -2,7 +2,7 @@ ALTER TYPE "public"."external_agent_kind" ADD VALUE 'microsoft-copilot-studio';-
 CREATE TABLE "copilot_studio_agents" (
 	"integration_id" text NOT NULL,
 	"agent_id" text NOT NULL,
-	"client_id" text,
+	"client_id" text NOT NULL,
 	"last_seen_at" timestamp with time zone,
 	CONSTRAINT "copilot_studio_agents_integration_id_agent_id_pk" PRIMARY KEY("integration_id","agent_id"),
 	CONSTRAINT "copilot_studio_agents_client_id_unique" UNIQUE("client_id")
@@ -29,7 +29,7 @@ CREATE TABLE "copilot_studio_integrations" (
 );
 --> statement-breakpoint
 ALTER TABLE "copilot_studio_agents" ADD CONSTRAINT "copilot_studio_agents_integration_id_copilot_studio_integrations_id_fk" FOREIGN KEY ("integration_id") REFERENCES "public"."copilot_studio_integrations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "copilot_studio_agents" ADD CONSTRAINT "copilot_studio_agents_client_id_external_agents_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."external_agents"("client_id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "copilot_studio_agents" ADD CONSTRAINT "copilot_studio_agents_client_id_external_agents_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."external_agents"("client_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "copilot_studio_integrations" ADD CONSTRAINT "copilot_studio_integrations_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "copilot_studio_integrations" ADD CONSTRAINT "copilot_studio_integrations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "copilot_studio_integrations" ADD CONSTRAINT "copilot_studio_integrations_workspace_id_organization_id_workspaces_id_organization_id_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint

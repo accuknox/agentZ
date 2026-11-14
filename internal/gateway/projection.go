@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +36,9 @@ import (
 )
 
 const delegationMCPAllowlist = `has(mcp.%[1]s) && mcp.%[1]s.target == %[2]q && mcp.%[1]s.name in [%[3]s]`
+
+//go:embed guardrail_evaluation_response.cel
+var guardrailEvaluationResponse string
 
 func (s *Service) delegationReady(ctx context.Context, grant gatewaydb.DelegationGrant, namespace, gateway, name string, policyNames ...string) error {
 	conditionsReady := func(conditions []metav1.Condition, generation int64, names ...string) bool {
@@ -856,43 +860,52 @@ func (s *Service) projectGuardrailEvaluation(ctx context.Context, bundle *guardr
 	targets = append(targets, target)
 	backend := &agw.AgentgatewayBackend{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: agw.GroupVersion.String(), Kind: "AgentgatewayBackend",
+			APIVersion: agw.GroupVersion.String(),
+			Kind:       "AgentgatewayBackend",
 		},
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
-		Spec: agw.AgentgatewayBackendSpec{AI: &agw.AIBackend{LLM: &agw.LLMProvider{
-			Host: target.Host, Port: target.Port, Path: stub.Path,
-			Custom: &agw.CustomProvider{CustomProviderSettings: agw.CustomProviderSettings{
-				Formats: []agw.ProviderFormatConfig{{Type: agw.ProviderFormatCompletions}},
-			}},
-		}}},
+		Spec: agw.AgentgatewayBackendSpec{
+			AI: &agw.AIBackend{
+				LLM: &agw.LLMProvider{
+					Host: target.Host,
+					Port: target.Port,
+					Path: stub.Path,
+					Custom: &agw.CustomProvider{
+						CustomProviderSettings: agw.CustomProviderSettings{
+							Formats: []agw.ProviderFormatConfig{{Type: agw.ProviderFormatCompletions}},
+						},
+					},
+				},
+			},
+		},
 	}
 	route := delegationRoute(namespace, "delegations", name, "/"+name+"/v1", gwv1.PathMatchPathPrefix)
 	policy := &agw.AgentgatewayPolicy{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: agw.GroupVersion.String(), Kind: "AgentgatewayPolicy",
+			APIVersion: agw.GroupVersion.String(),
+			Kind:       "AgentgatewayPolicy",
 		},
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
 		Spec: agw.AgentgatewayPolicySpec{
 			TargetRefs: []agw.LocalPolicyTargetReferenceWithSectionName{{
 				LocalPolicyTargetReference: agw.LocalPolicyTargetReference{
-					Group: "gateway.networking.k8s.io", Kind: "HTTPRoute", Name: gwv1.ObjectName(name),
+					Group: "gateway.networking.k8s.io",
+					Kind:  "HTTPRoute",
+					Name:  gwv1.ObjectName(name),
 				},
 			}},
 		},
 	}
 	bundle.Apply(policy)
 	policy.Spec.Traffic.Transformation.Response = &agw.Transform{
-		Body: new(agw.CELExpression(`{
-  "blocked": false,
-  "revision": metadata.agentz_guardrail_revision,
-  "evaluations": guardrails.filter(e, e.action != "allow")
-}`)),
+		Body: new(agw.CELExpression(guardrailEvaluationResponse)),
 	}
 	network := &ciliumv2.CiliumNetworkPolicy{
 		TypeMeta:   metav1.TypeMeta{APIVersion: "cilium.io/v2", Kind: "CiliumNetworkPolicy"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
 		Spec: &ciliumapi.Rule{
-			EndpointSelector: ciliumapi.NewESFromLabels(), Egress: networkpolicy.ExternalEgress(targets),
+			EndpointSelector: ciliumapi.NewESFromLabels(),
+			Egress:           networkpolicy.ExternalEgress(targets),
 		},
 	}
 	objects := []ctrlclient.Object{backend, route, policy, network}

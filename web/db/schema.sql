@@ -135,7 +135,7 @@ CREATE TABLE "coding_worktrees" (
 CREATE TABLE "copilot_studio_agents" (
 	"integration_id" text NOT NULL,
 	"agent_id" text NOT NULL,
-	"client_id" text,
+	"client_id" text NOT NULL,
 	"last_seen_at" timestamp with time zone,
 	CONSTRAINT "copilot_studio_agents_integration_id_agent_id_pk" PRIMARY KEY("integration_id","agent_id"),
 	CONSTRAINT "copilot_studio_agents_client_id_unique" UNIQUE("client_id")
@@ -762,7 +762,7 @@ ALTER TABLE "coding_projects" ADD CONSTRAINT "coding_projects_owner_id_users_id_
 ALTER TABLE "coding_threads" ADD CONSTRAINT "coding_threads_workspace_id_agent_name_worktree_id_coding_worktrees_workspace_id_agent_name_id_fk" FOREIGN KEY ("workspace_id","agent_name","worktree_id") REFERENCES "public"."coding_worktrees"("workspace_id","agent_name","id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "coding_worktrees" ADD CONSTRAINT "coding_worktrees_workspace_id_project_id_coding_projects_workspace_id_id_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."coding_projects"("workspace_id","id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "copilot_studio_agents" ADD CONSTRAINT "copilot_studio_agents_integration_id_copilot_studio_integrations_id_fk" FOREIGN KEY ("integration_id") REFERENCES "public"."copilot_studio_integrations"("id") ON DELETE cascade ON UPDATE no action;
-ALTER TABLE "copilot_studio_agents" ADD CONSTRAINT "copilot_studio_agents_client_id_external_agents_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."external_agents"("client_id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "copilot_studio_agents" ADD CONSTRAINT "copilot_studio_agents_client_id_external_agents_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."external_agents"("client_id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "copilot_studio_integrations" ADD CONSTRAINT "copilot_studio_integrations_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "copilot_studio_integrations" ADD CONSTRAINT "copilot_studio_integrations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "copilot_studio_integrations" ADD CONSTRAINT "copilot_studio_integrations_workspace_id_organization_id_workspaces_id_organization_id_fk" FOREIGN KEY ("workspace_id","organization_id") REFERENCES "public"."workspaces"("id","organization_id") ON DELETE restrict ON UPDATE no action;

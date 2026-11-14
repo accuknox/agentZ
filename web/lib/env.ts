@@ -82,7 +82,8 @@ const envSchema = z
     ORGANIZATION_ASSETS_S3_ENDPOINT: z.url().optional(),
     ORGANIZATION_ASSETS_S3_REGION: z.string().min(1),
     ORGANIZATION_ASSETS_S3_BUCKET: z.string().min(1),
-    ORGANIZATION_ASSETS_PUBLIC_BASE_URL: z.url(),
+    // The object refinement constructs this URL, so invalid syntax must abort.
+    ORGANIZATION_ASSETS_PUBLIC_BASE_URL: z.url({ abort: true }),
     ORGANIZATION_ASSETS_S3_FORCE_PATH_STYLE: z.stringbool().default(false),
     ORGANIZATION_ASSETS_S3_ACCESS_KEY_ID: z.string().min(1).optional(),
     ORGANIZATION_ASSETS_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),

@@ -138,7 +138,7 @@ run-gateway:
 		--skills-s3-endpoint=$(SKILLS_S3_ENDPOINT) \
 		--skills-s3-region=$(SKILLS_S3_REGION) \
 		--skills-s3-bucket=$(SKILLS_S3_BUCKET) \
-		--guardrail-stub-url=http://localhost:8090/internal/guardrails/completion \
+		--guardrail-stub-url=http://172.18.0.1:8090/internal/guardrails/completion \
 		$(GATEWAY_FLAGS)
 
 .PHONY: run-manager

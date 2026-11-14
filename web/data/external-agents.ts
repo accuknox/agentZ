@@ -22,53 +22,99 @@ export async function listExternalAgents(
   const session = await getAuthSession()
   if (!session) return null
   const administer = scope.scope.organization.superadmin || scope.workspace.capabilities.administer
-  const [setting] = clientIds
-    ? []
-    : await getDB()
-        .select({ enabled: schema.organizationDelegation.enabled })
-        .from(schema.organizationDelegation)
-        .where(eq(schema.organizationDelegation.organizationId, scope.scope.organization.id))
-  const agents = await getDB()
-    .select({
-      clientId: schema.externalAgents.clientId,
-      kind: schema.externalAgents.kind,
-      name: schema.oauthClients.name,
-      createdAt: schema.externalAgents.createdAt,
-      disabled: schema.oauthClients.disabled,
-      environmentEnabled: schema.copilotStudioIntegrations.enabled,
-      copilotStudioAgentId: schema.copilotStudioAgents.agentId,
-      lastActiveAt: schema.copilotStudioAgents.lastSeenAt,
-      user: {
-        id: schema.users.id,
-        name: schema.users.name,
-        email: schema.users.email,
-        image: schema.users.image,
-      },
-    })
-    .from(schema.externalAgents)
-    .innerJoin(
-      schema.oauthClients,
-      eq(schema.oauthClients.clientId, schema.externalAgents.clientId)
-    )
-    .innerJoin(schema.users, eq(schema.users.id, schema.externalAgents.userId))
-    .leftJoin(
-      schema.copilotStudioAgents,
-      eq(schema.copilotStudioAgents.clientId, schema.externalAgents.clientId)
-    )
-    .leftJoin(
-      schema.copilotStudioIntegrations,
-      eq(schema.copilotStudioIntegrations.id, schema.copilotStudioAgents.integrationId)
-    )
-    .where(
-      and(
-        eq(schema.externalAgents.workspaceId, scope.workspace.id),
-        administer ? undefined : eq(schema.externalAgents.userId, session.session.user.id),
-        clientIds
-          ? inArray(schema.externalAgents.clientId, clientIds)
-          : ne(schema.externalAgents.kind, "microsoft-copilot-studio")
+  const [settings, agents, integrations] = await Promise.all([
+    clientIds
+      ? []
+      : getDB()
+          .select({ enabled: schema.organizationDelegation.enabled })
+          .from(schema.organizationDelegation)
+          .where(eq(schema.organizationDelegation.organizationId, scope.scope.organization.id)),
+    getDB()
+      .select({
+        clientId: schema.externalAgents.clientId,
+        kind: schema.externalAgents.kind,
+        name: schema.oauthClients.name,
+        createdAt: schema.externalAgents.createdAt,
+        disabled: schema.oauthClients.disabled,
+        environmentEnabled: schema.copilotStudioIntegrations.enabled,
+        copilotStudioAgentId: schema.copilotStudioAgents.agentId,
+        lastActiveAt: schema.copilotStudioAgents.lastSeenAt,
+        user: {
+          id: schema.users.id,
+          name: schema.users.name,
+          email: schema.users.email,
+          image: schema.users.image,
+        },
+      })
+      .from(schema.externalAgents)
+      .innerJoin(
+        schema.oauthClients,
+        eq(schema.oauthClients.clientId, schema.externalAgents.clientId)
       )
-    )
-    .orderBy(asc(schema.externalAgents.createdAt), asc(schema.externalAgents.clientId))
+      .innerJoin(schema.users, eq(schema.users.id, schema.externalAgents.userId))
+      .leftJoin(
+        schema.copilotStudioAgents,
+        eq(schema.copilotStudioAgents.clientId, schema.externalAgents.clientId)
+      )
+      .leftJoin(
+        schema.copilotStudioIntegrations,
+        eq(schema.copilotStudioIntegrations.id, schema.copilotStudioAgents.integrationId)
+      )
+      .where(
+        and(
+          eq(schema.externalAgents.workspaceId, scope.workspace.id),
+          administer ? undefined : eq(schema.externalAgents.userId, session.session.user.id),
+          clientIds
+            ? inArray(schema.externalAgents.clientId, clientIds)
+            : ne(schema.externalAgents.kind, "microsoft-copilot-studio")
+        )
+      )
+      .orderBy(asc(schema.externalAgents.createdAt), asc(schema.externalAgents.clientId)),
+    clientIds
+      ? []
+      : getDB()
+          .select({
+            id: schema.copilotStudioIntegrations.id,
+            name: schema.copilotStudioIntegrations.name,
+            enabled: schema.copilotStudioIntegrations.enabled,
+            createdAt: schema.copilotStudioIntegrations.createdAt,
+            validatedAt: schema.copilotStudioIntegrations.validatedAt,
+            runtimeError: schema.copilotStudioIntegrations.runtimeError,
+            agentCount: count(schema.externalAgents.clientId),
+            user: {
+              id: schema.users.id,
+              name: schema.users.name,
+              email: schema.users.email,
+              image: schema.users.image,
+            },
+          })
+          .from(schema.copilotStudioIntegrations)
+          .innerJoin(schema.users, eq(schema.users.id, schema.copilotStudioIntegrations.userId))
+          .leftJoin(
+            schema.copilotStudioAgents,
+            eq(schema.copilotStudioAgents.integrationId, schema.copilotStudioIntegrations.id)
+          )
+          .leftJoin(
+            schema.externalAgents,
+            and(
+              eq(schema.externalAgents.clientId, schema.copilotStudioAgents.clientId),
+              administer ? undefined : eq(schema.externalAgents.userId, session.session.user.id)
+            )
+          )
+          .where(
+            and(
+              eq(schema.copilotStudioIntegrations.organizationId, scope.scope.organization.id),
+              eq(schema.copilotStudioIntegrations.workspaceId, scope.workspace.id),
+              administer ? undefined : isNotNull(schema.externalAgents.clientId)
+            )
+          )
+          .groupBy(schema.copilotStudioIntegrations.id, schema.users.id)
+          .orderBy(
+            asc(schema.copilotStudioIntegrations.createdAt),
+            asc(schema.copilotStudioIntegrations.id)
+          ),
+  ])
+  const [setting] = settings
   const delegated = agents.filter((agent) => agent.kind !== "microsoft-copilot-studio")
   const grants = delegated.length
     ? await getDB()
@@ -78,7 +124,7 @@ export async function listExternalAgents(
           and(
             inArray(
               schema.delegationGrants.clientId,
-              agents.map((agent) => agent.clientId)
+              delegated.map((agent) => agent.clientId)
             ),
             isNotNull(schema.delegationGrants.approvedAt)
           )
@@ -86,49 +132,6 @@ export async function listExternalAgents(
         .orderBy(asc(schema.delegationGrants.createdAt))
     : []
   const grantsByClient = Map.groupBy(grants, (grant) => grant.clientId)
-  const integrations = clientIds
-    ? []
-    : await getDB()
-        .select({
-          id: schema.copilotStudioIntegrations.id,
-          name: schema.copilotStudioIntegrations.name,
-          enabled: schema.copilotStudioIntegrations.enabled,
-          createdAt: schema.copilotStudioIntegrations.createdAt,
-          validatedAt: schema.copilotStudioIntegrations.validatedAt,
-          runtimeError: schema.copilotStudioIntegrations.runtimeError,
-          agentCount: count(schema.externalAgents.clientId),
-          user: {
-            id: schema.users.id,
-            name: schema.users.name,
-            email: schema.users.email,
-            image: schema.users.image,
-          },
-        })
-        .from(schema.copilotStudioIntegrations)
-        .innerJoin(schema.users, eq(schema.users.id, schema.copilotStudioIntegrations.userId))
-        .leftJoin(
-          schema.copilotStudioAgents,
-          eq(schema.copilotStudioAgents.integrationId, schema.copilotStudioIntegrations.id)
-        )
-        .leftJoin(
-          schema.externalAgents,
-          and(
-            eq(schema.externalAgents.clientId, schema.copilotStudioAgents.clientId),
-            administer ? undefined : eq(schema.externalAgents.userId, session.session.user.id)
-          )
-        )
-        .where(
-          and(
-            eq(schema.copilotStudioIntegrations.organizationId, scope.scope.organization.id),
-            eq(schema.copilotStudioIntegrations.workspaceId, scope.workspace.id),
-            administer ? undefined : isNotNull(schema.externalAgents.clientId)
-          )
-        )
-        .groupBy(schema.copilotStudioIntegrations.id, schema.users.id)
-        .orderBy(
-          asc(schema.copilotStudioIntegrations.createdAt),
-          asc(schema.copilotStudioIntegrations.id)
-        )
   return {
     workspace: scope.workspace,
     organization: scope.scope.organization,

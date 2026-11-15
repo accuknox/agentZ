@@ -114,7 +114,12 @@ JOIN external_agents agent ON agent.client_id = access.client_id
   AND agent.workspace_id = access.workspace_id
 WHERE access.organization_id = sqlc.arg(organization_id)
   AND access.workspace_id = sqlc.arg(workspace_id)
-ORDER BY access.client_id;
+UNION ALL
+SELECT integration.id, integration.policies
+FROM copilot_studio_integrations integration
+WHERE integration.organization_id = sqlc.arg(organization_id)
+  AND integration.workspace_id = sqlc.arg(workspace_id)
+ORDER BY client_id;
 
 -- name: GatewayListOrganizationExternalAgentGuardrails :many
 SELECT access.workspace_id, access.policies FROM guardrail_client_access access
@@ -125,7 +130,14 @@ JOIN workspaces ON workspaces.id = access.workspace_id
   AND workspaces.organization_id = access.organization_id
 WHERE access.organization_id = sqlc.arg(organization_id)
   AND workspaces.deleted_at IS NULL
-ORDER BY access.workspace_id, access.client_id;
+UNION ALL
+SELECT integration.workspace_id, integration.policies
+FROM copilot_studio_integrations integration
+JOIN workspaces ON workspaces.id = integration.workspace_id
+  AND workspaces.organization_id = integration.organization_id
+WHERE integration.organization_id = sqlc.arg(organization_id)
+  AND workspaces.deleted_at IS NULL
+ORDER BY workspace_id;
 
 -- name: GatewayGetAPIKeyByHash :one
 SELECT id, reference_id, name
@@ -3642,7 +3654,14 @@ ORDER BY a.agent_id
 LIMIT @page_size;
 
 -- name: GatewayGetCopilotStudioIntegration :one
-SELECT * FROM copilot_studio_integrations WHERE id = @id;
+SELECT i.* FROM copilot_studio_integrations i
+JOIN workspaces w ON w.id = i.workspace_id
+  AND w.organization_id = i.organization_id
+WHERE i.id = @id AND w.deleted_at IS NULL AND w.state = 'ready';
+
+-- name: GatewayRevokeWorkspaceCopilotStudioIntegrations :exec
+UPDATE copilot_studio_integrations SET enabled = false
+WHERE workspace_id = @workspace_id AND organization_id = @organization_id;
 
 -- name: GatewaySaveCopilotStudioIntegration :one
 WITH notification AS (

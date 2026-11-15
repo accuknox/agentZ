@@ -271,14 +271,6 @@ func (s *Service) saveCopilotStudioIntegration(w http.ResponseWriter, r *http.Re
 	if assignment.Policies == nil {
 		assignment.Policies = []api.ResourceReference{}
 	}
-	bundle, err := guardrails.Resolve(r.Context(), s.k8sClient, access.namespace, assignment)
-	if err == nil {
-		err = copilotStudioPolicyCompatibility(bundle)
-	}
-	if err != nil {
-		apiutil.WriteError(w, r, apiutil.NewError(400, "invalid_request", err.Error(), err))
-		return
-	}
 	if r.Method == http.MethodPut {
 		previous, getErr := s.queries.GatewayGetCopilotStudioIntegration(r.Context(), id)
 		if getErr != nil {
@@ -287,6 +279,17 @@ func (s *Service) saveCopilotStudioIntegration(w http.ResponseWriter, r *http.Re
 		}
 		if previous.OrganizationID != access.organizationID || previous.WorkspaceID != access.workspaceID {
 			apiutil.WriteError(w, r, resourceForbidden(errors.New("integration belongs to another workspace")))
+			return
+		}
+	}
+	// An existing connection must remain revocable if its policies break.
+	if input.Enabled || r.Method != http.MethodPut {
+		bundle, err := guardrails.Resolve(r.Context(), s.k8sClient, access.namespace, assignment)
+		if err == nil {
+			err = copilotStudioPolicyCompatibility(bundle)
+		}
+		if err != nil {
+			apiutil.WriteError(w, r, apiutil.NewError(400, "invalid_request", err.Error(), err))
 			return
 		}
 	}

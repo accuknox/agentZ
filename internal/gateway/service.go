@@ -833,6 +833,13 @@ func (s *Service) processWorkspaceCleanup(ctx context.Context, job gatewaydb.Cle
 	if err != nil {
 		return fmt.Errorf("get Workspace %q for cleanup: %w", payload.WorkspaceID, err)
 	}
+	err = s.queries.GatewayRevokeWorkspaceCopilotStudioIntegrations(ctx, gatewaydb.GatewayRevokeWorkspaceCopilotStudioIntegrationsParams{
+		WorkspaceID:    workspace.ID,
+		OrganizationID: job.OrganizationID,
+	})
+	if err != nil {
+		return fmt.Errorf("revoke Workspace %q integrations: %w", workspace.ID, err)
+	}
 	err = s.agentz.AgentzV1alpha1().Workspaces().Delete(
 		ctx,
 		workspace.Namespace,

@@ -198,6 +198,7 @@ type Querier interface {
 	GatewayRetryCleanupJob(ctx context.Context, arg GatewayRetryCleanupJobParams) (int64, error)
 	GatewayRetryWorkspaceProvisioning(ctx context.Context, arg GatewayRetryWorkspaceProvisioningParams) (int64, error)
 	GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevokeScopedAPIKeyParams) (int64, error)
+	GatewayRevokeWorkspaceCopilotStudioIntegrations(ctx context.Context, arg GatewayRevokeWorkspaceCopilotStudioIntegrationsParams) error
 	GatewaySaveCodingSnapshot(ctx context.Context, arg GatewaySaveCodingSnapshotParams) (int64, error)
 	GatewaySaveCopilotStudioIntegration(ctx context.Context, arg GatewaySaveCopilotStudioIntegrationParams) (CopilotStudioIntegration, error)
 	GatewaySaveDelegationMCPSession(ctx context.Context, arg GatewaySaveDelegationMCPSessionParams) (int64, error)

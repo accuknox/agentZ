@@ -2882,7 +2882,10 @@ func (q *Queries) GatewayGetCodingWorktree(ctx context.Context, arg GatewayGetCo
 }
 
 const gatewayGetCopilotStudioIntegration = `-- name: GatewayGetCopilotStudioIntegration :one
-SELECT id, organization_id, workspace_id, user_id, name, tenant_id, application_id, environment_id, enabled, failure_mode, policies, created_at, validated_at, last_seen_at, runtime_error FROM copilot_studio_integrations WHERE id = $1
+SELECT i.id, i.organization_id, i.workspace_id, i.user_id, i.name, i.tenant_id, i.application_id, i.environment_id, i.enabled, i.failure_mode, i.policies, i.created_at, i.validated_at, i.last_seen_at, i.runtime_error FROM copilot_studio_integrations i
+JOIN workspaces w ON w.id = i.workspace_id
+  AND w.organization_id = i.organization_id
+WHERE i.id = $1 AND w.deleted_at IS NULL AND w.state = 'ready'
 `
 
 func (q *Queries) GatewayGetCopilotStudioIntegration(ctx context.Context, id string) (CopilotStudioIntegration, error) {
@@ -6039,7 +6042,12 @@ JOIN external_agents agent ON agent.client_id = access.client_id
   AND agent.workspace_id = access.workspace_id
 WHERE access.organization_id = $1
   AND access.workspace_id = $2
-ORDER BY access.client_id
+UNION ALL
+SELECT integration.id, integration.policies
+FROM copilot_studio_integrations integration
+WHERE integration.organization_id = $1
+  AND integration.workspace_id = $2
+ORDER BY client_id
 `
 
 type GatewayListExternalAgentGuardrailsParams struct {
@@ -6751,7 +6759,14 @@ JOIN workspaces ON workspaces.id = access.workspace_id
   AND workspaces.organization_id = access.organization_id
 WHERE access.organization_id = $1
   AND workspaces.deleted_at IS NULL
-ORDER BY access.workspace_id, access.client_id
+UNION ALL
+SELECT integration.workspace_id, integration.policies
+FROM copilot_studio_integrations integration
+JOIN workspaces ON workspaces.id = integration.workspace_id
+  AND workspaces.organization_id = integration.organization_id
+WHERE integration.organization_id = $1
+  AND workspaces.deleted_at IS NULL
+ORDER BY workspace_id
 `
 
 type GatewayListOrganizationExternalAgentGuardrailsRow struct {
@@ -8792,6 +8807,21 @@ func (q *Queries) GatewayRevokeScopedAPIKey(ctx context.Context, arg GatewayRevo
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const gatewayRevokeWorkspaceCopilotStudioIntegrations = `-- name: GatewayRevokeWorkspaceCopilotStudioIntegrations :exec
+UPDATE copilot_studio_integrations SET enabled = false
+WHERE workspace_id = $1 AND organization_id = $2
+`
+
+type GatewayRevokeWorkspaceCopilotStudioIntegrationsParams struct {
+	WorkspaceID    string `json:"workspace_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GatewayRevokeWorkspaceCopilotStudioIntegrations(ctx context.Context, arg GatewayRevokeWorkspaceCopilotStudioIntegrationsParams) error {
+	_, err := q.db.Exec(ctx, gatewayRevokeWorkspaceCopilotStudioIntegrations, arg.WorkspaceID, arg.OrganizationID)
+	return err
 }
 
 const gatewaySaveCodingSnapshot = `-- name: GatewaySaveCodingSnapshot :execrows

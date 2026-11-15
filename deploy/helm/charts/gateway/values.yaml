@@ -114,6 +114,7 @@ config:
   mcpProbeStaleAfter: 5m
   # Provider resource application. Configure v2 access tokens and the idtyp claim in Entra.
   copilotStudioAudience: ""
+  # Public HTTPS gateway origin used for Copilot Studio webhook callbacks.
   copilotStudioBaseURL: ""
   skillsS3Endpoint: ""
   skillsS3Region: us-east-1

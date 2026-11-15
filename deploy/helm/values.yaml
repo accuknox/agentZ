@@ -6,6 +6,7 @@ global:
     umbrella: true
     # Disable delegation consistently across gateway, manager and web.
     delegationEnabled: true
+    # Uses the private guardrail runtime even when delegation is disabled.
     copilotStudioEnabled: false
 
 migrations:
@@ -189,6 +190,9 @@ manager:
 
     # Enable HTTP/2.
     enableHTTP2: false
+
+    # Age limit for orphan terminal WorkflowRuns. Set 0 to disable pruning.
+    workflowRunOrphanRetention: 168h
 
     # Empty inherits manager.image, including its digest, for extauth,
     # sinjector and agent filesystem sidecars. Set to override.
@@ -552,6 +556,11 @@ gateway:
 
     # Maximum age before MCP probe results are treated as stale.
     mcpProbeStaleAfter: 5m
+
+    # Provider resource application. Configure v2 access tokens and the idtyp claim in Entra.
+    copilotStudioAudience: ""
+    # Public HTTPS gateway origin used for Copilot Studio webhook callbacks.
+    copilotStudioBaseURL: ""
 
     # Immutable Skill object storage is owned by the gateway.
     skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000

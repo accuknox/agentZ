@@ -26,6 +26,9 @@ import type {
   CreateCodingProjectData,
   CreateCodingProjectErrors,
   CreateCodingProjectResponses,
+  CreateCopilotStudioIntegrationData,
+  CreateCopilotStudioIntegrationErrors,
+  CreateCopilotStudioIntegrationResponses,
   CreateDashboardData,
   CreateDashboardErrors,
   CreateDashboardResponses,
@@ -176,6 +179,9 @@ import type {
   GetCodingThreadData,
   GetCodingThreadErrors,
   GetCodingThreadResponses,
+  GetCopilotStudioIntegrationData,
+  GetCopilotStudioIntegrationErrors,
+  GetCopilotStudioIntegrationResponses,
   GetDashboardData,
   GetDashboardErrors,
   GetDashboardResponses,
@@ -308,6 +314,12 @@ import type {
   ListCodingRepositoriesData,
   ListCodingRepositoriesErrors,
   ListCodingRepositoriesResponses,
+  ListCopilotStudioAgentsData,
+  ListCopilotStudioAgentsErrors,
+  ListCopilotStudioAgentsResponses,
+  ListCopilotStudioIntegrationsData,
+  ListCopilotStudioIntegrationsErrors,
+  ListCopilotStudioIntegrationsResponses,
   ListDashboardsData,
   ListDashboardsErrors,
   ListDashboardsResponses,
@@ -506,6 +518,9 @@ import type {
   UpdateCodingProjectPreferenceData,
   UpdateCodingProjectPreferenceErrors,
   UpdateCodingProjectPreferenceResponses,
+  UpdateCopilotStudioIntegrationData,
+  UpdateCopilotStudioIntegrationErrors,
+  UpdateCopilotStudioIntegrationResponses,
   UpdateGuardrailConnectionData,
   UpdateGuardrailConnectionErrors,
   UpdateGuardrailConnectionResponses,
@@ -600,6 +615,79 @@ export type Options<
    */
   meta?: Record<string, unknown>
 }
+
+export const listCopilotStudioIntegrations = <ThrowOnError extends boolean = false>(
+  options?: Options<ListCopilotStudioIntegrationsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListCopilotStudioIntegrationsResponses,
+    ListCopilotStudioIntegrationsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/copilot-studio/integrations",
+    ...options,
+  })
+
+export const createCopilotStudioIntegration = <ThrowOnError extends boolean = false>(
+  options: Options<CreateCopilotStudioIntegrationData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateCopilotStudioIntegrationResponses,
+    CreateCopilotStudioIntegrationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/copilot-studio/integrations",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const getCopilotStudioIntegration = <ThrowOnError extends boolean = false>(
+  options: Options<GetCopilotStudioIntegrationData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetCopilotStudioIntegrationResponses,
+    GetCopilotStudioIntegrationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/copilot-studio/integrations/{integrationId}",
+    ...options,
+  })
+
+export const updateCopilotStudioIntegration = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateCopilotStudioIntegrationData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    UpdateCopilotStudioIntegrationResponses,
+    UpdateCopilotStudioIntegrationErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/copilot-studio/integrations/{integrationId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+export const listCopilotStudioAgents = <ThrowOnError extends boolean = false>(
+  options: Options<ListCopilotStudioAgentsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListCopilotStudioAgentsResponses,
+    ListCopilotStudioAgentsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/copilot-studio/integrations/{integrationId}/agents",
+    ...options,
+  })
 
 /**
  * List apps with workspace access or telemetry history
@@ -2518,7 +2606,7 @@ export const getDelegatedCatalog = <ThrowOnError extends boolean = false>(
   })
 
 /**
- * Export native Copilot traces with current delegated inference authorization.
+ * Export native GitHub Copilot traces with current delegated inference authorization.
  */
 export const exportExternalAgentTraces = <ThrowOnError extends boolean = false>(
   options: Options<ExportExternalAgentTracesData, ThrowOnError>

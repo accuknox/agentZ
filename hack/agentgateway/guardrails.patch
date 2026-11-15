@@ -1,15 +1,3 @@
-diff --git a/crates/agentgateway/src/cel/tests.rs b/crates/agentgateway/src/cel/tests.rs
-index 6d2d0d0..c3cd8bc 100644
---- a/crates/agentgateway/src/cel/tests.rs
-+++ b/crates/agentgateway/src/cel/tests.rs
-@@ -687,6 +687,7 @@ fn log_guardrails_binding() {
- 					"piiEntities": [{"type": "EMAIL", "action": "BLOCKED", "detected": true}]
- 				}
- 			})],
-+			..Default::default()
- 		},
- 	}];
- 	let exec = Executor::new_logger(None, None, None, None, Some(&entries), None, None);
 diff --git a/crates/agentgateway/src/cel/types.rs b/crates/agentgateway/src/cel/types.rs
 index 6d5f31f..7f2441c 100644
 --- a/crates/agentgateway/src/cel/types.rs

@@ -27,6 +27,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -83,6 +84,9 @@ const cleanupMaxAttempts = 8
 
 // Config describes how to start the gateway.
 type Config struct {
+	CopilotStudioBaseURL           string
+	CopilotStudioAudience          string
+	GuardrailStubURL               string
 	CodingGitHubClientID           string
 	CodingGitHubClientSecret       string
 	CodingGitHubEncryptionKey      string
@@ -112,6 +116,8 @@ type Config struct {
 
 // Service implements the agent gateway HTTP API.
 type Service struct {
+	copilotStudioKeys map[string]keyfunc.Keyfunc
+	copilotStudioMu   sync.RWMutex
 	gatewayapi.Unimplemented
 	delegationRequests  chan struct{}
 	delegationBodies    *semaphore.Weighted
@@ -234,6 +240,32 @@ func Serve(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("mcp probe stale after is required")
 	}
 	var delegationTarget *url.URL
+	if cfg.CopilotStudioAudience != "" {
+		if _, err := uuid.Parse(cfg.CopilotStudioAudience); err != nil {
+			return errors.New("the Copilot Studio audience must be the provider application's client ID")
+		}
+		endpoint, err := url.Parse(cfg.CopilotStudioBaseURL)
+		if err != nil {
+			return fmt.Errorf("parse Copilot Studio base URL: %w", err)
+		}
+		invalidEndpoint := endpoint.Scheme != "https" || endpoint.Host == "" || endpoint.User != nil
+		invalidEndpoint = invalidEndpoint || endpoint.RawQuery != "" || endpoint.Fragment != ""
+		if invalidEndpoint {
+			return errors.New("the Copilot Studio base URL must be an HTTPS endpoint without credentials, query or fragment")
+		}
+		if cfg.DelegationNamespace == "" || cfg.GuardrailStubURL == "" {
+			return errors.New("enabling Copilot Studio requires a private guardrail runtime and completion endpoint")
+		}
+		stub, err := url.Parse(cfg.GuardrailStubURL)
+		if err != nil {
+			return fmt.Errorf("parse guardrail completion URL: %w", err)
+		}
+		invalidStub := stub.Scheme != "http" || stub.Host == "" || stub.User != nil
+		invalidStub = invalidStub || stub.RawQuery != "" || stub.Fragment != ""
+		if invalidStub {
+			return errors.New("guardrail completion URL must use internal HTTP without credentials, query or fragment")
+		}
+	}
 	if cfg.DelegationNamespace != "" {
 		if cfg.DelegationGatewayURL == "" {
 			cfg.DelegationGatewayURL = "http://delegations." + cfg.DelegationNamespace + ".svc.cluster.local:8080"
@@ -378,7 +410,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		return err
 	}
 
-	externalJWTKeyfunc, err := newExternalJWTKeyfunc(ctx, cfg.ExternalJWTJWKSURL)
+	externalKeys, err := newExternalJWTKeyfunc(ctx, cfg.ExternalJWTJWKSURL)
 	if err != nil {
 		return err
 	}
@@ -408,7 +440,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		usageReader:        usageCache,
 		k8s:                k8s,
 		agentz:             agentz,
-		externalJWTKeyfunc: externalJWTKeyfunc,
+		externalJWTKeyfunc: externalKeys.Keyfunc,
 		skillStore:         skillStore,
 		skillImports:       make(chan struct{}, 4),
 		chatInputWake:      make(chan struct{}, 1),
@@ -451,6 +483,9 @@ func Serve(ctx context.Context, cfg Config) error {
 		svc.delegationRequests = make(chan struct{}, 64)
 		svc.delegationBodies = semaphore.NewWeighted(128 << 20)
 		workers.Go(func() { svc.runDelegationRuntime(runCtx) })
+		if cfg.CopilotStudioAudience != "" {
+			workers.Go(func() { svc.runCopilotStudioRuntime(runCtx) })
+		}
 	}
 
 	srv := &http.Server{
@@ -798,6 +833,13 @@ func (s *Service) processWorkspaceCleanup(ctx context.Context, job gatewaydb.Cle
 	if err != nil {
 		return fmt.Errorf("get Workspace %q for cleanup: %w", payload.WorkspaceID, err)
 	}
+	err = s.queries.GatewayRevokeWorkspaceCopilotStudioIntegrations(ctx, gatewaydb.GatewayRevokeWorkspaceCopilotStudioIntegrationsParams{
+		WorkspaceID:    workspace.ID,
+		OrganizationID: job.OrganizationID,
+	})
+	if err != nil {
+		return fmt.Errorf("revoke Workspace %q integrations: %w", workspace.ID, err)
+	}
 	err = s.agentz.AgentzV1alpha1().Workspaces().Delete(
 		ctx,
 		workspace.Namespace,
@@ -878,6 +920,23 @@ func (s *Service) routes() http.Handler {
 		r.With(s.delegationCORS).HandleFunc("/api/mcp", s.handleDelegatedRequest)
 	}
 
+	if s.cfg.CopilotStudioAudience != "" {
+		r.Post("/api/copilot-studio/webhooks/{integrationId}/validate", s.copilotStudioWebhook)
+		r.Post("/api/copilot-studio/webhooks/{integrationId}/analyze-tool-execution", s.copilotStudioWebhook)
+		r.Post("/internal/guardrails/completion", func(w http.ResponseWriter, _ *http.Request) {
+			apiutil.WriteJSON(w, http.StatusOK, map[string]any{
+				"id":      "guardrail-evaluation",
+				"object":  "chat.completion",
+				"created": 0,
+				"model":   "guardrail-evaluation",
+				"choices": []map[string]any{{
+					"index":         0,
+					"message":       map[string]string{"role": "assistant", "content": ""},
+					"finish_reason": "stop",
+				}},
+			})
+		})
+	}
 	apiRouter := chi.NewRouter()
 	apiRouter.Use(managementCORS)
 	apiRouter.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(
@@ -1050,12 +1109,12 @@ type gatewayClaims struct {
 	WorkspaceID          string                `json:"-"`
 }
 
-func newExternalJWTKeyfunc(ctx context.Context, jwksURL string) (jwt.Keyfunc, error) {
+func newExternalJWTKeyfunc(ctx context.Context, jwksURL string) (keyfunc.Keyfunc, error) {
 	k, err := keyfunc.NewDefaultCtx(ctx, []string{jwksURL})
 	if err != nil {
 		return nil, fmt.Errorf("create external jwt keyfunc: %w", err)
 	}
-	return k.Keyfunc, nil
+	return k, nil
 }
 
 func shouldLogRequestCause(ctx context.Context, status int) bool {

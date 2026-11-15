@@ -225,6 +225,10 @@ var baseOperationCapabilities = map[string][]string{
 		"listTraceSessions",
 	},
 	"organization.administer": {
+		"listCopilotStudioIntegrations",
+		"getCopilotStudioIntegration",
+		"createCopilotStudioIntegration",
+		"updateCopilotStudioIntegration",
 		"createWorkspace",
 		"listWorkspaceInheritedResources",
 		"listWorkspaceMemberCandidates",
@@ -235,6 +239,7 @@ var baseOperationCapabilities = map[string][]string{
 	"organization.member": {
 		"getDelegationCatalog",
 		"watchExternalAgents",
+		"listCopilotStudioAgents",
 		"ensureTenant",
 		"getTenant",
 		"getWorkspace",

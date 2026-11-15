@@ -32,6 +32,7 @@ type Querier interface {
 	RefreshAppToolResults(ctx context.Context, invocations []byte) error
 	RefreshTraceSessionSummary(ctx context.Context, arg []RefreshTraceSessionSummaryParams) *RefreshTraceSessionSummaryBatchResults
 	RefreshTraceSummary(ctx context.Context, traceID [][]byte) *RefreshTraceSummaryBatchResults
+	UpdateCopilotStudioToolResult(ctx context.Context, arg []UpdateCopilotStudioToolResultParams) *UpdateCopilotStudioToolResultBatchResults
 }
 
 var _ Querier = (*Queries)(nil)

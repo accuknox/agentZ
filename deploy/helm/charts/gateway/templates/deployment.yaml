@@ -84,11 +84,16 @@ spec:
             - --log-format={{ .Values.config.logFormat }}
             - "--addr=0.0.0.0:{{ .Values.service.port }}"
             - "--postgres-dsn=$(AGENTZ_POSTGRES_DSN)"
-            {{- if (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
+            {{- if (or (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) (dig "agentz" "copilotStudioEnabled" false (.Values.global | default dict))) }}
             - --gateway-service-account-name={{ include "gateway.serviceAccountName" . }}
             - --gateway-service-account-namespace={{ .Release.Namespace }}
             - --delegation-namespace={{ printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}
             - --delegation-gateway-url=http://delegations.{{ printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}.svc.cluster.local:8080
+            {{- end }}
+            {{- if (dig "agentz" "copilotStudioEnabled" false (.Values.global | default dict)) }}
+            - --copilot-studio-audience={{ required "gateway.config.copilotStudioAudience is required when Copilot Studio is enabled" .Values.config.copilotStudioAudience }}
+            - --copilot-studio-base-url={{ required "gateway.config.copilotStudioBaseURL is required when Copilot Studio is enabled" .Values.config.copilotStudioBaseURL }}
+            - --guardrail-stub-url=http://{{ include "gateway.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/internal/guardrails/completion
             {{- end }}
             - --external-jwt-jwks-url={{ required "gateway.config.externalJWTJWKSURL is required for standalone installs" $jwksURL }}
             - --external-jwt-issuer={{ required "gateway.config.externalJWTIssuer is required" .Values.config.externalJWTIssuer }}

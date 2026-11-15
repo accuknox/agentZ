@@ -36,8 +36,10 @@ import type {
   SpanDetailActionData,
   SpanListItem,
   TraceListItem,
+  TraceSubject,
 } from "@/data/types"
 import { Badge } from "@/components/ui/badge"
+import { EmptyValue, RelativeDateTime } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AdminDataGrid, type AdminColumnLayout } from "@/components/admin-data-grid"
 import { RequestError } from "@/components/request-error"
@@ -68,106 +70,26 @@ import { TraceConversation } from "./trace-conversation"
 const layout: Record<string, AdminColumnLayout> = {
   trace: { minWidth: 160, contentMaxWidth: 256 },
   duration: { minWidth: 208, contentMaxWidth: 320 },
+  observed: { minWidth: 160, contentMaxWidth: 240 },
   graph: { minWidth: 288, contentMaxWidth: 448 },
   tokens: { minWidth: 192, contentMaxWidth: 288 },
 }
 
-const columns: ColumnDef<TraceListItem>[] = [
-  {
-    id: "trace",
-    header: "Trace",
-    cell: ({ row }) => {
-      const trace = row.original
-
-      return (
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="font-mono text-xs font-medium text-foreground">
-            {trace.traceId.slice(0, 8)}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {trace.startedDate} · {trace.startedTime}
-          </span>
-        </div>
-      )
-    },
-  },
-  {
-    id: "duration",
-    header: "Duration",
-    cell: ({ row }) => {
-      const trace = row.original
-
-      return (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-baseline gap-4">
-            <span className="text-sm font-medium">{trace.duration}</span>
-            <span className="text-xs text-muted-foreground">Ended {trace.endedTime}</span>
-          </div>
-          <WaterfallProgress trace={trace} />
-        </div>
-      )
-    },
-  },
-  {
-    id: "graph",
-    header: "Execution",
-    cell: ({ row }) => {
-      const trace = row.original
-
-      return (
-        <div className="flex flex-wrap gap-1.5">
-          <MetricBadge icon={Route} value={trace.spanCount} singular="span" />
-          <MetricBadge icon={Wrench} value={trace.toolCount} singular="tool span" />
-          <MetricBadge icon={Brain} value={trace.modelCount} singular="llm span" />
-          <MetricBadge
-            icon={CircleAlert}
-            value={trace.errorCount}
-            singular="error"
-            variant={trace.errorCount > 0 ? "destructive" : "outline"}
-          />
-        </div>
-      )
-    },
-  },
-  {
-    id: "tokens",
-    header: "Tokens",
-    cell: ({ row }) => {
-      const trace = row.original
-      if (trace.inputTokens === null || trace.outputTokens === null) {
-        return <div aria-hidden="true" className="h-1.5 rounded-full bg-muted" />
-      }
-      const outputWidth = trace.totalTokens === 0 ? 0 : trace.tokenRatio * 100
-      const inputWidth = trace.totalTokens === 0 ? 0 : 100 - outputWidth
-
-      return (
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-            <span>{formatCompactNumber(trace.inputTokens)} in</span>
-            <span>{formatCompactNumber(trace.outputTokens)} out</span>
-          </div>
-          <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
-            <span className="h-full bg-chart-1" style={{ width: `${inputWidth}%` }} />
-            <span className="h-full bg-chart-4" style={{ width: `${outputWidth}%` }} />
-          </div>
-          <span className="sr-only">{formatCompactNumber(trace.totalTokens)} tokens</span>
-        </div>
-      )
-    },
-  },
-]
-
 export function TracesTable({
+  subject,
   data,
   error,
   workspaceId,
 }: {
+  subject: TraceSubject
   data?: ListTracesActionData
   error?: Error
   workspaceId: string
 }) {
   "use no memo"
 
+  const copilotStudio =
+    subject.kind === "external-agent" && subject.providerKind === "microsoft-copilot-studio"
   const searchParams = useSearchParams()
   const initialTraceID = searchParams.get("trace_id")
   const initialTrace = data?.traces.find((trace) => trace.traceId === initialTraceID)
@@ -206,12 +128,116 @@ export function TracesTable({
     }
   }, [initialTrace, workspaceId, startTransition])
 
+  const columns = React.useMemo<ColumnDef<TraceListItem>[]>(
+    () => [
+      {
+        id: "trace",
+        header: "Trace",
+        cell: ({ row }) => {
+          const trace = row.original
+
+          return (
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="font-mono text-xs font-medium text-foreground">
+                {trace.traceId.slice(0, 8)}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {trace.startedDate} · {trace.startedTime}
+              </span>
+            </div>
+          )
+        },
+      },
+      {
+        id: "duration",
+        header: "Duration",
+        cell: ({ row }) => {
+          const trace = row.original
+
+          return (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline gap-4">
+                <span className="text-sm font-medium">{trace.duration}</span>
+                <span className="text-xs text-muted-foreground">
+                  {trace.durationMs === null ? "Last observed" : "Ended"} {trace.endedTime}
+                </span>
+              </div>
+              {trace.durationMs === null ? null : <WaterfallProgress trace={trace} />}
+            </div>
+          )
+        },
+      },
+      {
+        id: "observed",
+        header: "Last observed",
+        cell: ({ row }) => <RelativeDateTime value={row.original.endedAt} />,
+      },
+      {
+        id: "graph",
+        header: copilotStudio ? "Activity" : "Execution",
+        cell: ({ row }) => {
+          const trace = row.original
+
+          return (
+            <div className="flex flex-wrap gap-1.5">
+              <MetricBadge icon={Route} value={trace.spanCount} singular="span" />
+              <MetricBadge icon={Wrench} value={trace.toolCount} singular="tool span" />
+              {copilotStudio ? null : (
+                <MetricBadge icon={Brain} value={trace.modelCount} singular="llm span" />
+              )}
+              <MetricBadge
+                icon={CircleAlert}
+                value={trace.errorCount}
+                singular="error"
+                variant={trace.errorCount > 0 ? "destructive" : "outline"}
+              />
+            </div>
+          )
+        },
+      },
+      {
+        id: "tokens",
+        header: "Tokens",
+        cell: ({ row }) => {
+          const trace = row.original
+          if (trace.inputTokens === null || trace.outputTokens === null) {
+            return <EmptyValue />
+          }
+          const outputWidth = trace.totalTokens === 0 ? 0 : trace.tokenRatio * 100
+          const inputWidth = trace.totalTokens === 0 ? 0 : 100 - outputWidth
+
+          return (
+            <div className="flex min-w-0 flex-col gap-2">
+              <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span>{formatCompactNumber(trace.inputTokens)} in</span>
+                <span>{formatCompactNumber(trace.outputTokens)} out</span>
+              </div>
+              <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
+                <span className="h-full bg-chart-1" style={{ width: `${inputWidth}%` }} />
+                <span className="h-full bg-chart-4" style={{ width: `${outputWidth}%` }} />
+              </div>
+              <span className="sr-only">{formatCompactNumber(trace.totalTokens)} tokens</span>
+            </div>
+          )
+        },
+      },
+    ],
+    [copilotStudio]
+  )
+
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({
     data: data?.traces ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
+    state: {
+      columnVisibility: {
+        duration: !copilotStudio,
+        tokens: !copilotStudio,
+        observed: copilotStudio,
+      },
+    },
   })
 
   function selectTrace(trace: TraceListItem) {

@@ -11,6 +11,7 @@
           "type": "object",
           "properties": {
             "delegationEnabled": { "type": "boolean" },
+            "copilotStudioEnabled": { "type": "boolean" },
             "umbrella": { "type": "boolean" }
           }
         }
@@ -80,6 +81,8 @@
         "openBaoK8sAuthMountPath": { "type": "string", "minLength": 1 },
         "openBaoK8sAuthTokenPath": { "type": "string", "minLength": 1 },
         "mcpProbeStaleAfter": { "type": "string", "minLength": 1 },
+        "copilotStudioAudience": { "type": "string" },
+        "copilotStudioBaseURL": { "type": "string" },
         "skillsS3Endpoint": { "type": "string" },
         "skillsS3Region": { "type": "string", "minLength": 1 },
         "skillsS3Bucket": { "type": "string" }

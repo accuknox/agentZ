@@ -49,6 +49,12 @@ pkgs.rustPlatform.buildRustPackage {
   preBuild = ''
     cp -R ${ui} ui/dist
   '';
+  # Install the executable without copying Cargo's complete dependency directory.
+  installPhase = ''
+    runHook preInstall
+    install -Dm755 target/${pkgs.stdenv.hostPlatform.rust.rustcTarget}/release/agentgateway "$out/bin/agentgateway"
+    runHook postInstall
+  '';
   env = {
     VERSION = version;
     GIT_REVISION = "${revision}-agentz.5";

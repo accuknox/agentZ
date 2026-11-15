@@ -1,0 +1,18 @@
+// Guardrail metadata is available to logging, not response transformations.
+// Rejections already carry the configured check context in the response body.
+response.code == 422 ? json(response.body).with(body,
+  toJson({
+    "blocked": true,
+    "revision": metadata.agentz_guardrail_revision,
+    "evaluations": [{
+      "phase": "request",
+      "guard": body.error.guardrail.guard,
+      "action": "reject",
+      "context": body.error.guardrail
+    }]
+  })
+) : response.code == 200 ? toJson({
+  "blocked": false,
+  "revision": metadata.agentz_guardrail_revision,
+  "evaluations": []
+}) : null

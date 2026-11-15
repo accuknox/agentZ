@@ -269,13 +269,15 @@ func (s *Service) ListAppTraces(w http.ResponseWriter, r *http.Request, clientID
 			StartedAt:  row.StartedAt,
 			EndedAt:    row.EndedAt,
 			UpdatedAt:  row.UpdatedAt,
-			DurationNs: row.DurationNs,
-			DurationMs: float64(row.DurationNs) / float64(time.Millisecond),
 			SpanCount:  row.SpanCount,
 			ErrorCount: row.ErrorCount,
 			ToolCount:  row.ToolCount,
 			ModelCount: row.ModelCount,
 			StatusCode: row.StatusCode,
+		}
+		if row.AgentKind != "microsoft-copilot-studio" {
+			item.DurationNs = &row.DurationNs
+			item.DurationMs = new(float64(row.DurationNs) / float64(time.Millisecond))
 		}
 		if row.InputTokensKnown.Bool {
 			item.InputTokens = &row.InputTokens
@@ -413,7 +415,8 @@ func (s *Service) ListAppSpans(w http.ResponseWriter, r *http.Request, clientID 
 		var prompt int64
 		for i, span := range spans {
 			ids[i] = span.Id
-			if !set && prompt == 0 && span.ResourceKind == "inference" {
+			recordsPrompt := span.ResourceKind == "inference" || span.OperationName == "observe_context"
+			if !set && prompt == 0 && recordsPrompt {
 				prompt = span.Id
 			}
 		}
@@ -521,7 +524,7 @@ func appSpan(row gatewaydb.ObserverAppSpan) gatewayapi.AppSpan {
 		ResourceUid:       row.ResourceUid,
 		TargetId:          row.TargetID,
 	}
-	if row.ResourceKind != "tool" {
+	if row.ResourceKind != "tool" && row.AgentKind != "microsoft-copilot-studio" {
 		span.DurationNs = &row.DurationNs
 		span.DurationMs = new(float64(row.DurationNs) / float64(time.Millisecond))
 	}
@@ -599,18 +602,29 @@ func (s *Service) GetAppMCPGraph(w http.ResponseWriter, r *http.Request, clientI
 		Edges:       []gatewayapi.MCPGraphEdge{},
 	}
 	connections := map[string]bool{}
+	copilotStudio := appRow.AgentKind == "microsoft-copilot-studio"
 	for _, row := range rows {
 		connectionID := "connection:" + row.ResourceUid
 		if !connections[connectionID] {
 			connection := gatewayapi.MCPGraphConnection{Id: connectionID, Name: row.ResourceName}
-			object := &agentzv1alpha1.MCPConnection{}
-			err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: row.ResourceNamespace, Name: row.ResourceName}, object)
-			if err != nil && !apierrors.IsNotFound(err) {
-				apiutil.WriteInternalError(w, r, err)
-				return
+			if copilotStudio {
+				switch row.ResourceName {
+				case "DynamicServerToolDefinition":
+					connection.Name = "MCP tools"
+				case "PrebuiltToolDefinition":
+					connection.Name = "Built-in tools"
+				}
 			}
-			if err == nil && string(object.UID) == row.ResourceUid {
-				connection.ServerUrl = &object.Spec.Endpoint.URL
+			if !copilotStudio {
+				object := &agentzv1alpha1.MCPConnection{}
+				err := s.k8sClient.Get(r.Context(), ctrlclient.ObjectKey{Namespace: row.ResourceNamespace, Name: row.ResourceName}, object)
+				if err != nil && !apierrors.IsNotFound(err) {
+					apiutil.WriteInternalError(w, r, err)
+					return
+				}
+				if err == nil && string(object.UID) == row.ResourceUid {
+					connection.ServerUrl = &object.Spec.Endpoint.URL
+				}
 			}
 			graph.Connections = append(graph.Connections, connection)
 			graph.Edges = append(graph.Edges, gatewayapi.MCPGraphEdge{
@@ -626,7 +640,7 @@ func (s *Service) GetAppMCPGraph(w http.ResponseWriter, r *http.Request, clientI
 			ConnectionId: connectionID,
 			Name:         row.ToolName,
 		})
-		graph.Edges = append(graph.Edges, gatewayapi.MCPGraphEdge{
+		edge := gatewayapi.MCPGraphEdge{
 			Source:       connectionID,
 			Target:       toolID,
 			Kind:         gatewayapi.ConnectionTool,
@@ -634,7 +648,15 @@ func (s *Service) GetAppMCPGraph(w http.ResponseWriter, r *http.Request, clientI
 			SuccessCount: &row.SuccessCount,
 			FailedCount:  &row.FailedCount,
 			LastCalledAt: &row.LastCalledAt,
-		})
+		}
+		if copilotStudio {
+			edge.AvgLatencyMs = nil
+			edge.SuccessCount = nil
+			edge.FailedCount = nil
+			edge.AllowedCount = &row.AllowedCount
+			edge.BlockedCount = &row.BlockedCount
+		}
+		graph.Edges = append(graph.Edges, edge)
 	}
 	apiutil.WriteJSON(w, http.StatusOK, graph)
 }

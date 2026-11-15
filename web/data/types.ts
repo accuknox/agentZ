@@ -53,7 +53,7 @@ export type TraceListItem = {
   startedTime: string
   endedTime: string
   duration: string
-  durationMs: number
+  durationMs: number | null
   cumulativeDurationMs: number
   cumulativeDurationPercent: number
   waterfallDelayMs: number

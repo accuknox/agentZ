@@ -685,6 +685,7 @@ WITH operation AS (
     turn_id,
     agent_kind,
     tool_call_id,
+    external_tool_id,
     input_tokens,
     output_tokens,
     reasoning_tokens,
@@ -721,6 +722,7 @@ WITH operation AS (
     sqlc.arg(turn_id),
     sqlc.arg(agent_kind),
     sqlc.arg(tool_call_id),
+    sqlc.arg(external_tool_id),
     sqlc.narg(input_tokens),
     sqlc.narg(output_tokens),
     sqlc.narg(reasoning_tokens),
@@ -736,6 +738,30 @@ WITH operation AS (
   FROM operation
 )
 SELECT COALESCE((SELECT id FROM operation), 0)::bigint AS id;
+
+-- name: UpdateCopilotStudioToolResult :batchexec
+WITH calls AS MATERIALIZED (
+  SELECT op.id, op.operation_name, op.end_time FROM observer_app_operations op
+  WHERE op.organization_id = sqlc.arg(organization_id)
+    AND op.workspace_id = sqlc.arg(workspace_id)
+    AND op.client_id = sqlc.arg(client_id) AND op.user_id = sqlc.arg(user_id)
+    AND op.session_id = sqlc.arg(session_id) AND op.external_tool_id = sqlc.arg(tool_id)
+    AND op.native AND op.agent_kind = 'microsoft-copilot-studio' AND op.resource_kind = 'tool'
+  LIMIT 2
+), changed AS (
+  -- A reused definition ID cannot identify which invocation produced a result.
+  UPDATE observer_app_operation_payloads SET tool_result = sqlc.arg(tool_result)::jsonb
+  WHERE operation_id = (
+    SELECT MIN(id) FROM calls
+    HAVING COUNT(*) = 1 AND BOOL_AND(operation_name = 'allow_tool')
+  ) AND (tool_result IS DISTINCT FROM sqlc.arg(tool_result)::jsonb
+    OR sqlc.narg(completed_at)::timestamptz > (SELECT MIN(end_time) FROM calls))
+  RETURNING operation_id
+)
+UPDATE observer_app_operations op
+SET end_time = GREATEST(op.end_time, COALESCE(sqlc.narg(completed_at)::timestamptz, op.end_time)),
+    ingested_at = now()
+FROM changed WHERE op.id = changed.operation_id;
 
 -- name: AssignNativeRuns :exec
 UPDATE observer_app_operations op

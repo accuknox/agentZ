@@ -1,4 +1,4 @@
-{{- if and .Values.enabled (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) }}
+{{- if and .Values.enabled (or (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) (dig "agentz" "copilotStudioEnabled" false (.Values.global | default dict))) }}
 {{- $name := include "gateway.fullname" . }}
 {{- $account := include "gateway.serviceAccountName" . }}
 {{- $namespace := printf "%s-delegations" $name | trunc 63 | trimSuffix "-" }}

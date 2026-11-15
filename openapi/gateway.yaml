@@ -1292,10 +1292,12 @@ components:
         duration_ms:
           format: double
           minimum: 0
+          nullable: true
           type: number
         duration_ns:
           format: int64
           minimum: 0
+          nullable: true
           type: integer
         ended_at:
           format: date-time
@@ -2605,6 +2607,308 @@ components:
       required:
       - base_url
       - auth_mode
+      type: object
+    CopilotStudioAgentSummary:
+      additionalProperties: false
+      properties:
+        agent_id:
+          type: string
+        client_id:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        disabled:
+          type: boolean
+        last_active_at:
+          format: date-time
+          nullable: true
+          type: string
+        name:
+          type: string
+      required:
+      - client_id
+      - agent_id
+      - name
+      - created_at
+      - last_active_at
+      - disabled
+      type: object
+    CopilotStudioChatMessage:
+      properties:
+        content:
+          type: string
+        id:
+          type: string
+        role:
+          type: string
+        timestamp:
+          format: date-time
+          type: string
+      required:
+      - id
+      - role
+      - content
+      type: object
+    CopilotStudioEvaluationRequest:
+      properties:
+        conversationMetadata:
+          properties:
+            agent:
+              properties:
+                environmentId:
+                  type: string
+                id:
+                  maxLength: 512
+                  minLength: 1
+                  type: string
+                isPublished:
+                  type: boolean
+                name:
+                  nullable: true
+                  type: string
+                tenantId:
+                  type: string
+                version:
+                  nullable: true
+                  type: string
+              required:
+              - id
+              - tenantId
+              - environmentId
+              - isPublished
+              type: object
+            conversationId:
+              maxLength: 512
+              minLength: 1
+              type: string
+            parentAgentComponentId:
+              nullable: true
+              type: string
+            planId:
+              nullable: true
+              type: string
+            planStepId:
+              nullable: true
+              type: string
+            user:
+              nullable: true
+              properties:
+                id:
+                  type: string
+                tenantId:
+                  type: string
+              type: object
+          required:
+          - agent
+          - conversationId
+          type: object
+        inputValues:
+          additionalProperties:
+            $ref: '#/components/schemas/JSONValue'
+          type: object
+        plannerContext:
+          properties:
+            chatHistory:
+              items:
+                $ref: '#/components/schemas/CopilotStudioChatMessage'
+              nullable: true
+              type: array
+            previousToolOutputs:
+              items:
+                $ref: '#/components/schemas/CopilotStudioToolOutput'
+              nullable: true
+              type: array
+            previousToolsOutputs:
+              items:
+                $ref: '#/components/schemas/CopilotStudioToolOutput'
+              nullable: true
+              type: array
+            thought:
+              nullable: true
+              type: string
+            userMessage:
+              type: string
+          required:
+          - userMessage
+          type: object
+        toolDefinition:
+          properties:
+            description:
+              nullable: true
+              type: string
+            id:
+              minLength: 1
+              type: string
+            inputParameters:
+              items:
+                $ref: '#/components/schemas/JSONValue'
+              nullable: true
+              type: array
+            name:
+              minLength: 1
+              type: string
+            outputParameters:
+              items:
+                $ref: '#/components/schemas/JSONValue'
+              nullable: true
+              type: array
+            type:
+              type: string
+          required:
+          - id
+          - type
+          - name
+          type: object
+      required:
+      - plannerContext
+      - toolDefinition
+      - inputValues
+      - conversationMetadata
+      type: object
+    CopilotStudioEvaluationResponse:
+      additionalProperties: false
+      properties:
+        blockAction:
+          type: boolean
+        diagnostics:
+          type: string
+        reason:
+          type: string
+        reasonCode:
+          type: integer
+      required:
+      - blockAction
+      type: object
+    CopilotStudioFederatedCredential:
+      additionalProperties: false
+      description: Values to copy into the caller application's Microsoft Entra federated credential.
+      properties:
+        audience:
+          type: string
+        issuer:
+          type: string
+        subject:
+          type: string
+      required:
+      - issuer
+      - subject
+      - audience
+      type: object
+    CopilotStudioIntegration:
+      additionalProperties: false
+      properties:
+        application_id:
+          format: uuid
+          type: string
+        assignment:
+          $ref: '#/components/schemas/GuardrailAssignment'
+        audience:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        enabled:
+          type: boolean
+        endpoint:
+          type: string
+        environment_id:
+          maxLength: 128
+          minLength: 1
+          type: string
+        failure_mode:
+          enum:
+          - closed
+          - open
+          type: string
+        federated_credential:
+          $ref: '#/components/schemas/CopilotStudioFederatedCredential'
+        id:
+          type: string
+        last_seen_at:
+          format: date-time
+          nullable: true
+          type: string
+        name:
+          maxLength: 120
+          minLength: 1
+          type: string
+        runtime_error:
+          type: string
+        tenant_id:
+          format: uuid
+          type: string
+        validated_at:
+          format: date-time
+          nullable: true
+          type: string
+      required:
+      - name
+      - tenant_id
+      - application_id
+      - environment_id
+      - enabled
+      - failure_mode
+      - assignment
+      - id
+      - endpoint
+      - audience
+      - federated_credential
+      - created_at
+      - validated_at
+      - last_seen_at
+      - runtime_error
+      type: object
+    CopilotStudioIntegrationInput:
+      additionalProperties: false
+      properties:
+        application_id:
+          format: uuid
+          type: string
+        assignment:
+          $ref: '#/components/schemas/GuardrailAssignment'
+        enabled:
+          type: boolean
+        environment_id:
+          maxLength: 128
+          minLength: 1
+          type: string
+        failure_mode:
+          enum:
+          - closed
+          - open
+          type: string
+        name:
+          maxLength: 120
+          minLength: 1
+          type: string
+        tenant_id:
+          format: uuid
+          type: string
+      required:
+      - name
+      - tenant_id
+      - application_id
+      - environment_id
+      - enabled
+      - failure_mode
+      - assignment
+      type: object
+    CopilotStudioToolOutput:
+      properties:
+        outputs:
+          $ref: '#/components/schemas/JSONValue'
+        timestamp:
+          format: date-time
+          type: string
+        toolId:
+          type: string
+        toolName:
+          type: string
+      required:
+      - toolId
+      - toolName
+      - outputs
       type: object
     CreateAgentDirectoryRequest:
       additionalProperties: false
@@ -4524,6 +4828,8 @@ components:
       properties:
         assignment:
           $ref: '#/components/schemas/GuardrailAssignment'
+        client_id:
+          type: string
         sandbox:
           type: string
         sandboxScope:
@@ -4556,6 +4862,45 @@ components:
       - code
       - message
       - guardrail
+      type: object
+    GuardrailEvaluationMessage:
+      additionalProperties: false
+      properties:
+        content:
+          type: string
+        role:
+          enum:
+          - system
+          - user
+          - assistant
+          - tool
+          type: string
+          x-enum-varnames:
+          - GuardrailEvaluationMessageRoleSystem
+          - GuardrailEvaluationMessageRoleUser
+          - GuardrailEvaluationMessageRoleAssistant
+          - GuardrailEvaluationMessageRoleTool
+        tool_call_id:
+          type: string
+      required:
+      - role
+      - content
+      type: object
+    GuardrailEvaluationResult:
+      additionalProperties: false
+      properties:
+        blocked:
+          type: boolean
+        evaluations:
+          items:
+            $ref: '#/components/schemas/GuardrailRuntimeEvaluation'
+          type: array
+        revision:
+          type: string
+      required:
+      - blocked
+      - revision
+      - evaluations
       type: object
     GuardrailEvent:
       additionalProperties: false
@@ -5687,6 +6032,7 @@ components:
           - github-copilot-desktop
           - chatgpt-desktop
           - claude-desktop
+          - microsoft-copilot-studio
           type: string
         client_id:
           type: string
@@ -5814,6 +6160,43 @@ components:
       - groups
       - participant_filters
       - has_next_page
+      - next_page_token
+      type: object
+    ListCopilotStudioAgentsResponse:
+      additionalProperties: false
+      properties:
+        agents:
+          items:
+            $ref: '#/components/schemas/CopilotStudioAgentSummary'
+          type: array
+        next_page_token:
+          type: string
+      required:
+      - agents
+      - next_page_token
+      type: object
+    ListCopilotStudioIntegrationsResponse:
+      additionalProperties: false
+      properties:
+        audience:
+          description: Provider application client ID configured by the AgentZ operator.
+          type: string
+        base_url:
+          description: Public gateway origin configured by the AgentZ operator.
+          type: string
+        enabled:
+          type: boolean
+        integrations:
+          items:
+            $ref: '#/components/schemas/CopilotStudioIntegration'
+          type: array
+        next_page_token:
+          type: string
+      required:
+      - enabled
+      - audience
+      - base_url
+      - integrations
       - next_page_token
       type: object
     ListDashboardsResponse:
@@ -6519,10 +6902,16 @@ components:
     MCPGraphEdge:
       additionalProperties: false
       properties:
+        allowed_count:
+          format: int64
+          type: integer
         avg_latency_ms:
           format: double
           minimum: 0
           type: number
+        blocked_count:
+          format: int64
+          type: integer
         failed_count:
           format: int64
           minimum: 0
@@ -30036,6 +30425,123 @@ paths:
         - agent.use_shared
       tags:
       - coding
+  /api/copilot-studio/integrations:
+    get:
+      operationId: listCopilotStudioIntegrations
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListCopilotStudioIntegrationsResponse'
+          description: Successful response.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.administer
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    post:
+      operationId: createCopilotStudioIntegration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopilotStudioIntegrationInput'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopilotStudioIntegration'
+          description: Successful response.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.administer
+      tags:
+      - guardrails
+  /api/copilot-studio/integrations/{integrationId}:
+    get:
+      operationId: getCopilotStudioIntegration
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopilotStudioIntegration'
+          description: Successful response.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.administer
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    - in: path
+      name: integrationId
+      required: true
+      schema:
+        type: string
+    put:
+      operationId: updateCopilotStudioIntegration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopilotStudioIntegrationInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopilotStudioIntegration'
+          description: Successful response.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.administer
+      tags:
+      - guardrails
+  /api/copilot-studio/integrations/{integrationId}/agents:
+    get:
+      operationId: listCopilotStudioAgents
+      parameters:
+      - $ref: '#/components/parameters/LimitQuery'
+      - $ref: '#/components/parameters/PageTokenQuery'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListCopilotStudioAgentsResponse'
+          description: Successful response.
+        default:
+          $ref: '#/components/responses/InternalError'
+      security:
+      - GatewayBearer:
+        - organization.member
+      tags:
+      - guardrails
+    parameters:
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    - in: path
+      name: integrationId
+      required: true
+      schema:
+        type: string
   /api/dashboard:
     get:
       operationId: listDashboards
@@ -31319,7 +31825,7 @@ paths:
       security:
       - GatewayBearer:
         - inference:use
-      summary: Export native Copilot traces with current delegated inference authorization.
+      summary: Export native GitHub Copilot traces with current delegated inference authorization.
       tags:
       - inference
   /api/lens/{agentName}/{sessionID}/trace:

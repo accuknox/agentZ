@@ -13,6 +13,8 @@ import { CodeBlockContent } from "@/components/ai-elements/code-block"
 import { CopyButton } from "@/components/interior/copy-button"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { EmptyValue } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TablePagination } from "@/components/table-pagination"
@@ -82,11 +84,13 @@ export function TraceConversation({
         tokens,
         duration: durationMs === null ? undefined : formatDurationMs(durationMs),
         durationPercent:
-          trace.durationMs > 0 && durationMs !== null
+          trace.durationMs !== null && trace.durationMs > 0 && durationMs !== null
             ? Math.min((durationMs / trace.durationMs) * 100, 100)
             : 0,
         offsetPercent:
-          trace.durationMs > 0 ? Math.min((offsetMs / trace.durationMs) * 100, 100) : 0,
+          trace.durationMs !== null && trace.durationMs > 0
+            ? Math.min((offsetMs / trace.durationMs) * 100, 100)
+            : 0,
       }
     })
   const navigation = items.filter((item) => pageKeys.has(item.step.key))
@@ -215,6 +219,12 @@ export function TraceConversation({
                           >
                             {label}
                           </span>
+                          {step.span.operation_name === "allow_tool" ? (
+                            <Badge variant="secondary">Allowed</Badge>
+                          ) : null}
+                          {step.span.operation_name === "block_tool" ? (
+                            <Badge variant="destructive">Blocked</Badge>
+                          ) : null}
                           <span className="truncate font-mono text-sm text-muted-foreground">
                             {step.arguments.text.slice(0, 300)}
                           </span>
@@ -235,7 +245,7 @@ export function TraceConversation({
                             <RecordedText {...step.result} />
                           </div>
                         ) : !step.error && !step.span.error_message ? (
-                          <p className="text-xs text-muted-foreground">No output captured.</p>
+                          <EmptyValue />
                         ) : null}
                         {step.error ? (
                           <div role="alert" className="text-destructive">

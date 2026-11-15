@@ -20,13 +20,14 @@ const authLocationHeaderSchema = z.object({
     .transform((value) => (value === undefined ? undefined : value.trim())),
 })
 
+// URL checks must abort before credential refinements construct a URL.
 const optionalHTTPSURLSchema = z
   .string({ error: "URL must be text" })
   .optional()
   .transform((value) => value?.trim() || undefined)
   .pipe(
     z
-      .url({ protocol: /^https$/, error: "URL must be a valid HTTPS URL" })
+      .url({ abort: true, protocol: /^https$/, error: "URL must be a valid HTTPS URL" })
       .refine((value) => {
         const url = new URL(value)
         return !url.username && !url.password
@@ -78,7 +79,11 @@ const formSchema = z.object({
     .min(1, "MCP server URL is required")
     .pipe(
       z
-        .url({ protocol: /^https$/, error: "MCP server URL must be a valid HTTPS URL" })
+        .url({
+          abort: true,
+          protocol: /^https$/,
+          error: "MCP server URL must be a valid HTTPS URL",
+        })
         .refine((value) => {
           const url = new URL(value)
           return !url.username && !url.password

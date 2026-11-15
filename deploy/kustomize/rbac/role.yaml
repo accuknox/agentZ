@@ -107,7 +107,15 @@ rules:
   - agentz.accuknox.com
   resources:
   - guardrailconnections
+  - inferencepools
+  - inferenceproviders
+  - mcpconnections
+  - sandboxes
+  - skills
+  - workflowruns
   verbs:
+  - create
+  - delete
   - get
   - list
   - patch
@@ -124,26 +132,12 @@ rules:
   - agentz.accuknox.com
   resources:
   - guardrailpolicies
-  - workspaces
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - agentz.accuknox.com
-  resources:
-  - inferencepools
-  - inferenceproviders
-  - mcpconnections
-  - sandboxes
-  - skills
-  - workflowruns
+  - workflowschedules
   verbs:
   - create
   - delete
   - get
   - list
-  - patch
   - update
   - watch
 - apiGroups:
@@ -171,13 +165,10 @@ rules:
 - apiGroups:
   - agentz.accuknox.com
   resources:
-  - workflowschedules
+  - workspaces
   verbs:
-  - create
-  - delete
   - get
   - list
-  - update
   - watch
 - apiGroups:
   - apps

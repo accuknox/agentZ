@@ -23,6 +23,18 @@ var gatewayServeCmd = &cli.Command{
 	Usage: "Run the gateway HTTP server",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
+			Name:  "copilot-studio-base-url",
+			Usage: "Public HTTPS gateway origin for Copilot Studio webhooks",
+		},
+		&cli.StringFlag{
+			Name:  "copilot-studio-audience",
+			Usage: "Entra resource application ID; enables Copilot Studio",
+		},
+		&cli.StringFlag{
+			Name:  "guardrail-stub-url",
+			Usage: "Private completion stub URL used by guardrail evaluations",
+		},
+		&cli.StringFlag{
 			Name:  "delegation-namespace",
 			Usage: "Private native MCP aggregator namespace",
 		},
@@ -212,6 +224,9 @@ var gatewayServeCmd = &cli.Command{
 				PostgresDSN:                    c.String("postgres-dsn"),
 				DelegationNamespace:            c.String("delegation-namespace"),
 				DelegationGatewayURL:           c.String("delegation-gateway-url"),
+				CopilotStudioBaseURL:           c.String("copilot-studio-base-url"),
+				CopilotStudioAudience:          c.String("copilot-studio-audience"),
+				GuardrailStubURL:               c.String("guardrail-stub-url"),
 				GatewayServiceAccountName:      c.String("gateway-service-account-name"),
 				GatewayServiceAccountNamespace: c.String("gateway-service-account-namespace"),
 				ExternalJWTJWKSURL:             c.String("external-jwt-jwks-url"),

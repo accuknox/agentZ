@@ -23,7 +23,7 @@ import { GraphEdge } from "@/components/ai-elements/edge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { mcpConnectionFallbackIcon, renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
-import { formatAge } from "@/lib/format"
+import { RelativeDateTime } from "@/components/ui/table"
 import type { McpGraphResponse } from "@/lib/gateway/client"
 
 import { LensSourceIcon } from "@/components/lens-source-options"
@@ -38,6 +38,8 @@ type McpGraphProps = {
 }
 
 type ToolMetrics = {
+  allowed?: number
+  blocked?: number
   lastCall?: string
   latencyMs?: number
 }
@@ -79,7 +81,7 @@ const mcpNodeTypes = {
 } satisfies NodeTypes
 
 /**
- * McpGraph renders a subject, its selected connections and executed tools.
+ * McpGraph renders a subject, its selected connections and observed tool activity.
  */
 export function McpGraph({ graph, subject, workspaceId }: McpGraphProps) {
   const rootID = subject.kind !== "agent" ? `app:${subject.clientID}` : `agent:${subject.name}`
@@ -94,8 +96,10 @@ export function McpGraph({ graph, subject, workspaceId }: McpGraphProps) {
       targets.add(target)
       if (edge.kind === "connection_tool") {
         toolMetrics.set(target, {
-          lastCall: edge.last_called_at ? formatAge(edge.last_called_at) : undefined,
+          lastCall: edge.last_called_at,
           latencyMs: edge.avg_latency_ms,
+          allowed: edge.allowed_count,
+          blocked: edge.blocked_count,
         })
       }
       return {
@@ -183,6 +187,11 @@ export function McpGraph({ graph, subject, workspaceId }: McpGraphProps) {
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden border-y bg-sidebar">
+      {subject.kind === "external-agent" && subject.providerKind === "microsoft-copilot-studio" ? (
+        <p className="absolute top-3 left-3 z-10 max-w-md rounded-lg border bg-background/95 p-3 text-xs text-muted-foreground">
+          Proposed tool calls.
+        </p>
+      ) : null}
       <div className="absolute inset-0 bg-[radial-gradient(circle,var(--color-sidebar-border)_1px,transparent_1px)] bg-size-[10px_10px] opacity-35" />
       <Canvas
         className="bg-transparent"
@@ -365,12 +374,23 @@ function McpNodeCircle({ data }: FlowNodeProps<McpCanvasNode>) {
 }
 
 function ToolMetricsView({ metrics }: { metrics: ToolMetrics }) {
-  if (metrics.latencyMs === undefined && metrics.lastCall === undefined) {
+  if (
+    metrics.latencyMs === undefined &&
+    metrics.lastCall === undefined &&
+    !metrics.allowed &&
+    !metrics.blocked
+  ) {
     return null
   }
 
   return (
     <div className="absolute top-1/2 left-31 flex -translate-y-1/2 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
+      {metrics.allowed ? (
+        <span className="text-xs text-muted-foreground">{metrics.allowed} allowed</span>
+      ) : null}
+      {metrics.blocked ? (
+        <span className="text-xs text-destructive">{metrics.blocked} blocked</span>
+      ) : null}
       {metrics.latencyMs !== undefined ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -383,15 +403,10 @@ function ToolMetricsView({ metrics }: { metrics: ToolMetrics }) {
         </Tooltip>
       ) : null}
       {metrics.lastCall ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1 whitespace-nowrap">
-              <HistoryIcon className="size-3" />
-              {metrics.lastCall}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Last called</TooltipContent>
-        </Tooltip>
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+          <HistoryIcon className="size-3" />
+          <RelativeDateTime value={metrics.lastCall} />
+        </span>
       ) : null}
     </div>
   )

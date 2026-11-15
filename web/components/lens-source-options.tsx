@@ -1,6 +1,12 @@
 "use client"
 
-import { ClaudeAI, CodexLight, GitHubCopilotLight, OpenAILight } from "@ridemountainpig/svgl-react"
+import {
+  ClaudeAI,
+  CodexLight,
+  GitHubCopilotLight,
+  MicrosoftCopilot,
+  OpenAILight,
+} from "@ridemountainpig/svgl-react"
 import { AppWindowIcon, BotIcon } from "lucide-react"
 import { UserAvatar } from "@/components/ui/avatar"
 import { SelectGroup, SelectItem, SelectLabel } from "@/components/ui/select"
@@ -16,6 +22,8 @@ export function LensSourceIcon({
   className?: string
 }) {
   switch (kind) {
+    case "microsoft-copilot-studio":
+      return <MicrosoftCopilot aria-hidden="true" className={className} />
     case "agent":
       return <BotIcon aria-hidden="true" className={className} />
     case "claude":

@@ -200,8 +200,9 @@ export const secretFormInputSchema = z.object({
   hosts: secretHostsInputSchema,
 })
 
+// URL checks must abort before credential refinements construct a URL.
 const httpsURLSchema = z
-  .url({ protocol: /^https$/, error: "OAuth server must be a valid HTTPS URL" })
+  .url({ abort: true, protocol: /^https$/, error: "OAuth server must be a valid HTTPS URL" })
   .refine((value) => {
     const url = new URL(value)
     return !url.username && !url.password
@@ -220,7 +221,7 @@ function fieldHTTPSURLSchema(label: string) {
     .transform((value) => value || undefined)
     .pipe(
       z
-        .url({ protocol: /^https$/, error: `${label} must be a valid HTTPS URL` })
+        .url({ abort: true, protocol: /^https$/, error: `${label} must be a valid HTTPS URL` })
         .refine((value) => {
           const url = new URL(value)
           return !url.username && !url.password

@@ -31,7 +31,7 @@
             };
             subPackages = [ "cmd/agentz" ];
             ldflags = [ "-s" "-w" ];
-            vendorHash = "sha256-2XCWlPsuPCTlXnfT9VNV5fBT024A7zsfXgBtEYRmtuo=";
+            vendorHash = "sha256-vOq2ixTwShi2eqygObdFQujolm7kL0zedAaBF98XHlM=";
           };
           nodeModules = pkgs.stdenvNoCC.mkDerivation {
             pname = "opencode-config-node_modules";

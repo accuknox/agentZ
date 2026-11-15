@@ -315,6 +315,52 @@ export async function createExternalAgent(
   return { clientId: client.client_id }
 }
 
+/** deleteCopilotStudio removes a connection and its discovered identities atomically. */
+export async function deleteCopilotStudio(
+  orgSlug: string,
+  workspaceSlug: string,
+  integrationId: string
+) {
+  const id = z.uuid().parse(integrationId)
+  const scope = await getWorkspaceScope(orgSlug, workspaceSlug)
+  if (scope.kind !== "ready") throw new Error("Workspace unavailable.")
+  if (!scope.scope.organization.superadmin && !scope.workspace.capabilities.administer)
+    throw new Error("You do not have permission to delete this connection.")
+  const clients = await getDB().transaction(async (tx) => {
+    // Discovery takes a key-share lock. Drain it before collecting identities
+    // so a concurrent callback cannot leave an orphaned OAuth client.
+    const [integration] = await tx
+      .select({ id: schema.copilotStudioIntegrations.id })
+      .from(schema.copilotStudioIntegrations)
+      .where(
+        and(
+          eq(schema.copilotStudioIntegrations.id, id),
+          eq(schema.copilotStudioIntegrations.organizationId, scope.scope.organization.id),
+          eq(schema.copilotStudioIntegrations.workspaceId, scope.workspace.id)
+        )
+      )
+      .for("update")
+    if (!integration) throw new Error("Connection not found.")
+    const agents = tx
+      .select({ clientId: schema.copilotStudioAgents.clientId })
+      .from(schema.copilotStudioAgents)
+      .where(eq(schema.copilotStudioAgents.integrationId, id))
+    // Deleting OAuth identities also purges agent history through the existing
+    // cascades and observer deletion trigger.
+    const deleted = await tx
+      .delete(schema.oauthClients)
+      .where(inArray(schema.oauthClients.clientId, agents))
+      .returning({ clientId: schema.oauthClients.clientId })
+    await tx
+      .delete(schema.copilotStudioIntegrations)
+      .where(eq(schema.copilotStudioIntegrations.id, id))
+    await tx.execute(sql`select pg_notify('agentz_external_agents', ${scope.workspace.id})`)
+    return deleted
+  })
+  for (const client of clients)
+    await invalidateResource(scope.workspace.id, { app_client_id: client.clientId })
+}
+
 /** changeExternalAgent keeps mutations scoped to the owner or a workspace administrator. */
 export async function changeExternalAgent(
   orgSlug: string,

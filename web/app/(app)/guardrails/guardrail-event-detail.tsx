@@ -15,7 +15,8 @@ import {
   ScrollText,
   Wrench,
   Clock3,
-  CircleAlert,
+  Info,
+  TriangleAlert,
 } from "lucide-react"
 import type { GuardrailEvent } from "@/lib/gateway/client"
 import { getGuardrailEventContextAction } from "@/data/guardrail-event.actions"
@@ -221,14 +222,15 @@ export function GuardrailEventDetail({
         <p className="text-sm text-muted-foreground">{consequence}</p>
         {evaluation.error ? (
           <Alert variant="warning">
-            <CircleAlert aria-hidden />
+            <TriangleAlert aria-hidden="true" />
             <AlertDescription className="max-h-60 overflow-y-auto font-mono text-xs whitespace-pre-wrap">
               {evaluation.error}
             </AlertDescription>
           </Alert>
         ) : null}
         {context?.message && !failed ? (
-          <Alert>
+          <Alert variant="info">
+            <Info aria-hidden="true" />
             <AlertDescription>{context.message}</AlertDescription>
           </Alert>
         ) : null}

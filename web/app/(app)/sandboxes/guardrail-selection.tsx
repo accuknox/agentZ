@@ -1,9 +1,10 @@
 "use client"
 
+import { CircleAlert } from "lucide-react"
 import { getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 import type { GuardrailAssignment, GuardrailPolicy, GuardrailSettings } from "@/lib/gateway/client"
 import { AdminDataGrid } from "@/components/admin-data-grid"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 
@@ -81,16 +82,18 @@ export function GuardrailSelection({
   const table = useReactTable({ data: policies, columns, getCoreRowModel: getCoreRowModel() })
 
   return (
-    <>
+    <div className="flex min-w-0 flex-col gap-4">
       {missingRequired.map((name) => (
         <Alert key={name} variant="destructive">
+          <CircleAlert aria-hidden="true" />
           <AlertDescription>Required policy {name} is unavailable.</AlertDescription>
         </Alert>
       ))}
       {missing.map((ref) => (
         <Alert key={`${ref.scope}/${ref.name}`} variant="destructive">
-          <AlertDescription className="flex items-center justify-between gap-3">
-            <span>{ref.name} is unavailable.</span>
+          <CircleAlert aria-hidden="true" />
+          <AlertDescription>{ref.name} is unavailable.</AlertDescription>
+          <AlertAction className="mr-3">
             <Switch
               aria-label={`Remove unavailable policy ${ref.name}`}
               checked
@@ -103,7 +106,7 @@ export function GuardrailSelection({
                 })
               }
             />
-          </AlertDescription>
+          </AlertAction>
         </Alert>
       ))}
       <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 sm:-mx-6 sm:w-[calc(100%+3rem)]">
@@ -119,6 +122,6 @@ export function GuardrailSelection({
           table={table}
         />
       </div>
-    </>
+    </div>
   )
 }

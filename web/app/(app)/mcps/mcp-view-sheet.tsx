@@ -227,9 +227,10 @@ export function McpViewSheet({
                   </Accordion>
                 )}
                 {error ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {error}
-                  </p>
+                  <Alert variant="destructive">
+                    <CircleAlert aria-hidden="true" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
                 ) : null}
                 {success ? (
                   <p role="status" className="text-sm text-success">

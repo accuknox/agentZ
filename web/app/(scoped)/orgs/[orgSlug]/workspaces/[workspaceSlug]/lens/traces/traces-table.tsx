@@ -550,7 +550,8 @@ function TraceInspector({
         }
       >
         {focusError ? (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="px-6 py-4">
+            <CircleAlert aria-hidden="true" />
             <AlertDescription>{focusError.message}</AlertDescription>
           </Alert>
         ) : null}

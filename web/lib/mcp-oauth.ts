@@ -28,12 +28,9 @@ import { serverWebBaseURL } from "@/lib/gateway/server-base-url"
 import { dayjs } from "@/lib/format"
 import {
   mcpOAuthCallbackPath,
-  oauthBroadcastChannelName,
   oauthErrorFieldNames,
   oauthPendingCookieBudget,
-  oauthWindowMessageSource,
   type OAuthErrorFieldName,
-  type OAuthPopupMessage,
 } from "@/lib/mcp-oauth-shared"
 import { openOAuthState, sealOAuthState } from "@/lib/oauth-state"
 
@@ -718,30 +715,6 @@ function registrationPayload(clientInformation: OAuthClientInformationMixed) {
   return parsed.data satisfies JsonObject
 }
 
-function scriptJSON(value: unknown) {
-  const json = JSON.stringify(value)
-  if (json === undefined) {
-    return "null"
-  }
-
-  return json.replace(/[<>&\u2028\u2029]/g, (char) => {
-    switch (char) {
-      case "<":
-        return "\\u003c"
-      case ">":
-        return "\\u003e"
-      case "&":
-        return "\\u0026"
-      case "\u2028":
-        return "\\u2028"
-      case "\u2029":
-        return "\\u2029"
-      default:
-        return char
-    }
-  })
-}
-
 export async function beginOAuthFlow(input: {
   initiator: PendingOAuthInitiator
   operation: PendingOAuthOperation
@@ -1046,62 +1019,4 @@ function oauthAuthFromPending(
       location: form.oauth.location ?? discovered.location,
     },
   }
-}
-
-export function oauthCallbackResultPage(input: {
-  success: boolean
-  flowId: string
-  message: string
-  warning?: string
-}) {
-  const payload = scriptJSON({
-    source: oauthWindowMessageSource,
-    kind: "result",
-    flowId: input.flowId,
-    status: input.success ? "success" : "error",
-    message: input.message,
-    warning: input.warning,
-  } satisfies OAuthPopupMessage)
-  const message = scriptJSON(input.message)
-  const channelName = scriptJSON(oauthBroadcastChannelName)
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OAuth</title>
-  </head>
-  <body>
-    <script>
-      const payload = ${payload};
-      const message = ${message};
-      const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(${channelName}) : null;
-      if (channel) {
-        const closeWhenAcknowledged = (event) => {
-          const data = event.data;
-          if (!data || data.source !== payload.source || data.kind !== "ack") {
-            return;
-          }
-          if (data.flowId !== payload.flowId) {
-            return;
-          }
-          channel.removeEventListener("message", closeWhenAcknowledged);
-          channel.close();
-          window.close();
-        };
-        channel.addEventListener("message", closeWhenAcknowledged);
-        channel.postMessage(payload);
-      }
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(payload, window.location.origin);
-        if (!channel) {
-          window.close();
-        }
-      } else {
-        document.body.textContent = message;
-      }
-    </script>
-  </body>
-</html>`
 }

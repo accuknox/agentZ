@@ -15,6 +15,7 @@ import {
   Trash2,
   XCircle,
   type LucideIcon,
+  CircleAlert,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -455,6 +456,7 @@ function DeleteGuardrail(props: DeleteGuardrailProps) {
         </DialogHeader>
         {error ? (
           <Alert variant="destructive">
+            <CircleAlert aria-hidden="true" />
             <AlertTitle>Could not delete {kind}</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>

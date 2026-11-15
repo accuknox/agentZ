@@ -7,7 +7,6 @@ import type { CreateSecretRequest } from "@/lib/gateway/client"
 import {
   completeOAuthFlow,
   mcpOAuthCookieName,
-  oauthCallbackResultPage,
   oauthCookieOptions,
   openPendingOAuthState,
   type PendingOAuthState,
@@ -15,16 +14,24 @@ import {
 import { currentGatewayAuthContext } from "@/lib/gateway/auth"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
-function htmlResponse(body: string) {
-  return new Response(body, {
-    status: 200,
+function resultResponse(input: {
+  success: boolean
+  flowId?: string
+  message: string
+  warning?: string
+}) {
+  const params = new URLSearchParams({
+    status: input.success ? "success" : "error",
+    message: input.message,
+  })
+  if (input.flowId) params.set("flowId", input.flowId)
+  if (input.warning) params.set("warning", input.warning)
+  return new Response(null, {
+    status: 303,
     headers: {
       "cache-control": "no-store",
-      "content-security-policy":
-        "default-src 'none'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
-      "content-type": "text/html; charset=utf-8",
+      location: `/mcps/oauth/result?${params}`,
       "referrer-policy": "no-referrer",
-      "x-content-type-options": "nosniff",
     },
   })
 }
@@ -36,14 +43,8 @@ function clearPendingOAuthCookie(cookieStore: Awaited<ReturnType<typeof cookies>
   })
 }
 
-function popupFailure(flowId: string, message: string) {
-  return htmlResponse(
-    oauthCallbackResultPage({
-      success: false,
-      flowId,
-      message,
-    })
-  )
+function popupFailure(flowId: string | undefined, message: string) {
+  return resultResponse({ success: false, flowId, message })
 }
 
 function secretRevocationMetadata(pending: PendingOAuthState) {
@@ -64,9 +65,7 @@ export async function GET(request: Request) {
   const cookieStore = await cookies()
   const sealed = cookieStore.get(mcpOAuthCookieName)?.value
   if (!sealed) {
-    return htmlResponse(
-      "<!doctype html><html><body>OAuth flow could not be completed.</body></html>"
-    )
+    return popupFailure(undefined, "OAuth flow could not be completed.")
   }
 
   let pending: PendingOAuthState
@@ -74,9 +73,7 @@ export async function GET(request: Request) {
     pending = await openPendingOAuthState(sealed)
   } catch {
     clearPendingOAuthCookie(cookieStore)
-    return htmlResponse(
-      "<!doctype html><html><body>OAuth flow could not be completed.</body></html>"
-    )
+    return popupFailure(undefined, "OAuth flow could not be completed.")
   }
 
   try {
@@ -188,14 +185,12 @@ export async function GET(request: Request) {
       })
     }
     clearPendingOAuthCookie(cookieStore)
-    return htmlResponse(
-      oauthCallbackResultPage({
-        success: true,
-        flowId: pending.flowId,
-        message: result.value.message,
-        warning,
-      })
-    )
+    return resultResponse({
+      success: true,
+      flowId: pending.flowId,
+      message: result.value.message,
+      warning,
+    })
   } catch (error) {
     console.error("mcp oauth callback commit failed", {
       flowId: pending.flowId,

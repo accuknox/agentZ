@@ -54,6 +54,8 @@ import {
   Users,
   X,
   CircleAlert,
+  Info,
+  TriangleAlert,
 } from "lucide-react"
 import { nanoid } from "nanoid"
 import {
@@ -1182,12 +1184,15 @@ function NavSessionsContent({
               Pinned
             </div>
             {pinned.isError ? (
-              <p className="px-2 py-2 text-xs text-destructive">
-                Could not load pinned chats.{" "}
-                <button type="button" className="underline" onClick={() => void pinned.refetch()}>
-                  Retry
-                </button>
-              </p>
+              <Alert className="px-2 py-3" variant="destructive">
+                <CircleAlert aria-hidden="true" />
+                <AlertDescription>
+                  Could not load pinned chats.{" "}
+                  <Button variant="link" size="sm" onClick={() => void pinned.refetch()}>
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
             ) : null}
             <ul ref={pinnedList} className="relative flex min-w-0 flex-col gap-0.5">
               {pinnedSessions.map((session) => (
@@ -1234,14 +1239,16 @@ function NavSessionsContent({
           id="chat-session-results"
         >
           {searchTooShort ? (
-            <p className="px-2 py-3 text-sm text-sidebar-muted-foreground">
-              Type at least 3 characters
-            </p>
+            <Alert variant="info" className="px-2 py-3">
+              <Info aria-hidden="true" />
+              <AlertDescription>Type at least 3 characters</AlertDescription>
+            </Alert>
           ) : null}
           {searchTooLong ? (
-            <p className="px-2 py-3 text-sm text-sidebar-muted-foreground">
-              Search cannot exceed 200 characters
-            </p>
+            <Alert variant="warning" className="px-2 py-3">
+              <TriangleAlert aria-hidden="true" />
+              <AlertDescription>Search cannot exceed 200 characters</AlertDescription>
+            </Alert>
           ) : null}
           {!searchInvalid && sessions.isPending ? (
             <SessionListSkeleton
@@ -1477,9 +1484,10 @@ function SessionShelf({
                 </ul>
               ) : null}
               {pages.isError ? (
-                <p className="px-2 py-3 text-xs text-destructive">
-                  Could not load {label.toLowerCase()}
-                </p>
+                <Alert className="px-2 py-3" variant="destructive">
+                  <CircleAlert aria-hidden="true" />
+                  <AlertDescription>Could not load {label.toLowerCase()}</AlertDescription>
+                </Alert>
               ) : null}
               {count > 0 && !pages.isFetching && !pages.isError && sessions.length === 0 ? (
                 <p className="px-2 py-3 text-xs text-sidebar-muted-foreground">

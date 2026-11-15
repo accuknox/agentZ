@@ -3,12 +3,12 @@
 import { AgentAvatar } from "@/components/interior/agent-presence"
 import * as React from "react"
 import { useSelectResource } from "@/components/page-selection"
-import { MessageSquareIcon } from "lucide-react"
+import { MessageSquareIcon, CircleAlert } from "lucide-react"
 import { useRouter } from "@bprogress/next/app"
 import { usePathname, useSearchParams } from "next/navigation"
 import { DateRangePicker } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
-import { FieldError } from "@/components/ui/field"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Select,
   SelectContent,
@@ -291,12 +291,15 @@ function LensSessionPicker({
         </SelectContent>
       </Select>
       {error ? (
-        <FieldError>
-          {error}
-          <Button variant="link" size="sm" onClick={() => setError(undefined)}>
-            Retry
-          </Button>
-        </FieldError>
+        <Alert variant="destructive">
+          <CircleAlert aria-hidden="true" />
+          <AlertDescription>
+            {error}
+            <Button variant="link" size="sm" onClick={() => setError(undefined)}>
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
       ) : null}
     </div>
   )

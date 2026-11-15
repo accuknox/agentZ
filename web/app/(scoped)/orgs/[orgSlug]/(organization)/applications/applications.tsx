@@ -19,6 +19,7 @@ import {
   Monitor,
   Smartphone,
   type LucideIcon,
+  CircleAlert,
 } from "lucide-react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -873,6 +874,7 @@ function ApplicationEditor({
               />
               {error && !pending ? (
                 <Alert variant="destructive">
+                  <CircleAlert aria-hidden="true" />
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               ) : null}

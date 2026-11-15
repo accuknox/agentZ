@@ -3,7 +3,7 @@
 import { useId, useState } from "react"
 import { useParams } from "next/navigation"
 import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query"
-import { ChevronDown, RefreshCw } from "lucide-react"
+import { ChevronDown, RefreshCw, CircleAlert, TriangleAlert } from "lucide-react"
 import type {
   GuardrailCheck,
   GuardrailConnection,
@@ -14,6 +14,7 @@ import {
   discoverGuardrailResourcesAction,
   type GuardrailActionScope,
 } from "@/data/guardrail.actions"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -297,9 +298,10 @@ function ResourcePicker(props: ResourcePickerProps) {
             </CommandList>
           </Command>
           {query.error ? (
-            <p className="px-3 text-xs text-destructive" role="alert">
-              {query.error.message}
-            </p>
+            <Alert className="px-3 py-3" variant="destructive">
+              <CircleAlert aria-hidden="true" />
+              <AlertDescription>{query.error.message}</AlertDescription>
+            </Alert>
           ) : null}
           <div className="flex flex-wrap justify-end gap-2 border-t p-2">
             <Button
@@ -330,14 +332,20 @@ function ResourcePicker(props: ResourcePickerProps) {
         <FieldDescription className="text-xs break-all">{selected.id}</FieldDescription>
       ) : null}
       {missing ? (
-        <FieldDescription className="text-xs">
-          The saved selection was not found. Its reference has been retained.
-        </FieldDescription>
+        <Alert variant="warning">
+          <TriangleAlert aria-hidden="true" />
+          <AlertDescription>
+            The saved selection was not found. Its reference has been retained.
+          </AlertDescription>
+        </Alert>
       ) : null}
       {unreachable.length ? (
-        <FieldDescription className="text-xs break-words">
-          Some locations could not be listed: {unreachable.join(", ")}.
-        </FieldDescription>
+        <Alert variant="warning">
+          <TriangleAlert aria-hidden="true" />
+          <AlertDescription>
+            Some locations could not be listed: {unreachable.join(", ")}.
+          </AlertDescription>
+        </Alert>
       ) : null}
     </Field>
   )

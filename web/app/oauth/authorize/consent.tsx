@@ -13,6 +13,9 @@ import {
   Layers3,
   Plug,
   ShieldCheck,
+  CircleAlert,
+  Info,
+  TriangleAlert,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -182,7 +185,8 @@ export function Consent({
         </div>
       </header>
       {request.type === "device_code" ? (
-        <Alert>
+        <Alert variant="warning">
+          <TriangleAlert aria-hidden="true" />
           <AlertDescription>
             Confirm this code matches your terminal:{" "}
             <strong className="font-mono">{request.userCode}</strong>. Only authorize a connection
@@ -227,7 +231,8 @@ export function Consent({
             Choose resource access
           </h2>
           {organizations.length === 0 ? (
-            <Alert>
+            <Alert variant="info">
+              <Info aria-hidden="true" />
               <AlertDescription>
                 No organization currently allows delegation for your account. Ask an organization
                 administrator to enable it.
@@ -315,6 +320,7 @@ export function Consent({
               ) : null}
               {loadError ? (
                 <Alert variant="destructive">
+                  <CircleAlert aria-hidden="true" />
                   <AlertDescription>{loadError}</AlertDescription>
                   <Button
                     variant="outline"
@@ -485,7 +491,8 @@ export function Consent({
         </p>
       </div>
       {error ? (
-        <Alert variant="destructive" role="alert">
+        <Alert variant="destructive">
+          <CircleAlert aria-hidden="true" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}

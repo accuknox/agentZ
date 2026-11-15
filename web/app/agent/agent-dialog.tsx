@@ -705,9 +705,7 @@ function AgentForm({
       {form.formState.errors.root ? (
         <Alert variant="destructive" className="mx-5 mb-4 w-auto">
           <CircleAlert aria-hidden="true" />
-          <AlertDescription>
-            <FieldError errors={[form.formState.errors.root]} />
-          </AlertDescription>
+          <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
         </Alert>
       ) : null}
       <DialogFooter className="m-0 shrink-0 px-5 py-3">

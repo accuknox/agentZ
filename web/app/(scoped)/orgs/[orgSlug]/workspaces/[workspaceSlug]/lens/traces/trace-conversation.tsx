@@ -2,7 +2,15 @@
 
 import { useEffect, useRef, useState } from "react"
 import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query"
-import { ArrowUpRight, Bot, ChevronDown, ChevronRight, MessageSquare, Wrench } from "lucide-react"
+import {
+  ArrowUpRight,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  MessageSquare,
+  Wrench,
+  CircleAlert,
+} from "lucide-react"
 import { AgentIcon } from "@/components/agent-readiness"
 import { getTraceRecordingAction } from "@/data/lens.actions"
 import type { TraceListItem } from "@/data/types"
@@ -170,6 +178,7 @@ export function TraceConversation({
       >
         {recording.error ? (
           <Alert variant="destructive">
+            <CircleAlert aria-hidden="true" />
             <AlertDescription>
               {recording.error.message}
               <Button variant="link" size="sm" onClick={() => recording.refetch()}>
@@ -248,13 +257,17 @@ export function TraceConversation({
                           <EmptyValue />
                         ) : null}
                         {step.error ? (
-                          <div role="alert" className="text-destructive">
-                            <RecordedText {...step.error} />
-                          </div>
+                          <Alert variant="destructive">
+                            <CircleAlert aria-hidden="true" />
+                            <AlertDescription>
+                              <RecordedText {...step.error} />
+                            </AlertDescription>
+                          </Alert>
                         ) : step.span.error_message ? (
-                          <p role="alert" className="text-sm text-destructive">
-                            {step.span.error_message}
-                          </p>
+                          <Alert variant="destructive">
+                            <CircleAlert aria-hidden="true" />
+                            <AlertDescription>{step.span.error_message}</AlertDescription>
+                          </Alert>
                         ) : null}
                       </div>
                     </CollapsibleContent>
@@ -291,9 +304,14 @@ export function TraceConversation({
               >
                 {step.text ? <RecordedText text={step.text} format="markdown" /> : null}
                 {step.kind === "response" && step.span.status_code === "ERROR" ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {step.span.error_message || step.span.error_type || "The model request failed."}
-                  </p>
+                  <Alert variant="destructive" className={step.text ? "mt-3" : undefined}>
+                    <CircleAlert aria-hidden="true" />
+                    <AlertDescription>
+                      {step.span.error_message ||
+                        step.span.error_type ||
+                        "The model request failed."}
+                    </AlertDescription>
+                  </Alert>
                 ) : null}
                 {step.kind === "prompt" && step.context.length ? (
                   <Collapsible className="group/context mt-2">

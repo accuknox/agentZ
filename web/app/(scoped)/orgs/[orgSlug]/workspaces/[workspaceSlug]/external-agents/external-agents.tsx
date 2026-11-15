@@ -38,6 +38,8 @@ import {
   TriangleAlert,
   Trash2,
   Unplug,
+  CircleAlert,
+  Info,
 } from "lucide-react"
 import { toast } from "sonner"
 import { AdministrationPageHeader, AdministrationState } from "@/components/administration"
@@ -96,7 +98,11 @@ import type { CopilotStudioEnvironment, ExternalAgent } from "@/data/external-ag
 import { TablePagination } from "@/components/table-pagination"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { OrganizationSummary } from "@/data/organizations"
-import { watchExternalAgents, type Workspace } from "@/lib/gateway/client"
+import {
+  watchExternalAgents,
+  type CopilotStudioIntegration,
+  type Workspace,
+} from "@/lib/gateway/client"
 import { getGatewayBaseURL } from "@/lib/gateway/browser-runtime"
 import { cn } from "@/lib/utils"
 import {
@@ -1052,7 +1058,10 @@ function ExternalAgentEditor({
   onSaved: (clientId: string) => void
 }) {
   const agent = editor.kind === "agent" ? editor.agent : undefined
-  const environment = editor.kind === "copilot-studio" ? editor.environment : undefined
+  const [createdConnection, setCreatedConnection] =
+    useState<Pick<CopilotStudioIntegration, "id" | "name">>()
+  const environment =
+    createdConnection ?? (editor.kind === "copilot-studio" ? editor.environment : undefined)
   const form = useForm<z.infer<typeof externalAgentInput>>({
     resolver: zodResolver(externalAgentInput),
     defaultValues: {
@@ -1132,7 +1141,13 @@ function ExternalAgentEditor({
                   integrationId={environment?.id}
                   pending={pending}
                   startTransition={startTransition}
-                  onSaved={onClose}
+                  onSaved={(saved) => {
+                    if (!environment) {
+                      setCreatedConnection(saved)
+                      return
+                    }
+                    onClose()
+                  }}
                 />
               ) : (
                 <AdministrationState kind="forbidden" />
@@ -1183,7 +1198,12 @@ function ExternalAgentEditor({
                   />
                   <FieldError errors={[form.formState.errors.name]} />
                 </Field>
-                <FieldError errors={[form.formState.errors.root]} />
+                {form.formState.errors.root ? (
+                  <Alert variant="destructive">
+                    <CircleAlert aria-hidden="true" />
+                    <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
+                  </Alert>
+                ) : null}
               </FieldGroup>
               <SheetFooter className="mt-auto border-t">
                 <LoadingButton pending={pending} type="submit">
@@ -1287,7 +1307,8 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
   return (
     <FieldGroup className="p-4 pt-0">
       {!agent.own ? (
-        <Alert>
+        <Alert variant="info">
+          <Info aria-hidden="true" />
           <AlertDescription>
             This agent belongs to {agent.user.name}. Its owner must complete login.
           </AlertDescription>

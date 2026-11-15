@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import { motion, useReducedMotion } from "motion/react"
 import { cva, type VariantProps } from "class-variance-authority"
 import type { MultipleFieldErrors } from "react-hook-form"
+import { CircleAlert } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Label as LabelPrimitive } from "radix-ui"
@@ -236,10 +237,15 @@ function FieldError({
     <div
       role="alert"
       data-slot="field-error"
-      className={cn("text-sm font-normal text-destructive", className)}
+      className={cn(
+        "flex min-w-0 items-start gap-2 text-sm leading-5 font-normal wrap-anywhere text-destructive",
+        className
+      )}
       {...props}
     >
+      <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
       <motion.div
+        className="min-w-0"
         initial={{ opacity: 0, y: reduced ? 0 : 2 }}
         animate={{ opacity: 1, y: 0 }}
         transition={

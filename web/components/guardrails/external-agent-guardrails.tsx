@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Save } from "lucide-react"
+import { Save, CircleAlert } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import type { GuardrailAssignment } from "@/lib/gateway/client"
 import {
@@ -13,7 +13,6 @@ import {
 import { SubjectGuardrails } from "@/components/guardrails/subject-guardrails"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { LoadingButton } from "@/components/interior/loading-button"
-import { FieldError } from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 
@@ -58,6 +57,7 @@ export function ExternalAgentGuardrailsPanel(props: ExternalAgentGuardrailsPanel
     return (
       <div className="p-4">
         <Alert variant="destructive">
+          <CircleAlert aria-hidden="true" />
           <AlertTitle>Guardrail settings unavailable</AlertTitle>
           <AlertDescription>{query.error.message}</AlertDescription>
         </Alert>
@@ -84,11 +84,19 @@ function ExternalAgentGuardrailsForm(props: ExternalAgentGuardrailsFormProps) {
   const [assignment, setAssignment] = useState<GuardrailAssignment>(data.assignment)
   const [error, setError] = useState("")
   const [pending, startTransition] = useTransition()
+  const missingPolicy = (assignment.policies ?? []).some(
+    (ref) => !data.policies.some((policy) => policy.scope === ref.scope && policy.name === ref.name)
+  )
+  const missingRequiredPolicy = data.settings.mandatoryPolicies.some(
+    (name) =>
+      !data.policies.some((policy) => policy.scope === "Organisation" && policy.name === name)
+  )
   return (
     <form
       className="flex min-w-0 flex-col gap-6 p-4"
       onSubmit={(event) => {
         event.preventDefault()
+        if (missingPolicy || missingRequiredPolicy) return
         setError("")
         startTransition(async () => {
           const result = await saveExternalAgentGuardrailsAction(
@@ -113,10 +121,20 @@ function ExternalAgentGuardrailsForm(props: ExternalAgentGuardrailsFormProps) {
         policies={data.policies}
         settings={data.settings}
       />
-      {error ? <FieldError>{error}</FieldError> : null}
+      {error ? (
+        <Alert variant="destructive">
+          <CircleAlert aria-hidden="true" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
       <Separator className="-mx-4 w-[calc(100%+2rem)]" />
       <div className="flex justify-end">
-        <LoadingButton pending={pending} pendingLabel="Saving..." type="submit">
+        <LoadingButton
+          disabled={missingPolicy || missingRequiredPolicy}
+          pending={pending}
+          pendingLabel="Saving..."
+          type="submit"
+        >
           <Save data-icon="inline-start" />
           Save guardrails
         </LoadingButton>

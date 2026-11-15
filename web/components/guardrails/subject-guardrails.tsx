@@ -1,7 +1,7 @@
 "use client"
 
 import { useId } from "react"
-import { ArrowDown, ArrowUp, BrickWallShield, LockKeyhole, X } from "lucide-react"
+import { ArrowDown, ArrowUp, BrickWallShield, LockKeyhole, X, CircleAlert } from "lucide-react"
 import type { GuardrailAssignment, GuardrailPolicy, GuardrailSettings } from "@/lib/gateway/client"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -40,26 +40,9 @@ export function SubjectGuardrails(props: SubjectGuardrailsProps) {
     <FieldGroup className="min-w-0 gap-6">
       {missing.map((ref) => (
         <Alert key={`${ref.scope}/${ref.name}`} variant="destructive">
+          <CircleAlert aria-hidden="true" />
           <AlertTitle className="wrap-anywhere">{ref.name} is unavailable</AlertTitle>
-          <AlertDescription>
-            <p>Remove this policy or restore access before saving.</p>
-            {!disabled ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  onChange({
-                    ...assignment,
-                    policies: selected.filter(
-                      (item) => item.scope !== ref.scope || item.name !== ref.name
-                    ),
-                  })
-                }}
-              >
-                Remove policy
-              </Button>
-            ) : null}
-          </AlertDescription>
+          <AlertDescription>Remove this policy or restore access before saving.</AlertDescription>
         </Alert>
       ))}
       <Field data-disabled={disabled}>
@@ -93,7 +76,6 @@ export function SubjectGuardrails(props: SubjectGuardrailsProps) {
               label: ref.name,
               value: `${ref.scope}/${ref.name}`,
               badge: "Unavailable",
-              disabled: true,
             })),
           ]}
           placeholder="Select policies"

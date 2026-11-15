@@ -1,11 +1,11 @@
 "use client"
 
 import type { TransitionStartFunction } from "react"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { zCopilotStudioIntegrationInput } from "@/lib/gateway/client/zod.gen"
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Link2, ShieldCheck, Terminal, TriangleAlert } from "lucide-react"
+import { Link2, Terminal, TriangleAlert, CircleAlert, Info, CirclePause } from "lucide-react"
 import { toast } from "sonner"
 import type { CopilotStudioIntegration, CopilotStudioIntegrationInput } from "@/lib/gateway/client"
 import { loadCopilotStudioAction, saveCopilotStudioAction } from "./actions"
@@ -68,7 +68,10 @@ export function CopilotStudio({
   integrationId,
   onSaved,
   ...scope
-}: CopilotStudioProps & { integrationId?: string; onSaved: () => void }) {
+}: CopilotStudioProps & {
+  integrationId?: string
+  onSaved: (integration: CopilotStudioIntegration) => void
+}) {
   const queryClient = useQueryClient()
   const query = useQuery(copilotStudioOptions(scope.orgSlug, scope.workspaceSlug, integrationId))
   if (query.isPending && !integrationId)
@@ -141,6 +144,7 @@ export function CopilotStudio({
   if (integrationId && !integration)
     return (
       <Alert variant="destructive">
+        <CircleAlert aria-hidden="true" />
         <AlertTitle>Connection unavailable</AlertTitle>
       </Alert>
     )
@@ -154,7 +158,7 @@ export function CopilotStudio({
           copilotStudioOptions(scope.orgSlug, scope.workspaceSlug, saved.id).queryKey,
           { ...query.data, integration: saved }
         )
-        onSaved()
+        onSaved(saved)
       }}
     />
   )
@@ -184,6 +188,34 @@ function CopilotStudioConnection({
       assignment: integration?.assignment ?? { policies: [] },
     },
   })
+  const assignment = useWatch({ control: form.control, name: "assignment" })
+  const selectedPolicies = data.policies.filter(
+    (policy) =>
+      (policy.scope === "Organisation" && data.settings.mandatoryPolicies.includes(policy.name)) ||
+      assignment.policies?.some((ref) => ref.scope === policy.scope && ref.name === policy.name)
+  )
+  // Match the gateway's hook constraints before enabling either save action.
+  const incompatibleChecks = selectedPolicies.flatMap((policy) =>
+    policy.checks.flatMap((check) => {
+      let reason: string | undefined
+      if (check.phase === "output") {
+        reason = "requires a response hook that Copilot Studio does not provide."
+      } else if (check.mode === "enforce" && check.action === "mask") {
+        reason = "masks content. Copilot Studio only accepts allow or block."
+      } else if (!check.scopes.some((scope) => scope !== "instructions")) {
+        reason = "requires system instructions that Copilot Studio does not provide."
+      }
+      return reason ? [{ policy, check, reason }] : []
+    })
+  )
+  const missingPolicy = (assignment.policies ?? []).some(
+    (ref) => !data.policies.some((policy) => policy.scope === ref.scope && policy.name === ref.name)
+  )
+  const missingRequiredPolicy = data.settings.mandatoryPolicies.some(
+    (name) =>
+      !data.policies.some((policy) => policy.scope === "Organisation" && policy.name === name)
+  )
+  const canSave = !missingPolicy && !missingRequiredPolicy && incompatibleChecks.length === 0
   const credentialCommand = integration
     ? `az ad app federated-credential create --id ${integration.application_id} --parameters '${JSON.stringify(
         {
@@ -206,12 +238,12 @@ function CopilotStudioConnection({
         </TabsTrigger>
       </TabsList>
       <div className="pb-1">
-        <FieldError errors={[form.formState.errors.root]} />
         <form
           autoComplete="off"
           noValidate
           className="flex flex-col gap-5"
           onSubmit={form.handleSubmit((input) => {
+            if (!canSave) return
             form.clearErrors("root")
             startTransition(async () => {
               const result = await saveCopilotStudioAction(
@@ -229,6 +261,21 @@ function CopilotStudioConnection({
             })
           })}
         >
+          {form.formState.errors.root ? (
+            <Alert variant="destructive">
+              <CircleAlert aria-hidden="true" />
+              <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
+            </Alert>
+          ) : null}
+          {incompatibleChecks.map(({ policy, check, reason }) => (
+            <Alert key={`${policy.scope}/${policy.name}/${check.id}`} variant="warning">
+              <TriangleAlert aria-hidden="true" />
+              <AlertTitle>{policy.displayName} cannot protect Copilot Studio</AlertTitle>
+              <AlertDescription>
+                &quot;{check.name}&quot; {reason}
+              </AlertDescription>
+            </Alert>
+          ))}
           <TabsContent value="setup" className="mt-0 flex flex-col gap-5">
             <FieldGroup className="gap-4">
               {[
@@ -416,14 +463,15 @@ function CopilotStudioConnection({
                 />
               </FieldGroup>
             </FieldSet>
-            <LoadingButton pending={pending} type="submit">
+            <LoadingButton disabled={!canSave} pending={pending} type="submit">
               {integration ? "Save changes" : "Add connection"}
             </LoadingButton>
             {integration ? (
               <FieldGroup className="gap-5">
                 <Separator />
                 {!integration.enabled ? (
-                  <Alert>
+                  <Alert variant="warning">
+                    <CirclePause aria-hidden="true" />
                     <AlertTitle>Connection paused</AlertTitle>
                     <AlertDescription>
                       Enable this connection before saving in Power Platform.
@@ -432,6 +480,7 @@ function CopilotStudioConnection({
                 ) : null}
                 {integration.runtime_error ? (
                   <Alert variant="destructive">
+                    <CircleAlert aria-hidden="true" />
                     <AlertTitle>Protection needs attention</AlertTitle>
                     <AlertDescription>{integration.runtime_error}</AlertDescription>
                   </Alert>
@@ -504,8 +553,8 @@ function CopilotStudioConnection({
                     <CopyButton content={integration.endpoint} label="Copy webhook endpoint" />
                   </div>
                 </Field>
-                <Alert className="rounded-none border-0 bg-transparent p-0 [&>svg]:text-primary">
-                  <ShieldCheck />
+                <Alert variant="info">
+                  <Info aria-hidden="true" />
                   <AlertDescription>
                     Set error behavior to{" "}
                     <strong>
@@ -554,10 +603,12 @@ function CopilotStudioConnection({
                 />
               )}
             />
-            <FieldDescription>
-              Tool-call checks only. Response checks and masking aren&apos;t supported.
-            </FieldDescription>
-            <LoadingButton pending={pending} type="submit">
+            {incompatibleChecks.length === 0 ? (
+              <FieldDescription>
+                Tool-call checks only. Response checks and enforced masking aren&apos;t supported.
+              </FieldDescription>
+            ) : null}
+            <LoadingButton disabled={!canSave} pending={pending} type="submit">
               Save guardrails
             </LoadingButton>
           </TabsContent>

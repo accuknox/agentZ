@@ -1,4 +1,3 @@
-// Adapted from T3 Code, copyright 2026 T3 Tools Inc. See LICENSE.t3.
 export const recordingEncoderScript = `(() => {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
@@ -58,7 +57,7 @@ export const recordingEncoderScript = `(() => {
       context.restore();
     }
   };
-  window.__t3Recorder = {
+  window.__agentzRecorder = {
     async frame(base64, cssWidth) {
       if (tooLarge) return false;
       // A per-character atob copy costs ~30 ms on a 3200x1800 frame and throttles recordings.

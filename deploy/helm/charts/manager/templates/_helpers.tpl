@@ -2,6 +2,25 @@
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "manager.browserImage" -}}
+{{- if .Values.config.browserImage -}}
+{{- .Values.config.browserImage -}}
+{{- else if .Values.browser.image.digest -}}
+{{- printf "%s@%s" .Values.browser.image.repository .Values.browser.image.digest -}}
+{{- else -}}
+{{- $tag := default (printf "v%s" .Chart.AppVersion) .Values.browser.image.tag -}}
+{{- printf "%s:%s" .Values.browser.image.repository $tag -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "manager.browserSeccompProfile" -}}
+{{- if .Values.config.browserSeccompProfile -}}
+{{- .Values.config.browserSeccompProfile -}}
+{{- else if .Values.browser.seccomp.enabled -}}
+{{- printf "agentz/browser-%s.json" (.Files.Get "files/browser-seccomp.json" | sha256sum) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "manager.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}

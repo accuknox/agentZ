@@ -45,7 +45,7 @@ strategy:
 
 image:
   repository: public.ecr.aws/k9v9d5v2/agentz
-  tag: latest
+  tag: v0.36.0
   digest: ""
   pullPolicy: IfNotPresent
 
@@ -96,6 +96,17 @@ containerSecurityContext:
     drop:
     - ALL
 
+browser:
+  image:
+    repository: public.ecr.aws/k9v9d5v2/agentz/browser
+    # Empty uses v<chart appVersion>. A digest takes precedence over the tag.
+    tag: ""
+    digest: ""
+  seccomp:
+    # Installs Chromium's profile automatically on all Linux nodes.
+    enabled: true
+    kubeletDirectory: /var/lib/kubelet/seccomp
+
 config:
   logLevel: info
   logFormat: text
@@ -110,9 +121,10 @@ config:
   # workloads receive the same fixes as the manager. Set to override.
   controllerImage: ""
   browserSeccompProfile: ""
-  browserImage: public.ecr.aws/k9v9d5v2/agentz/browser:latest
-  agentImage: ""
-  agentInitImage: ""
+  # Optional full image override shared by the browser and profile installer.
+  browserImage: ""
+  agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:v0.36.0
+  agentInitImage: public.ecr.aws/k9v9d5v2/agentz/init:v0.36.0
   gatewayURL: ""
   # Body buffer for inference gateway CEL authorization.
   inferenceMaxBufferSize: 32Mi

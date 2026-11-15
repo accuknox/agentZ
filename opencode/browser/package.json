@@ -8,7 +8,7 @@
     "test": "node --experimental-strip-types --test control.test.ts"
   },
   "dependencies": {
-    "playwright-core": "1.64.1",
+    "playwright-core": "1.65.1",
     "ws": "8.21.0",
     "zod": "4.6.6"
   },

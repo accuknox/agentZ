@@ -107,7 +107,7 @@ let defaultProfileId = profiles.has(catalog.defaultProfileId) ? catalog.defaultP
 
 declare global {
   interface Window {
-    __t3Recorder: {
+    __agentzRecorder: {
       frame(base64: string, cssWidth: number): Promise<boolean>
       cursor(x: number, y: number, click: boolean): void
       stop(): Promise<{
@@ -187,6 +187,9 @@ async function context(profile: string, session: string) {
         executablePath: process.env.CHROMIUM_PATH,
         headless: true,
         chromiumSandbox: true,
+        // The worker closes contexts before exiting so profile writes finish.
+        handleSIGINT: false,
+        handleSIGTERM: false,
         viewport: { width: 1280, height: 800 },
         deviceScaleFactor: 2,
         acceptDownloads: true,
@@ -440,7 +443,7 @@ async function attach(
     if (recording && !recording.busy) {
       recording.busy = true
       recording.pending = recording.page
-        .evaluate(({ data, width }) => window.__t3Recorder.frame(data, width), {
+        .evaluate(({ data, width }) => window.__agentzRecorder.frame(data, width), {
           data: frame.data,
           width: tab.width,
         })
@@ -650,7 +653,7 @@ async function operate(
       selected.cursor = { x: input.x, y: input.y, click: input.operation === "click" }
       if (selected.recording)
         await selected.recording.page.evaluate(
-          (cursor) => window.__t3Recorder.cursor(cursor.x, cursor.y, cursor.click),
+          (cursor) => window.__agentzRecorder.cursor(cursor.x, cursor.y, cursor.click),
           selected.cursor
         )
     }
@@ -960,7 +963,7 @@ async function operate(
             quality: 90,
             timeout: 3000,
           })
-          await encoder.evaluate(({ data, width }) => window.__t3Recorder.frame(data, width), {
+          await encoder.evaluate(({ data, width }) => window.__agentzRecorder.frame(data, width), {
             data: first.toString("base64"),
             width: selected.width,
           })
@@ -984,14 +987,14 @@ async function operate(
         selected.recording = null
         try {
           await recording.pending
-          const stopped = await recording.page.evaluate(() => window.__t3Recorder.stop())
+          const stopped = await recording.page.evaluate(() => window.__agentzRecorder.stop())
           if (!stopped.mimeType || stopped.bytes > 50 * 1024 * 1024)
             throw new Error("Recording exceeds 50 MiB or produced no video")
           const chunks: Buffer[] = []
           for (let i = 0; i < stopped.count; i++)
             chunks.push(
               Buffer.from(
-                await recording.page.evaluate((index) => window.__t3Recorder.chunk(index), i),
+                await recording.page.evaluate((index) => window.__agentzRecorder.chunk(index), i),
                 "base64"
               )
             )
@@ -1299,7 +1302,10 @@ server.on("upgrade", (req, socket, head) => {
             tab.cursor = { x: input.x, y: input.y, click: input.action === "down" }
             if (tab.recording)
               void tab.recording.page
-                .evaluate(({ x, y, click }) => window.__t3Recorder.cursor(x, y, click), tab.cursor)
+                .evaluate(
+                  ({ x, y, click }) => window.__agentzRecorder.cursor(x, y, click),
+                  tab.cursor
+                )
                 .catch(() => {})
             await tab.page.mouse.move(input.x, input.y)
             if (input.action === "down") {

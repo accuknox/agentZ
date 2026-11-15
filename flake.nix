@@ -256,6 +256,7 @@
               openapi-generator-cli
               oapiCodegen
               bun
+              python3
               nodejs
               package-version-server
               kubebuilder

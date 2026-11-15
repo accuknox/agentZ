@@ -60,7 +60,7 @@ jobs:
     - uses: oven-sh/setup-bun@v2.2.0
       id: bun
       with:
-        bun-version: latest
+        bun-version: 1.4.4
     - uses: actions/cache@v6.1.0
       with:
         path: ~/.bun/install/cache
@@ -233,6 +233,8 @@ jobs:
           repository: public.ecr.aws/k9v9d5v2/agentz/web
         - name: init
           repository: public.ecr.aws/k9v9d5v2/agentz/init
+        - name: browser
+          repository: public.ecr.aws/k9v9d5v2/agentz/browser
         - name: agentgateway
           repository: public.ecr.aws/k9v9d5v2/agentz/agentgateway
         - name: agent

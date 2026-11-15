@@ -49,6 +49,29 @@
     "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
     "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
     "strategy": { "$ref": "#/definitions/strategy" },
+    "browser": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string" },
+            "digest": { "type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$" }
+          }
+        },
+        "seccomp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "kubeletDirectory": { "type": "string", "pattern": "^/", "minLength": 2 }
+          }
+        }
+      }
+    },
     "image": { "$ref": "#/definitions/image" },
     "imagePullSecrets": { "type": "array" },
     "serviceAccount": { "$ref": "#/definitions/serviceAccount" },

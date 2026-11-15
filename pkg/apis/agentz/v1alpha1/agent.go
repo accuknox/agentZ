@@ -76,6 +76,7 @@ const BrowserSecretSuffix = "-browser"
 type BrowserConfig struct {
 	// Enabled starts a browser sidecar with persistent Agent-wide profiles.
 	// +optional
+	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
 }
 

@@ -36,8 +36,6 @@
 !opencode/config/lib/gateway/client/
 !opencode/config/lib/gateway/client/*.ts
 
-!opencode/browser/LICENSE.t3
-
 # Keep dependency trees, tests and local build output outside the worker image.
 opencode/**/node_modules/**
 opencode/browser/dist/**

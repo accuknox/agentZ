@@ -41,6 +41,7 @@ all: generate lint build
 
 .PHONY: generate
 generate:
+	python3 hack/browser/seccomp.py
 	cd web && bun run gen:db-schema
 	sqlc generate
 	go run ./hack/inference/generate_providers.go

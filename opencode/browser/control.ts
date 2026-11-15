@@ -1,4 +1,3 @@
-// Adapted from T3 Code SessionControl, MIT, copyright 2026 T3 Tools Inc.
 // Reservations fence queued input before a new controller begins operating.
 export class Control {
   generation = 0

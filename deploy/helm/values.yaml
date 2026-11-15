@@ -61,6 +61,16 @@ manager:
       managedNamespaceSelector:
         app.kubernetes.io/managed-by: agentz
 
+  browser:
+    image:
+      repository: public.ecr.aws/k9v9d5v2/agentz/browser
+      # Empty uses v<chart appVersion>. A digest takes precedence over the tag.
+      tag: ""
+      digest: ""
+    seccomp:
+      enabled: true
+      kubeletDirectory: /var/lib/kubelet/seccomp
+
   # Enable the AgentZ controller manager subchart.
   enabled: true
 
@@ -87,7 +97,7 @@ manager:
     repository: public.ecr.aws/k9v9d5v2/agentz
 
     # Image tag for the manager image.
-    tag: latest
+    tag: v0.36.0
     digest: ""
 
     # Kubernetes image pull policy.
@@ -198,11 +208,15 @@ manager:
     # sinjector and agent filesystem sidecars. Set to override.
     controllerImage: ""
 
+    # Optional full browser image override. The default follows the chart release.
+    browserImage: ""
+    browserSeccompProfile: ""
+
     # Default image used for Agent resources created by the system.
-    agentImage: ""
+    agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:v0.36.0
 
     # Optional image used for agent init containers.
-    agentInitImage: ""
+    agentInitImage: public.ecr.aws/k9v9d5v2/agentz/init:v0.36.0
 
     # Base URL exposed to agents for gateway-backed workflow tools.
     gatewayURL: ""
@@ -403,7 +417,7 @@ gateway:
     repository: public.ecr.aws/k9v9d5v2/agentz
 
     # Image tag for the gateway workload.
-    tag: latest
+    tag: v0.36.0
     digest: ""
 
     # Kubernetes image pull policy.
@@ -518,7 +532,7 @@ gateway:
     filesystemTargetOverride: ""
 
     # Default agent image used by the gateway when creating Agent resources.
-    agentImage: ""
+    agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:v0.36.0
 
     # Required OTLP/gRPC endpoint exposed to agents for opencode trace export.
     # Example: `observer:4317`
@@ -597,7 +611,7 @@ observer:
     repository: public.ecr.aws/k9v9d5v2/agentz
 
     # Image tag for the observer workload.
-    tag: latest
+    tag: v0.36.0
     digest: ""
 
     # Kubernetes image pull policy.
@@ -722,7 +736,7 @@ web:
     repository: public.ecr.aws/k9v9d5v2/agentz/web
 
     # Image tag for the web workload.
-    tag: latest
+    tag: v0.36.0
     digest: ""
 
     # Kubernetes image pull policy.

@@ -131,9 +131,11 @@ jobs:
         - name: agentgateway
           repository: public.ecr.aws/k9v9d5v2/agentz/agentgateway
           nix-package: agentgatewayImage
+          nix-runtime: agentgateway
         - name: agent
           repository: public.ecr.aws/k9v9d5v2/agentz/agent
           nix-package: agentImage
+          nix-runtime: opencodeAgentRuntime
         platform:
         - arch: amd64
           runner: ubuntu-24.04
@@ -166,24 +168,42 @@ jobs:
         platforms: linux/${{ matrix.platform.arch }}
         labels: ${{ steps.meta.outputs.labels }}
         outputs: type=image,name=${{ matrix.image.repository }},push-by-digest=true,name-canonical=true,push=true
-        cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
-        cache-to: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }},mode=max
+        # Registry caches keep Docker layers out of GitHub's shared cache quota.
+        # Import the previous backend too while the registry caches warm up.
+        cache-from: |
+          type=registry,ref=${{ matrix.image.repository }}:buildcache-${{ matrix.platform.arch }}
+          type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
+        cache-to: type=registry,ref=${{ matrix.image.repository }}:buildcache-${{ matrix.platform.arch }},mode=max,image-manifest=true,oci-mediatypes=true
     - uses: cachix/install-nix-action@v31.11.1
       if: matrix.image.nix-package != ''
+    - name: Compute Nix cache key
+      if: matrix.image.nix-package != ''
+      id: nix-cache-key
+      env:
+        NIX_PACKAGE: ${{ matrix.image.nix-package }}
+      run: |
+        # The derivation includes all build inputs without changing per commit.
+        drv=$(nix eval --raw ".#$NIX_PACKAGE.drvPath")
+        echo "key=${drv##*/}" >> "$GITHUB_OUTPUT"
     - uses: nix-community/cache-nix-action@v7
       if: matrix.image.nix-package != ''
       with:
-        primary-key: nix-${{ matrix.image.name }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-${{ github.sha }}
+        primary-key: nix-${{ matrix.image.name }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.nix-cache-key.outputs.key }}
         restore-prefixes-first-match: |
-          nix-${{ matrix.image.name }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
           nix-${{ matrix.image.name }}-${{ runner.os }}-${{ runner.arch }}-
+        # Whole stores exhausted the shared cache quota and evicted other images.
+        gc-max-store-size: 0
     - name: Build and push Nix image
       if: matrix.image.nix-package != ''
       id: nix
       env:
         IMAGE: ${{ matrix.image.repository }}
         NIX_PACKAGE: ${{ matrix.image.nix-package }}
+        NIX_RUNTIME: ${{ matrix.image.nix-runtime }}
       run: |
+        # Archives have no store references. Root the runtime separately so GC
+        # keeps its binaries available when other image inputs change.
+        nix build ".#$NIX_RUNTIME" --out-link "$RUNNER_TEMP/runtime"
         nix build ".#$NIX_PACKAGE" --out-link "$RUNNER_TEMP/image"
         # Skopeo uploads the Nix archive without creating an intermediate tag.
         # The local build has no source signature to verify.

@@ -102,6 +102,7 @@ type Config struct {
 	InternalK8sTokenAudience       string
 	TargetOverride                 string
 	FilesystemTargetOverride       string
+	BrowserTargetOverride          string
 	AgentImage                     string
 	AgentTraceEndpoint             string
 	OpenBaoAddr                    string
@@ -874,6 +875,9 @@ func (s *Service) routes() http.Handler {
 			if strings.HasPrefix(r.URL.Path, "/api/coding/") {
 				r.Body = http.MaxBytesReader(w, r.Body, 90<<20)
 			}
+			if strings.HasPrefix(r.URL.Path, "/api/agent/") && strings.Contains(r.URL.Path, "/browser/") {
+				r.Body = http.MaxBytesReader(w, r.Body, 50<<20)
+			}
 			next.ServeHTTP(w, r)
 		})
 	})
@@ -893,6 +897,10 @@ func (s *Service) routes() http.Handler {
 		opencodePrefix+"/{agentName}/*",
 		s.handleOpenCodeProxy,
 	)
+
+	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).Get("/api/agent/{agentName}/browser/{sessionId}", func(w http.ResponseWriter, r *http.Request) {
+		s.StreamBrowser(w, r, chi.URLParam(r, "agentName"), chi.URLParam(r, "sessionId"), gatewayapi.StreamBrowserParams{})
+	})
 
 	if s.cfg.DelegationNamespace != "" {
 		r.Route("/api/inference/v1", func(r chi.Router) {

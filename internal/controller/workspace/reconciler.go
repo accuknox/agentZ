@@ -635,7 +635,9 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 			},
 			Spec: packageRule,
 		},
+		{ObjectMeta: metav1.ObjectMeta{Name: "agent-runtime", Namespace: workspace.Name}},
 	}
+	policies[2].Spec = networkpolicy.AgentIngress(policies[0].Spec, r.GatewayServiceAccountNamespace, r.GatewayServiceAccountName)
 
 	for _, policy := range policies {
 		// Sanitize mutates selectors and protocol casing, so validate a copy

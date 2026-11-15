@@ -1,0 +1,16 @@
+FROM oven/bun:1.4.0 AS build
+WORKDIR /src
+COPY opencode/browser/package.json opencode/browser/bun.lock ./opencode/browser/
+RUN cd opencode/browser && bun install --frozen-lockfile
+COPY opencode/config/lib/gateway/client ./opencode/config/lib/gateway/client
+COPY opencode/browser ./opencode/browser
+RUN cd opencode/browser && bun run build && rm -rf node_modules && bun install --production --frozen-lockfile
+
+FROM mcr.microsoft.com/playwright:v1.64.1-noble
+WORKDIR /opt/browser
+COPY --from=build /src/opencode/browser/dist ./dist
+COPY --from=build /src/opencode/browser/node_modules ./node_modules
+COPY opencode/browser/package.json opencode/browser/LICENSE.t3 ./
+USER 1000:1000
+ENV HOME=/tmp
+ENTRYPOINT ["node", "dist/index.js"]

@@ -100,6 +100,8 @@ var (
 	enableHTTP2                                      bool
 	tlsOpts                                          []func(*tls.Config)
 	agentImage                                       string
+	browserImage                                     string
+	browserSeccompProfile                            string
 	controllerImage                                  string
 	gatewayURL                                       string
 
@@ -335,6 +337,15 @@ var managerCmd = &cli.Command{
 			Config: cli.StringConfig{
 				TrimSpace: true,
 			},
+		},
+		&cli.StringFlag{
+			Name: "browser-seccomp-profile", Usage: "Node-local seccomp profile for Chromium user namespaces",
+			Destination: &browserSeccompProfile,
+		},
+		&cli.StringFlag{
+			Name:        "browser-image",
+			Usage:       "Browser worker image for browser-enabled Agents",
+			Destination: &browserImage,
 		},
 		&cli.StringFlag{
 			Name:        "agent-image",
@@ -1227,6 +1238,8 @@ var managerCmd = &cli.Command{
 
 		runtimeConfig := agent.RuntimeConfig{
 			AgentDefaultImage:                agentImage,
+			BrowserImage:                     browserImage,
+			BrowserSeccompProfile:            browserSeccompProfile,
 			GatewayURL:                       gatewayURL,
 			SharedNixPVC:                     nixStorePVC,
 			NixCacheEndpoint:                 nixCacheEndpoint,

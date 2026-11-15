@@ -23,3 +23,22 @@
 
 # Re-include nix init script used by Dockerfile.nix-init
 !hack/nix-init.sh
+
+!Dockerfile.browser
+!opencode/
+!opencode/browser/
+!opencode/browser/*.ts
+!opencode/browser/package.json
+!opencode/browser/bun.lock
+!opencode/config/
+!opencode/config/lib/
+!opencode/config/lib/gateway/
+!opencode/config/lib/gateway/client/
+!opencode/config/lib/gateway/client/*.ts
+
+!opencode/browser/LICENSE.t3
+
+# Keep dependency trees, tests and local build output outside the worker image.
+opencode/**/node_modules/**
+opencode/browser/dist/**
+opencode/browser/*.test.ts

@@ -2,11 +2,16 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import dynamic from "next/dynamic"
-import { Files, Maximize2, Minimize2, PanelRightClose, type LucideIcon } from "lucide-react"
+import { Globe, Files, Maximize2, Minimize2, PanelRightClose, type LucideIcon } from "lucide-react"
+import { queryOptions, useQuery } from "@tanstack/react-query"
+import { watchAgentsQueryOptions } from "@/components/agent-readiness"
 import { useFileWorkspace } from "./file-workspace-store"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { runBrowser } from "@/lib/gateway/client"
 import { cn } from "@/lib/utils"
+
+const Browser = dynamic(() => import("./browser").then((module) => module.Browser), { ssr: false })
 
 const FilesWorkspace = dynamic(
   () => import("./files-workspace").then((module) => module.FilesWorkspace),
@@ -54,11 +59,14 @@ export function Workspace({
   footer?: ReactNode
 }): React.JSX.Element {
   const { pendingPreview } = useFileWorkspace()
+  const { data: agents = [] } = useQuery(watchAgentsQueryOptions(workspaceId))
+  const browserEnabled = agents.find((agent) => agent.name === agentName)?.browser.enabled ?? false
   const [{ tab, open }, setPanel] = useState({ tab: initialTool, open: false })
   const [visited, setVisited] = useState<Set<string>>(new Set())
   const [width, setWidth] = useState(480)
   const [expanded, setExpanded] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [browserFloating, setBrowserFloating] = useState(false)
   const views: WorkspaceTool[] = [
     {
       id: "files",
@@ -74,7 +82,52 @@ export function Workspace({
       ),
     },
     ...tools,
+    ...(browserEnabled && sessionId
+      ? [
+          {
+            id: "browser",
+            label: "Browser",
+            icon: Globe,
+            render: ({ visible }: { visible: boolean }) => (
+              <Browser
+                agentName={agentName}
+                sessionId={sessionId}
+                workspaceId={workspaceId}
+                visible={visible}
+                floating={browserFloating}
+                onFloatingChange={setBrowserFloating}
+              />
+            ),
+          },
+        ]
+      : []),
   ]
+  const browser = useQuery(
+    queryOptions({
+      queryKey: ["browser", workspaceId, agentName, sessionId],
+      queryFn: async ({ signal }) => {
+        if (!sessionId) throw new Error("Session is required")
+        const { data } = await runBrowser({
+          path: { agentName, sessionId },
+          body: { operation: "status" },
+          headers: { "X-AgentZ-Workspace-ID": workspaceId },
+          signal,
+          throwOnError: true,
+        })
+        return data
+      },
+      enabled: browserEnabled && !!sessionId,
+      refetchInterval: browserEnabled && sessionId ? 3000 : false,
+      retry: false,
+    })
+  )
+  const [revealed, setRevealed] = useState(0)
+  const reveal = Math.max(0, ...(browser.data?.tabs.map((tab) => tab.reveal ?? 0) ?? []))
+  if (reveal > revealed) {
+    setRevealed(reveal)
+    setPanel({ tab: "browser", open: true })
+    setVisited((current) => new Set(current).add("browser"))
+  }
   const active = views.find((view) => view.id === tab)
 
   useEffect(() => {
@@ -113,9 +166,9 @@ export function Workspace({
           expanded &&
             "lg:absolute lg:inset-y-0 lg:right-12 lg:left-0 lg:z-30 lg:w-auto lg:max-w-none"
         )}
-        style={{ flexBasis: width }}
+        style={{ flexBasis: tab === "browser" && browserFloating ? 0 : width }}
       >
-        {!expanded ? (
+        {!expanded && !(tab === "browser" && browserFloating) ? (
           <WorkspaceResizeHandle
             label="Resize workspace panel"
             width={width}
@@ -124,7 +177,12 @@ export function Workspace({
             onResize={setWidth}
           />
         ) : null}
-        <header className="flex h-(--workspace-topbar-height) shrink-0 items-center gap-2 border-b px-3">
+        <header
+          className={cn(
+            "flex h-(--workspace-topbar-height) shrink-0 items-center gap-2 border-b px-3",
+            tab === "browser" && browserFloating && "hidden"
+          )}
+        >
           <span className="flex-1 text-sm font-semibold">{active?.label}</span>
           {active?.count !== undefined ? (
             <span className="text-xs text-muted-foreground tabular-nums">

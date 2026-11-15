@@ -82,6 +82,8 @@
         "enableHTTP2": { "type": "boolean" },
         "workflowRunOrphanRetention": { "type": "string" },
         "controllerImage": { "type": "string" },
+        "browserImage": { "type": "string" },
+        "browserSeccompProfile": { "type": "string" },
         "agentImage": { "type": "string" },
         "agentInitImage": { "type": "string" },
         "gatewayURL": { "type": "string" },

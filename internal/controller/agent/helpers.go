@@ -95,6 +95,8 @@ var (
 
 // RuntimeConfig configures controller-side launch defaults.
 type RuntimeConfig struct {
+	BrowserImage                     string
+	BrowserSeccompProfile            string
 	AgentDefaultImage                string
 	GatewayURL                       string
 	SharedNixPVC                     string
@@ -291,6 +293,20 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 		"journal":                  general && agt.Spec.Memory.Enabled,
 	}
 
+	browserTools := []string{
+		"preview_status", "preview_open", "preview_navigate", "preview_snapshot",
+		"preview_act", "preview_evaluate", "preview_wait_for", "preview_dialog",
+		"preview_resize", "preview_set_appearance", "preview_recording_start",
+		"preview_recording_stop", "t3_preview_list", "t3_preview_close",
+	}
+	for _, name := range browserTools {
+		cfg.Tools[name] = agt.Spec.Browser.Enabled
+	}
+	// Plan can observe and navigate. Editing pages, evaluating scripts and
+	// answering dialogs require execution mode, as other mutation tools do.
+	for _, name := range []string{"preview_act", "preview_evaluate", "preview_dialog"} {
+		plan.Permission[name] = map[string]opencodePermissionRule{"*": "deny"}
+	}
 	if envCfg.MCPURL != "" {
 		cfg.MCP = map[string]opencodeMCPRemoteFile{
 			mcp.OpenCodeGatewayToolsetName: {

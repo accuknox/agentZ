@@ -452,6 +452,7 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *agent
 			Namespace: nsName,
 		},
 	}
+	var agentRule *ciliumpolicyapi.Rule
 	_, err = controllerutil.CreateOrPatch(
 		ctx,
 		r.directClient(),
@@ -559,12 +560,21 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *agent
 					},
 				},
 			}
+			agentRule = networkpolicy.AgentIngress(policy.Spec, r.GatewayServiceAccountNamespace, r.GatewayServiceAccountName)
 			policy.Specs = nil
 			return controllerutil.SetControllerReference(tenant, policy, r.Scheme)
 		},
 	)
 	if err != nil {
 		return fmt.Errorf("reconcile cilium network policy: %w", err)
+	}
+	runtimePolicy := &ciliumv2.CiliumNetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: "agent-runtime", Namespace: nsName}}
+	_, err = controllerutil.CreateOrPatch(ctx, r.directClient(), runtimePolicy, func() error {
+		runtimePolicy.Spec = agentRule
+		return controllerutil.SetControllerReference(tenant, runtimePolicy, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("reconcile agent ingress: %w", err)
 	}
 	return nil
 }

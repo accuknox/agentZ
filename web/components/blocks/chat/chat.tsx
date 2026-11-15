@@ -684,6 +684,37 @@ export default function Chat({
   const reducedMotion = useReducedMotion()
   const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
+
+  const { browserContext, clearBrowserContext } = useFileWorkspace()
+  useEffect(() => {
+    if (!browserContext || browserContext.sessionId !== sessionId) return
+    const current = composerRef.current?.getMessage()
+    if (!current) return
+    const files = [...current.files]
+    if (browserContext.image) {
+      const bytes = Uint8Array.from(
+        atob(browserContext.image.slice("data:image/png;base64,".length)),
+        (character) => character.charCodeAt(0)
+      )
+      const file = new File([bytes], "browser.png", { type: "image/png" })
+      files.push({
+        source: "local",
+        type: "file",
+        file,
+        filename: file.name,
+        mediaType: file.type,
+        size: file.size,
+        url: URL.createObjectURL(file),
+      })
+    }
+    composerRef.current?.setMessage({
+      ...current,
+      text: [current.text, browserContext.text].filter(Boolean).join("\n\n"),
+      files,
+    })
+    clearBrowserContext()
+  }, [browserContext, clearBrowserContext, sessionId])
+
   const { data: authSession } = authClient.useSession()
   const timelineRef = useRef<LegendListRef>(null)
   const timelineLoaded = useRef(false)

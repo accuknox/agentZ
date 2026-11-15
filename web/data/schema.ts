@@ -492,6 +492,7 @@ export const createAgentSimpleFormSchema = z.object({
   sandboxScope: zResourceScope,
   sandboxName: sandboxNameSchema,
   skills: z.array(zResourceReference.extend({ name: zSkillName })),
+  browserEnabled: z.boolean(),
   memoryEnabled: z.boolean(),
   instruction: zAgentOpencodeConfig.shape.instruction.unwrap(),
 })

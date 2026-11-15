@@ -243,3 +243,39 @@ func ReconcileRuntimeIsolation(ctx context.Context, c client.Client, namespace *
 	}
 	return nil
 }
+
+// AgentIngress separates Agent runtime ingress from broad infrastructure grants.
+// The browser control port is reachable only by the configured gateway identity.
+func AgentIngress(infrastructure *ciliumapi.Rule, gatewayNamespace, gatewayAccount string) *ciliumapi.Rule {
+	const agentLabel = "k8s.agentz.accuknox.com/agent"
+	agent := infrastructure.DeepCopy()
+	infrastructure.EndpointSelector.AddMatchExpression(agentLabel, slimv1.LabelSelectorOpDoesNotExist, nil)
+	agent.EndpointSelector.AddMatchExpression(agentLabel, slimv1.LabelSelectorOpExists, nil)
+	for i := range agent.Ingress {
+		if len(agent.Ingress[i].ToPorts) != 0 {
+			continue
+		}
+		agent.Ingress[i].ToPorts = ciliumapi.PortRules{{Ports: []ciliumapi.PortProtocol{
+			{Port: "4096", Protocol: ciliumapi.ProtoTCP},
+			{Port: "4097", Protocol: ciliumapi.ProtoTCP},
+		}}}
+	}
+	if gatewayNamespace == "" || gatewayAccount == "" {
+		return agent
+	}
+	gateway := ciliumapi.NewESFromK8sLabelSelector("k8s.", &slimv1.LabelSelector{
+		MatchLabels: map[string]string{
+			"io.kubernetes.pod.namespace":         gatewayNamespace,
+			"io.cilium.k8s.policy.serviceaccount": gatewayAccount,
+		},
+	})
+	agent.Ingress = append(agent.Ingress, ciliumapi.IngressRule{
+		IngressCommonRule: ciliumapi.IngressCommonRule{
+			FromEndpoints: []ciliumapi.EndpointSelector{gateway},
+		},
+		ToPorts: ciliumapi.PortRules{{Ports: []ciliumapi.PortProtocol{
+			{Port: "4098", Protocol: ciliumapi.ProtoTCP},
+		}}},
+	})
+	return agent
+}

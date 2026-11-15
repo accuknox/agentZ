@@ -479,6 +479,9 @@ import type {
   RetryWorkspaceData,
   RetryWorkspaceErrors,
   RetryWorkspaceResponses,
+  RunBrowserData,
+  RunBrowserErrors,
+  RunBrowserResponses,
   RunCodingGitData,
   RunCodingGitErrors,
   RunCodingGitResponses,
@@ -491,6 +494,9 @@ import type {
   StatAgentFileData,
   StatAgentFileErrors,
   StatAgentFileResponses,
+  StreamBrowserData,
+  StreamBrowserErrors,
+  StreamBrowserResponses,
   SubmitChatInputData,
   SubmitChatInputErrors,
   SubmitChatInputResponses,
@@ -551,6 +557,9 @@ import type {
   UpdateWorkspaceLifecycleData,
   UpdateWorkspaceLifecycleErrors,
   UpdateWorkspaceLifecycleResponses,
+  UploadBrowserFileData,
+  UploadBrowserFileErrors,
+  UploadBrowserFileResponses,
   UpsertAgentShareData,
   UpsertAgentShareErrors,
   UpsertAgentShareResponses,
@@ -1485,6 +1494,53 @@ export const createAgent = <ThrowOnError extends boolean = false>(
       ...options.headers,
     },
   })
+
+/**
+ * Watch a session browser, transfer files, or upgrade its interactive stream.
+ */
+export const streamBrowser = <ThrowOnError extends boolean = false>(
+  options: Options<StreamBrowserData, ThrowOnError>
+) =>
+  (options.client ?? client).get<StreamBrowserResponses, StreamBrowserErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/browser/{sessionId}",
+    ...options,
+  })
+
+/**
+ * Control the browser belonging to an Agent session.
+ */
+export const runBrowser = <ThrowOnError extends boolean = false>(
+  options: Options<RunBrowserData, ThrowOnError>
+) =>
+  (options.client ?? client).post<RunBrowserResponses, RunBrowserErrors, ThrowOnError>({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/api/agent/{agentName}/browser/{sessionId}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Answer a browser file chooser.
+ */
+export const uploadBrowserFile = <ThrowOnError extends boolean = false>(
+  options: Options<UploadBrowserFileData, ThrowOnError>
+) =>
+  (options.client ?? client).put<UploadBrowserFileResponses, UploadBrowserFileErrors, ThrowOnError>(
+    {
+      bodySerializer: null,
+      security: [{ scheme: "bearer", type: "http" }],
+      url: "/api/agent/{agentName}/browser/{sessionId}",
+      ...options,
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...options.headers,
+      },
+    }
+  )
 
 /**
  * Delete an Agent resource.

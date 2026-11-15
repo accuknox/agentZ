@@ -25,8 +25,10 @@ func TestToolPermissions(t *testing.T) {
 			if err := json.Unmarshal(raw, &cfg); err != nil {
 				t.Fatal(err)
 			}
-			if cfg.Agent["plan"].Permission["trusted_script"]["*"] != "deny" {
-				t.Fatal("Plan allows uploaded source to execute")
+			for _, tool := range []string{"trusted_script", "preview_act", "preview_evaluate", "preview_dialog"} {
+				if cfg.Agent["plan"].Permission[tool]["*"] != "deny" {
+					t.Fatalf("Plan allows mutation tool %s", tool)
+				}
 			}
 			for _, name := range []string{"build", "general"} {
 				if cfg.Agent[name].Permission["trusted_script"] != nil {

@@ -1429,6 +1429,129 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /api/agent/{agentName}/browser/{sessionId}:
+    parameters:
+    - $ref: '#/components/parameters/AgentNamePath'
+    - $ref: '#/components/parameters/WorkspaceIDHeader'
+    - name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    post:
+      operationId: runBrowser
+      summary: Control the browser belonging to an Agent session.
+      tags:
+      - agents
+      parameters:
+      - name: viewer
+        in: query
+        schema:
+          type: string
+          maxLength: 2048
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrowserRequest'
+      responses:
+        '200':
+          description: Browser result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrowserResult'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: streamBrowser
+      summary: Watch a session browser, transfer files, or upgrade its interactive stream.
+      tags:
+      - agents
+      parameters:
+      - name: viewer
+        in: query
+        schema:
+          type: string
+          maxLength: 2048
+      - name: tabId
+        in: query
+        schema:
+          type: string
+          maxLength: 2048
+      - name: artifact
+        in: query
+        schema:
+          type: string
+          maxLength: 2048
+      responses:
+        '200':
+          description: Browser file or state.
+        '101':
+          description: Interactive browser stream.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: uploadBrowserFile
+      summary: Answer a browser file chooser.
+      tags:
+      - agents
+      parameters:
+      - name: viewer
+        in: query
+        schema:
+          type: string
+          maxLength: 2048
+      - name: tabId
+        in: query
+        schema:
+          type: string
+          maxLength: 2048
+      - name: name
+        in: query
+        schema:
+          type: string
+          maxLength: 2048
+      - name: locator
+        in: query
+        schema:
+          type: string
+          maxLength: 2048
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '204':
+          description: File accepted.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/InternalError'
+
   /api/agent/{agentName}:
     put:
       operationId: updateAgent
@@ -8032,6 +8155,507 @@ components:
           $ref: '#/components/schemas/MascotColor'
       required: [breed, color]
 
+    AgentBrowserConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+      required:
+      - enabled
+    BrowserDevTarget:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [environment-port]
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        protocol:
+          type: string
+          enum: [http, https]
+        path:
+          type: string
+      required: [kind, port]
+    BrowserInput:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+          - mouse
+          - key
+          - text
+          - wheel
+          - ack
+          - takeControl
+          - releaseControl
+          - resetInput
+        x:
+          type: number
+        y:
+          type: number
+        action:
+          type: string
+          enum:
+          - move
+          - down
+          - up
+        button:
+          type: string
+          enum:
+          - left
+          - right
+          - middle
+        key:
+          type: string
+          maxLength: 100
+        text:
+          type: string
+          maxLength: 64000
+        deltaX:
+          type: number
+        deltaY:
+          type: number
+      required:
+      - type
+    BrowserViewerState:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+          - state
+        state:
+          $ref: '#/components/schemas/BrowserTab'
+        canOperate:
+          type: boolean
+      required:
+      - type
+      - state
+      - canOperate
+    BrowserStreamError:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+          - error
+        message:
+          type: string
+      required:
+      - type
+      - message
+    BrowserStreamEvent:
+      oneOf:
+      - $ref: '#/components/schemas/BrowserViewerState'
+      - $ref: '#/components/schemas/BrowserStreamError'
+    BrowserPreset:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        width:
+          type: integer
+        height:
+          type: integer
+      required:
+      - id
+      - label
+      - width
+      - height
+    BrowserRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: string
+          enum:
+          - status
+          - open
+          - navigate
+          - close
+          - snapshot
+          - click
+          - type
+          - hover
+          - select
+          - drag
+          - upload
+          - press
+          - scroll
+          - evaluate
+          - waitFor
+          - dialog
+          - resize
+          - setColorScheme
+          - recordingStart
+          - recordingStop
+          - takeControl
+          - releaseControl
+          - history
+          - reload
+          - stopLoading
+          - profiles
+          - createProfile
+          - renameProfile
+          - setDefaultProfile
+          - deleteProfile
+          - clearProfile
+          - clearCookies
+          - closeSession
+          - clearCache
+          - pick
+        tabId:
+          type: string
+          maxLength: 128
+        url:
+          type: string
+          maxLength: 2048
+        profileId:
+          type: string
+          maxLength: 128
+        name:
+          type: string
+          maxLength: 48
+        reuseExistingTab:
+          type: boolean
+        open:
+          type: boolean
+        locator:
+          type: string
+        selector:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+        button:
+          type: string
+          enum:
+          - left
+          - middle
+          - right
+        clickCount:
+          type: integer
+          minimum: 1
+          maximum: 3
+        text:
+          type: string
+          maxLength: 64000
+        clear:
+          type: boolean
+        key:
+          type: string
+        modifiers:
+          type: array
+          items:
+            type: string
+            enum:
+            - Alt
+            - Control
+            - Meta
+            - Shift
+        deltaX:
+          type: number
+        deltaY:
+          type: number
+        values:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+        target:
+          type: string
+        paths:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+        expression:
+          type: string
+          maxLength: 64000
+        awaitPromise:
+          type: boolean
+        urlIncludes:
+          type: string
+        timeoutMs:
+          type: integer
+          minimum: 1
+          maximum: 60000
+        accept:
+          type: boolean
+        promptText:
+          type: string
+        mode:
+          type: string
+          enum:
+          - fill
+          - freeform
+          - preset
+        preset:
+          type: string
+        orientation:
+          type: string
+          enum:
+          - portrait
+          - landscape
+        width:
+          type: integer
+          minimum: 240
+          maximum: 3840
+        height:
+          type: integer
+          minimum: 240
+          maximum: 3840
+        colorScheme:
+          type: string
+          enum:
+          - light
+          - dark
+          - system
+        zoom:
+          type: number
+          minimum: 0.25
+          maximum: 5
+        includeImage:
+          type: boolean
+        save:
+          type: boolean
+        delta:
+          type: integer
+          enum:
+          - -1
+          - 1
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        protocol:
+          type: string
+          enum:
+          - http
+          - https
+        path:
+          type: string
+        returnByValue:
+          type: boolean
+        ignoreCache:
+          type: boolean
+      required:
+      - operation
+    BrowserProfile:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        incognito:
+          type: boolean
+      required:
+      - id
+      - name
+      - incognito
+    BrowserDialog:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+        message:
+          type: string
+        defaultValue:
+          type: string
+      required:
+      - type
+      - message
+      - defaultValue
+    BrowserTab:
+      type: object
+      additionalProperties: false
+      properties:
+        reveal:
+          type: integer
+        cursor:
+          type: object
+          additionalProperties: false
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+            click:
+              type: boolean
+          required: ['x', 'y', click]
+        ownedByCaller:
+          type: boolean
+        id:
+          type: string
+        url:
+          type: string
+        title:
+          type: string
+        sessionId:
+          type: string
+        profileId:
+          type: string
+        owner:
+          type: string
+          enum:
+          - agent
+          - human
+          - unclaimed
+        generation:
+          type: integer
+        loading:
+          type: boolean
+        visible:
+          type: boolean
+        openerTabId:
+          type: string
+        width:
+          type: integer
+        height:
+          type: integer
+        zoom:
+          type: number
+        colorScheme:
+          type: string
+          enum:
+          - system
+          - light
+          - dark
+        recording:
+          type: boolean
+        dialog:
+          $ref: '#/components/schemas/BrowserDialog'
+        fileChooser:
+          type: boolean
+        error:
+          type: string
+      required:
+      - id
+      - url
+      - title
+      - sessionId
+      - profileId
+      - owner
+      - generation
+      - loading
+      - visible
+      - width
+      - height
+      - zoom
+      - colorScheme
+      - recording
+      - fileChooser
+    BrowserDiagnostic:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum:
+          - console
+          - network
+          - action
+        text:
+          type: string
+        timestamp:
+          type: string
+      required:
+      - kind
+      - text
+      - timestamp
+    BrowserArtifact:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        url:
+          type: string
+      required:
+      - id
+      - fileName
+      - mimeType
+      - sizeBytes
+      - url
+    BrowserResult:
+      type: object
+      additionalProperties: false
+      properties:
+        defaultProfileId:
+          type: string
+        presets:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrowserPreset"
+        available:
+          type: boolean
+        epoch:
+          type: string
+        tabs:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrowserTab'
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrowserProfile'
+        tabId:
+          type: string
+        accessibilityTree:
+          type: string
+        visibleText:
+          type: string
+        diagnostics:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrowserDiagnostic'
+        screenshot:
+          type: string
+        width:
+          type: integer
+        height:
+          type: integer
+        value: {}
+        selected:
+          type: array
+          items:
+            type: string
+        artifact:
+          $ref: '#/components/schemas/BrowserArtifact'
+        downloads:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrowserArtifact'
+        generation:
+          type: integer
+      required:
+      - available
+      - epoch
+      - tabs
+      - profiles
+
     AgentMemoryConfig:
       type: object
       additionalProperties: false
@@ -8415,6 +9039,8 @@ components:
         last_activity:
           type: string
           format: date-time
+        browser:
+          $ref: '#/components/schemas/AgentBrowserConfig'
         memory:
           $ref: '#/components/schemas/AgentMemoryConfig'
         opencode:
@@ -8441,6 +9067,7 @@ components:
       - created_by
       - last_modified_by
       - last_activity
+      - browser
       - memory
       - created_at
       - modified_at
@@ -9025,6 +9652,8 @@ components:
 
         name:
           $ref: '#/components/schemas/AgentName'
+        browser:
+          $ref: '#/components/schemas/AgentBrowserConfig'
         memory:
           $ref: '#/components/schemas/AgentMemoryConfig'
         env:
@@ -9782,6 +10411,8 @@ components:
           type: object
           additionalProperties:
             type: string
+        browser:
+          $ref: '#/components/schemas/AgentBrowserConfig'
         memory:
           $ref: '#/components/schemas/AgentMemoryConfig'
         sandbox:

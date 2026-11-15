@@ -66,6 +66,19 @@ const (
 	ReasonReconcileFailed = "ReconcileFailed"
 )
 
+// BrowserPort is the authenticated browser worker's internal control port.
+const BrowserPort = int32(4098)
+
+// BrowserSecretSuffix identifies the Agent-owned browser control credential.
+const BrowserSecretSuffix = "-browser"
+
+// BrowserConfig enables the Agent's shared browser runtime.
+type BrowserConfig struct {
+	// Enabled starts a browser sidecar with persistent Agent-wide profiles.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+}
+
 // AgentSpec defines the desired state of Agent.
 // +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, size(s.name) <= 63)",message="skill names must not exceed 63 characters"
 // +kubebuilder:validation:XValidation:rule="!has(self.skills) || self.skills.all(s, s.name.matches('^[a-z0-9]+(-[a-z0-9]+)*$'))",message="skill names must use lowercase letters, digits, and single hyphens"
@@ -108,6 +121,10 @@ type AgentSpec struct {
 	// Telemetry configures agent observability export.
 	// +optional
 	Telemetry TelemetryConfig `json:"telemetry,omitempty"`
+
+	// Browser enables browser tools and the shared browser UI.
+	// +optional
+	Browser BrowserConfig `json:"browser,omitempty"`
 
 	// Memory configures persistent, agent-curated memory.
 	// +optional

@@ -3,6 +3,10 @@ SHELL := bash
 
 IMAGE ?= public.ecr.aws/k9v9d5v2/agentz:latest
 AGENT_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/agent:latest
+BROWSER_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/browser:latest
+# Matches install-browser-seccomp. Override for an externally managed node profile.
+BROWSER_SECCOMP_PROFILE ?= agentz/browser-$(shell sha256sum deploy/helm/charts/manager/files/browser-seccomp.json | cut -d' ' -f1).json
+AGENT_NAME ?=
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
 CODING_GITHUB_CLIENT_ID ?=
@@ -28,6 +32,7 @@ GATEWAY_FLAGS ?=
 
 KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize
+HELM ?= helm
 CONTROLLER_GEN ?= controller-gen
 
 # Codex 0.162.1 protocol schemas, including experimental gateway OAuth.
@@ -79,6 +84,7 @@ fmt:
 	yamlfmt .
 	cd web && bun run format
 	cd opencode/config && bun run format
+	cd opencode/config && bunx prettier --config prettier.config.mjs ../browser/*.ts --write
 	$(MAKE) fmt-markdown
 
 .PHONY: fmt-markdown lint-markdown
@@ -92,6 +98,7 @@ fmt-markdown lint-markdown:
 .PHONY: test
 test:
 	go test -race -shuffle=on $(GO_PKGS) -coverprofile cover.out
+	cd opencode/browser && bun run test
 
 .PHONY: lint
 lint:
@@ -100,11 +107,13 @@ lint:
 	yamllint .
 	cd web && bun run lint && bun run typecheck
 	cd opencode/config && bun run lint && bun run typecheck
+	cd opencode/browser && bun run typecheck
 	$(MAKE) lint-markdown
 
 .PHONY: build
 build:
 	go build $(GO_PKGS)
+	cd opencode/browser && bun run build
 
 .PHONY: run-gateway
 run-gateway:
@@ -122,6 +131,7 @@ run-gateway:
 		--addr=0.0.0.0:8090 \
 		--target-override=localhost:4096 \
 		--filesystem-target-override=localhost:4097 \
+		--browser-target-override=localhost:4098 \
 		--delegation-namespace="$(DELEGATION_NAMESPACE)" \
 		--delegation-gateway-url="$(DELEGATION_GATEWAY_URL)" \
 		--postgres-dsn="$(POSTGRES_DSN)" \
@@ -156,6 +166,8 @@ run-manager:
 		--delegation-namespace="$(DELEGATION_NAMESPACE)" \
 		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
+		--browser-image="$(BROWSER_IMAGE)" \
+		--browser-seccomp-profile="$(BROWSER_SECCOMP_PROFILE)" \
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \
@@ -180,6 +192,29 @@ run-manager:
 		--agentgateway-trace-port=4317 \
 		--delegation-trace-port=4318 \
 		--gateway-url=http://172.18.0.1:8090
+
+# Run once per development cluster before enabling browser use, unless Helm installed it.
+.PHONY: install-browser-seccomp
+install-browser-seccomp:
+	$(HELM) template agentz-dev deploy/helm/charts/manager \
+		--namespace "$(K8S_NAMESPACE)" \
+		--set-string fullnameOverride=agentz-dev-manager \
+		--set-string config.browserImage="$(BROWSER_IMAGE)" \
+		--set-string config.gatewayURL=http://172.18.0.1:8090 \
+		--set-string config.agentgatewayTraceMode=static \
+		--set-string config.agentgatewayTraceHost=172.18.0.1 \
+		--show-only templates/browser.yaml | $(KUBECTL) -n "$(K8S_NAMESPACE)" apply -f -
+	$(KUBECTL) -n "$(K8S_NAMESPACE)" rollout status daemonset/agentz-dev-manager-browser-seccomp --timeout=120s
+
+# Forward one agent's runtime, filesystem and optional browser to run-gateway.
+.PHONY: run-agent-forward
+run-agent-forward:
+	@test -n "$(AGENT_NAME)" || { echo 'Set AGENT_NAME and K8S_NAMESPACE to the agent deployment and namespace.' >&2; exit 1; }
+	$(KUBECTL) -n "$(K8S_NAMESPACE)" port-forward "deployment/$(AGENT_NAME)" 4096:4096 4097:4097 4098:4098
+
+.PHONY: run-web
+run-web:
+	cd web && bun run dev
 
 .PHONY: run-observer
 run-observer:

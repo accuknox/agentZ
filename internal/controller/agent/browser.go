@@ -50,7 +50,7 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.De
 		corev1.Volume{
 			Name: "browser-auth",
 			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
-				SecretName: agt.Name + agentzv1alpha1.BrowserSecretSuffix, DefaultMode: new(int32(0440)),
+				SecretName: agt.Name + agentzv1alpha1.BrowserSecretSuffix, DefaultMode: new(int32(0o440)),
 			}},
 		},
 		corev1.Volume{
@@ -67,8 +67,10 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.De
 		},
 	)
 	pod.InitContainers = append(pod.InitContainers, corev1.Container{
-		Name: "browser-profile", Image: r.Config.BrowserImage,
-		Command: []string{"node", "-e", "require('node:fs').mkdirSync('/pvc/browser', {recursive:true,mode:448})"},
+		Name:            "browser-profile",
+		Image:           r.Config.BrowserImage,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Command:         []string{"node", "-e", "require('node:fs').mkdirSync('/pvc/browser', {recursive:true,mode:448})"},
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot: new(true), RunAsUser: new(agentRuntimeUID),
 			ReadOnlyRootFilesystem: new(true), AllowPrivilegeEscalation: new(false),

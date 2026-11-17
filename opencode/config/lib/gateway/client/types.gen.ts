@@ -900,6 +900,7 @@ export type BrowserDevTarget = {
 }
 
 export type BrowserInput = {
+  clickCount?: number
   type: "mouse" | "key" | "text" | "wheel" | "ack" | "takeControl" | "releaseControl" | "resetInput"
   x?: number
   y?: number
@@ -967,7 +968,6 @@ export type BrowserRequest = {
     | "clearCookies"
     | "closeSession"
     | "clearCache"
-    | "pick"
   tabId?: string
   url?: string
   profileId?: string

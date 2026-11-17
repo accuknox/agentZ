@@ -123,7 +123,8 @@ var gatewayServeCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name: "browser-target-override", Usage: "Override browser target for local port-forward testing",
+			Name:  "browser-target-override",
+			Usage: "Override browser target for local port-forward testing",
 		},
 		&cli.StringFlag{
 			Name:  "filesystem-target-override",

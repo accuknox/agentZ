@@ -946,6 +946,7 @@ export const zBrowserDevTarget = z.object({
 })
 
 export const zBrowserInput = z.object({
+  clickCount: z.int().gte(1).lte(3).optional(),
   type: z.enum([
     "mouse",
     "key",
@@ -1014,7 +1015,6 @@ export const zBrowserRequest = z.object({
     "clearCookies",
     "closeSession",
     "clearCache",
-    "pick",
   ]),
   tabId: z.string().max(128).optional(),
   url: z.string().max(2048).optional(),

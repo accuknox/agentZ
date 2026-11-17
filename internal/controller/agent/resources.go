@@ -234,8 +234,10 @@ func (r *Reconciler) buildService(agt *agentzv1alpha1.Agent) *corev1.Service {
 	}
 	if agt.Spec.Browser.Enabled {
 		service.Spec.Ports = append(service.Spec.Ports, corev1.ServicePort{
-			Name: "browser", Port: agentzv1alpha1.BrowserPort,
-			TargetPort: intstr.FromInt32(agentzv1alpha1.BrowserPort), Protocol: corev1.ProtocolTCP,
+			Name:       "browser",
+			Port:       agentzv1alpha1.BrowserPort,
+			TargetPort: intstr.FromInt32(agentzv1alpha1.BrowserPort),
+			Protocol:   corev1.ProtocolTCP,
 		})
 	}
 	return service

@@ -8184,6 +8184,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        clickCount:
+          type: integer
+          minimum: 1
+          maximum: 3
         type:
           type: string
           enum:
@@ -8197,7 +8201,7 @@ components:
           - resetInput
         x:
           type: number
-        y:
+        'y':
           type: number
         action:
           type: string
@@ -8314,7 +8318,6 @@ components:
           - clearCookies
           - closeSession
           - clearCache
-          - pick
         tabId:
           type: string
           maxLength: 128
@@ -8337,7 +8340,7 @@ components:
           type: string
         x:
           type: number
-        y:
+        'y':
           type: number
         button:
           type: string
@@ -8494,7 +8497,7 @@ components:
           properties:
             x:
               type: number
-            y:
+            'y':
               type: number
             click:
               type: boolean

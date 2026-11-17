@@ -339,7 +339,8 @@ var managerCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
-			Name: "browser-seccomp-profile", Usage: "Node-local seccomp profile for Chromium user namespaces",
+			Name:        "browser-seccomp-profile",
+			Usage:       "Node-local seccomp profile for Chromium user namespaces",
 			Destination: &browserSeccompProfile,
 		},
 		&cli.StringFlag{

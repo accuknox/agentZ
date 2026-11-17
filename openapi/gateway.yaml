@@ -1620,6 +1620,10 @@ components:
           - right
           - middle
           type: string
+        clickCount:
+          maximum: 3
+          minimum: 1
+          type: integer
         deltaX:
           type: number
         deltaY:
@@ -1630,8 +1634,6 @@ components:
         text:
           maxLength: 64000
           type: string
-        "true":
-          type: number
         type:
           enum:
           - mouse
@@ -1644,6 +1646,8 @@ components:
           - resetInput
           type: string
         x:
+          type: number
+        "y":
           type: number
       required:
       - type
@@ -1784,7 +1788,6 @@ components:
           - clearCookies
           - closeSession
           - clearCache
-          - pick
           type: string
         orientation:
           enum:
@@ -1836,8 +1839,6 @@ components:
           maximum: 60000
           minimum: 1
           type: integer
-        "true":
-          type: number
         url:
           maxLength: 2048
           type: string
@@ -1852,6 +1853,8 @@ components:
           minimum: 240
           type: integer
         x:
+          type: number
+        "y":
           type: number
         zoom:
           maximum: 5
@@ -1947,9 +1950,9 @@ components:
           properties:
             click:
               type: boolean
-            "true":
-              type: number
             x:
+              type: number
+            "y":
               type: number
           required:
           - x

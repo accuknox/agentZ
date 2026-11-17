@@ -25,7 +25,8 @@ func (r *Reconciler) reconcileBrowser(ctx context.Context, agt *agentzv1alpha1.A
 	}
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: agt.Name + agentzv1alpha1.BrowserSecretSuffix, Namespace: agt.Namespace,
+			Name:      agt.Name + agentzv1alpha1.BrowserSecretSuffix,
+			Namespace: agt.Namespace,
 		},
 	}
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, secret, func() error {
@@ -50,7 +51,8 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.De
 		corev1.Volume{
 			Name: "browser-auth",
 			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
-				SecretName: agt.Name + agentzv1alpha1.BrowserSecretSuffix, DefaultMode: new(int32(0o440)),
+				SecretName:  agt.Name + agentzv1alpha1.BrowserSecretSuffix,
+				DefaultMode: new(int32(0o440)),
 			}},
 		},
 		corev1.Volume{
@@ -62,7 +64,8 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.De
 		corev1.Volume{
 			Name: "browser-shm",
 			VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{
-				Medium: corev1.StorageMediumMemory, SizeLimit: new(resource.MustParse("256Mi")),
+				Medium:    corev1.StorageMediumMemory,
+				SizeLimit: new(resource.MustParse("256Mi")),
 			}},
 		},
 	)
@@ -72,18 +75,23 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.De
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         []string{"node", "-e", "require('node:fs').mkdirSync('/pvc/browser', {recursive:true,mode:448})"},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot: new(true), RunAsUser: new(agentRuntimeUID),
-			ReadOnlyRootFilesystem: new(true), AllowPrivilegeEscalation: new(false),
-			Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+			RunAsNonRoot:             new(true),
+			RunAsUser:                new(agentRuntimeUID),
+			ReadOnlyRootFilesystem:   new(true),
+			AllowPrivilegeEscalation: new(false),
+			Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 		},
 		VolumeMounts: []corev1.VolumeMount{{Name: nixAgentVolume, MountPath: "/pvc"}},
 	})
 	agent := &pod.Containers[0]
 	agent.Env = append(agent.Env, corev1.EnvVar{
-		Name: "AGENTZ_BROWSER_TOKEN_PATH", Value: "/var/run/agentz/browser/token",
+		Name:  "AGENTZ_BROWSER_TOKEN_PATH",
+		Value: "/var/run/agentz/browser/token",
 	})
 	agent.VolumeMounts = append(agent.VolumeMounts, corev1.VolumeMount{
-		Name: "browser-auth", MountPath: "/var/run/agentz/browser", ReadOnly: true,
+		Name:      "browser-auth",
+		MountPath: "/var/run/agentz/browser",
+		ReadOnly:  true,
 	})
 	health := corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{
 		"node", "-e", "fetch('http://127.0.0.1:4098/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
@@ -91,21 +99,31 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.De
 	seccomp := &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
 	if r.Config.BrowserSeccompProfile != "" {
 		seccomp = &corev1.SeccompProfile{
-			Type: corev1.SeccompProfileTypeLocalhost, LocalhostProfile: &r.Config.BrowserSeccompProfile,
+			Type:             corev1.SeccompProfileTypeLocalhost,
+			LocalhostProfile: &r.Config.BrowserSeccompProfile,
 		}
 	}
 	pod.Containers = append(pod.Containers, corev1.Container{
-		Name: "browser", Image: r.Config.BrowserImage, ImagePullPolicy: corev1.PullIfNotPresent,
+		Name:            "browser",
+		Image:           r.Config.BrowserImage,
+		ImagePullPolicy: corev1.PullIfNotPresent,
 		Env: []corev1.EnvVar{
 			{Name: "BROWSER_TOKEN_PATH", Value: "/var/run/agentz/browser/token"},
 			{Name: "BROWSER_DATA", Value: "/var/lib/browser"},
-			{Name: "BROWSER_HOST", Value: agt.Name + "." + agt.Namespace + ".svc.cluster.local"},
+			{
+				Name:  "BROWSER_HOST",
+				Value: agt.Name + "." + agt.Namespace + ".svc.cluster.local",
+			},
 		},
 		Ports: []corev1.ContainerPort{{Name: "browser", ContainerPort: agentzv1alpha1.BrowserPort}},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot: new(true), RunAsUser: new(agentRuntimeUID), RunAsGroup: new(agentRuntimeGID),
-			ReadOnlyRootFilesystem: new(true), SeccompProfile: seccomp, AllowPrivilegeEscalation: new(false),
-			Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+			RunAsNonRoot:             new(true),
+			RunAsUser:                new(agentRuntimeUID),
+			RunAsGroup:               new(agentRuntimeGID),
+			ReadOnlyRootFilesystem:   new(true),
+			SeccompProfile:           seccomp,
+			AllowPrivilegeEscalation: new(false),
+			Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "browser-auth", MountPath: "/var/run/agentz/browser", ReadOnly: true},
@@ -115,7 +133,10 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.De
 		},
 		ReadinessProbe: &corev1.Probe{ProbeHandler: health, PeriodSeconds: 10, TimeoutSeconds: 3},
 		StartupProbe: &corev1.Probe{
-			ProbeHandler: health, PeriodSeconds: 5, TimeoutSeconds: 3, FailureThreshold: 30,
+			ProbeHandler:     health,
+			PeriodSeconds:    5,
+			TimeoutSeconds:   3,
+			FailureThreshold: 30,
 		},
 	})
 }

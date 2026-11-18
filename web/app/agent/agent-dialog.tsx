@@ -2,7 +2,7 @@
 
 import { LoadingButton } from "@/components/interior/loading-button"
 import { useTransition, useEffect, useEffectEvent, useState, useId, useRef } from "react"
-import { Controller, useForm, useWatch, type Control } from "react-hook-form"
+import { Controller, useForm, useFormState, useWatch, type Control } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Box, Plus, Save, Wrench, CircleAlert } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -101,6 +101,7 @@ function AgentAppearanceFields({
   disabled: boolean
 }) {
   const id = useId()
+  const { errors } = useFormState({ control, name: "appearance" })
 
   return (
     <Controller
@@ -194,7 +195,9 @@ function AgentAppearanceFields({
                 </RadioGroup>
               </FieldSet>
             </FieldGroup>
-            <FieldError errors={[fieldState.error]} />
+            <FieldError
+              errors={[fieldState.error, errors.appearance?.breed, errors.appearance?.color]}
+            />
           </Field>
         )
       }}
@@ -341,7 +344,7 @@ export function AgentDialog(props: AgentDialogProps) {
         </DialogTrigger>
       ) : null}
       <DialogContent
-        className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+        className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl [&>[data-slot=dialog-close]]:hidden"
         aria-describedby={undefined}
       >
         <AgentForm key={dialog.id} {...props} onCloseAction={() => onOpenChange(false)} />
@@ -436,6 +439,7 @@ function AgentForm({
               field = mode === "create" ? "name" : "root"
               break
             case "auto_archive_hours":
+            case "autoArchiveHours":
               field = "autoArchiveHours"
               break
             case "appearance":
@@ -451,7 +455,7 @@ function AgentForm({
               break
             case "memory":
             case "memoryEnabled":
-              field = "memoryEnabled"
+              field = actionScope.workspaceType === "coding" ? "root" : "memoryEnabled"
               break
             case "opencode":
             case "instruction":
@@ -465,7 +469,11 @@ function AgentForm({
           messages.set(field, [...(messages.get(field) ?? []), message])
         }
         for (const [field, errors] of messages) {
-          form.setError(field, { type: "server", types: { server: errors } })
+          form.setError(field, {
+            type: "server",
+            message: field === "root" ? errors.join("\n") : errors[0],
+            types: { server: errors },
+          })
         }
       }
       if (result.success) {
@@ -594,7 +602,16 @@ function AgentForm({
                   aria-describedby="agent-form-skills-error"
                 />
                 {fieldState.invalid && (
-                  <FieldError errors={[fieldState.error]} id="agent-form-skills-error" />
+                  <FieldError
+                    errors={[
+                      fieldState.error,
+                      ...field.value.flatMap((_, index) => [
+                        form.formState.errors.skills?.[index]?.name,
+                        form.formState.errors.skills?.[index]?.scope,
+                      ]),
+                    ]}
+                    id="agent-form-skills-error"
+                  />
                 )}
               </Field>
             )}
@@ -705,7 +722,9 @@ function AgentForm({
       {form.formState.errors.root ? (
         <Alert variant="destructive" className="mx-5 mb-4 w-auto">
           <CircleAlert aria-hidden="true" />
-          <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
+          <AlertDescription className="whitespace-pre-line">
+            {form.formState.errors.root.message}
+          </AlertDescription>
         </Alert>
       ) : null}
       <DialogFooter className="m-0 shrink-0 px-5 py-3">

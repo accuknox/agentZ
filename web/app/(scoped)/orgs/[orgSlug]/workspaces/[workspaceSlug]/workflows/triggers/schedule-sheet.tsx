@@ -6,7 +6,14 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { toast } from "sonner"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Controller, useForm, useWatch, type Control, type Resolver } from "react-hook-form"
+import {
+  Controller,
+  useForm,
+  useWatch,
+  type Control,
+  type FieldPath,
+  type Resolver,
+} from "react-hook-form"
 import {
   CalendarCheck,
   ChevronsUpDown,
@@ -167,7 +174,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     [workflowInputContract]
   )
   const resolver = React.useMemo<Resolver<CreateWorkflowScheduleFormValues>>(
-    () => (values, context, options) => zodResolver(formSchema)(values, context, options),
+    () => zodResolver(formSchema),
     [formSchema]
   )
   const initialValues = React.useMemo<CreateWorkflowScheduleFormValues>(() => {
@@ -192,6 +199,12 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
     defaultValues: createDefaults,
     values: initialValues,
   })
+  const {
+    clearErrors,
+    reset,
+    setError,
+    formState: { errors },
+  } = form
   const [state, action, isPending] = React.useActionState<ScheduleSheetActionState, FormData>(
     async (state, formData) => {
       const result =
@@ -214,7 +227,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
       if (!workflowName) {
         setWorkflowInputContract({ inputs: {} })
         setSchemaError(undefined)
-        form.reset({
+        reset({
           ...values,
           inputs: {},
           arbitrary_json: "",
@@ -230,7 +243,7 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
       if (!result.ok) {
         setWorkflowInputContract({ inputs: {} })
         setSchemaError(result.error.message)
-        form.reset({
+        reset({
           ...values,
           workflow_name: workflowName,
           inputs: {},
@@ -255,14 +268,14 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
 
       setWorkflowInputContract(contract)
       setSchemaError(undefined)
-      form.reset({
+      reset({
         ...values,
         workflow_name: workflowName,
         inputs,
         arbitrary_json: arbitraryJSON,
       })
     },
-    [agentName, form, getWorkflowInputContractAction, mode]
+    [agentName, getWorkflowInputContractAction, mode, reset]
   )
 
   React.useEffect(() => {
@@ -276,15 +289,11 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
   }, [initialValues, loadWorkflowInputContract, open])
 
   React.useEffect(() => {
-    if (!state.error?.errors) {
-      return
-    }
-
-    for (const err of state.error.errors) {
-      if (!err.field) {
-        continue
-      }
-
+    if (!state.error) return
+    clearErrors("root")
+    const messages = new Map<FieldPath<CreateWorkflowScheduleFormValues>, string[]>()
+    const generalErrors: string[] = []
+    for (const err of state.error.errors ?? []) {
       const field =
         workflowInputContract.arbitrary_json &&
         (err.field === "inputs" || err.field.startsWith("inputs."))
@@ -292,56 +301,37 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
           : err.field
 
       const inputField = scheduleInputServerFieldSchema.safeParse(field)
-      if (inputField.success) {
-        form.setError(inputField.data, {
-          type: "server",
-          message: err.message,
-        })
+      if (
+        inputField.success &&
+        Object.hasOwn(workflowInputContract.inputs, field.slice("inputs.".length))
+      ) {
+        messages.set(inputField.data, [...(messages.get(inputField.data) ?? []), err.message])
         continue
       }
 
       const scheduleField = scheduleServerFieldSchema.safeParse(field)
-      if (scheduleField.success) {
-        form.setError(scheduleField.data, {
-          type: "server",
-          message: err.message,
-        })
+      if (
+        scheduleField.success &&
+        (field !== "arbitrary_json" || workflowInputContract.arbitrary_json)
+      ) {
+        messages.set(scheduleField.data, [...(messages.get(scheduleField.data) ?? []), err.message])
+        continue
       }
+      generalErrors.push(`${err.field}: ${err.message}`)
     }
-  }, [form, state.error, workflowInputContract.arbitrary_json])
+    for (const [field, errors] of messages) {
+      setError(field, { type: "server", message: errors[0], types: { server: errors } })
+    }
+    if (!state.error.errors?.length || generalErrors.length) {
+      setError("root", {
+        type: "server",
+        message: [state.error.message, ...generalErrors].join("\n"),
+      })
+    }
+  }, [clearErrors, setError, state.error, workflowInputContract])
 
   const workflowName = useWatch({ control: form.control, name: "workflow_name" })
-  const generalErrorMessage = React.useMemo(() => {
-    if (schemaError) {
-      return schemaError
-    }
-    if (!state.error) {
-      return undefined
-    }
-
-    const fieldErrors =
-      state.error.errors?.filter((error) => {
-        if (!error.field) {
-          return false
-        }
-
-        return (
-          error.field === "name" ||
-          error.field === "workflow_name" ||
-          error.field === "schedule" ||
-          error.field === "time_zone" ||
-          error.field === "timeout_seconds" ||
-          error.field === "successful_runs_history_limit" ||
-          error.field === "failed_runs_history_limit" ||
-          error.field === "arbitrary_json" ||
-          error.field === "inputs" ||
-          error.field.startsWith("inputs.")
-        )
-      }) ?? []
-    const hasGeneralError = !state.error.errors || state.error.errors.length > fieldErrors.length
-
-    return hasGeneralError ? state.error.message : undefined
-  }, [schemaError, state.error])
+  const generalErrorMessage = schemaError ?? errors.root?.message
 
   async function submitAction(formData: FormData) {
     const isValid = await form.trigger()
@@ -719,7 +709,9 @@ export function ScheduleSheet(props: ScheduleSheetProps) {
           {generalErrorMessage ? (
             <Alert className="shrink-0" variant="destructive">
               <CircleAlert aria-hidden="true" />
-              <AlertDescription>{generalErrorMessage}</AlertDescription>
+              <AlertDescription className="whitespace-pre-line">
+                {generalErrorMessage}
+              </AlertDescription>
             </Alert>
           ) : null}
           <div className="shrink-0">

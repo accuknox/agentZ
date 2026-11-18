@@ -289,10 +289,11 @@ export function PoolSheet({
         : await saveInferencePoolAction(scope, { pool: input })
       if (result.error) {
         const details: string[] = []
+        const messages = new Map<keyof InferencePoolWrite, string[]>()
         let memberError = false
         for (const error of result.error.errors ?? []) {
           if (error.field === "display_name" || error.field === "automatic_failover") {
-            form.setError(error.field, { type: "server", message: error.message })
+            messages.set(error.field, [...(messages.get(error.field) ?? []), error.message])
             continue
           }
           const member = /^members\.(\d+)\.(provider|model)$/.exec(error.field)
@@ -311,6 +312,9 @@ export function PoolSheet({
           })
           memberError = true
           details.push(error.message)
+        }
+        for (const [field, errors] of messages) {
+          form.setError(field, { type: "server", message: errors[0], types: { server: errors } })
         }
         if (!result.error.errors?.length || details.length > 0) {
           setSubmitError(memberError ? "Check the highlighted models" : "Pool could not be saved")

@@ -689,7 +689,18 @@ function EvaluationForm({
       })
       if (error) {
         setErrors(error.errors ?? [])
-        if (!error.errors?.length) setFailure(error.message)
+        const fields = ["models", "judge", "concurrency", "timeout_seconds"]
+        if (workflow.arbitrary_json) fields.push("inputs")
+        else fields.push(...Object.keys(workflow.inputs ?? {}).map((name) => `inputs.${name}`))
+        const generalErrors = error.errors?.filter((issue) => !fields.includes(issue.field)) ?? []
+        if (!error.errors?.length || generalErrors.length) {
+          setFailure(
+            [
+              error.message,
+              ...generalErrors.map((issue) => `${issue.field}: ${issue.message}`),
+            ].join("\n")
+          )
+        }
         requestAnimationFrame(() =>
           form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
         )
@@ -984,7 +995,7 @@ function EvaluationForm({
           {failure ? (
             <Alert variant="destructive">
               <CircleAlert />
-              <AlertDescription>{failure}</AlertDescription>
+              <AlertDescription className="whitespace-pre-line">{failure}</AlertDescription>
             </Alert>
           ) : null}
         </FieldGroup>

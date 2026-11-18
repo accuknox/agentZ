@@ -20,7 +20,7 @@ import { getDB, schema } from "@/db"
 import { getEnv } from "@/lib/env"
 import { getDelegationCatalog, getWorkspace, type DelegationCatalog } from "@/lib/gateway/client"
 import { createClient } from "@/lib/gateway/client/client"
-import { GatewayUnauthorizedError } from "@/lib/gateway/errors"
+import { gatewayErrorInterceptor, GatewayUnauthorizedError } from "@/lib/gateway/errors"
 
 /** assertOAuthOrigin binds browser requests to the registered public client's origins. */
 async function assertOAuthOrigin(origin: string | null, clientId: string) {
@@ -68,8 +68,10 @@ export async function delegationCatalog(
       throw error
     }
   )
+  const client = createClient({ baseUrl: serverGatewayBaseURL(), auth: token })
+  client.interceptors.error.use(gatewayErrorInterceptor)
   const result = await getDelegationCatalog({
-    client: createClient({ baseUrl: serverGatewayBaseURL(), auth: token }),
+    client,
     headers: { "X-AgentZ-Workspace-ID": workspaceId },
     query: { include_unavailable: includeUnavailable },
   })

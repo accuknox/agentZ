@@ -1877,27 +1877,27 @@ function AllowedHostsStep({
     name: "allowedHosts",
     defaultValue: initialAllowedHosts,
   })
+  const { setError } = form
   const allowedHostsError = form.formState.errors.allowedHosts
   const hostFieldInvalid = Boolean(allowedHostsError) || Boolean(draftError)
   const generalError =
-    state.error && !state.error.errors?.some((error) => error.field === "allowedHosts")
+    state.error &&
+    (!state.error.errors?.length ||
+      state.error.errors.some((error) => error.field !== "allowedHosts"))
       ? state.error
       : undefined
 
   React.useEffect(() => {
-    if (!state.error?.errors) {
-      return
-    }
-
-    for (const error of state.error.errors) {
-      if (error.field === "allowedHosts") {
-        form.setError("allowedHosts", {
-          type: "server",
-          message: error.message,
-        })
-      }
-    }
-  }, [form, state.error])
+    const messages = state.error?.errors
+      ?.filter((error) => error.field === "allowedHosts")
+      .map((error) => error.message)
+    if (!messages?.length) return
+    setError("allowedHosts", {
+      type: "server",
+      message: messages[0],
+      types: { server: messages },
+    })
+  }, [setError, state.error])
 
   function setAllowedHostsState(nextHosts: string[], nextDraft: string) {
     form.setValue("allowedHosts", nextHosts, {
@@ -2104,7 +2104,11 @@ function AllowedHostsStep({
             </div>
           ) : null}
           {draftError ? <FieldError errors={[{ message: draftError }]} /> : null}
-          {allowedHostsError ? <FieldError errors={[allowedHostsError]} /> : null}
+          {allowedHostsError ? (
+            <FieldError
+              errors={[allowedHostsError, ...hosts.map((_, index) => allowedHostsError[index])]}
+            />
+          ) : null}
         </FieldGroup>
       </FieldSet>
       {generalError ? (

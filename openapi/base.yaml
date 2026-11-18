@@ -8510,6 +8510,10 @@ components:
           type: string
         title:
           type: string
+        canGoBack:
+          type: boolean
+        canGoForward:
+          type: boolean
         sessionId:
           type: string
         profileId:

@@ -9,7 +9,9 @@ export class Control {
     const generation = this.generation
     const result = this.tail.then(() => {
       if (this.closed || generation !== this.generation || viewer !== this.viewer) {
-        throw new Error("Browser control changed. Refresh the page before trying again.")
+        throw new Error(
+          "Browser control changed. Inspect browser status and wait for human control to be returned. Take a fresh snapshot before retrying; the previous action may have completed."
+        )
       }
       if (Date.now() >= deadline) throw new Error("Browser action expired before it could start")
       return action()

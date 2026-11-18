@@ -1939,6 +1939,10 @@ components:
     BrowserTab:
       additionalProperties: false
       properties:
+        canGoBack:
+          type: boolean
+        canGoForward:
+          type: boolean
         colorScheme:
           enum:
           - system

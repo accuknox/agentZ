@@ -150,6 +150,10 @@ interface Tab {
   opener?: string
   title: string
   loading: boolean
+  canGoBack: boolean
+  canGoForward: boolean
+  metadataPending: boolean
+  metadataUpdated: number
   snapshot: number
   cast: Promise<void>
   castQuality: number
@@ -232,6 +236,8 @@ function state(tab: Tab): BrowserTab {
     owner: tab.control.viewer ? "human" : "agent",
     generation: tab.control.generation,
     loading: tab.loading,
+    canGoBack: tab.canGoBack,
+    canGoForward: tab.canGoForward,
     visible: tab.viewers.size > 0,
     openerTabId: tab.opener,
     width: tab.width,
@@ -269,6 +275,25 @@ function result(
       .filter((file) => file.session === session)
       .map((file) => file.info),
     ...extra,
+  }
+}
+
+async function refreshMetadata(tab: Tab) {
+  if (tab.dialog || tab.metadataPending || Date.now() - tab.metadataUpdated < 400) return
+  tab.metadataPending = true
+  tab.metadataUpdated = Date.now()
+  try {
+    await Promise.allSettled([
+      tab.page.title().then((title) => {
+        tab.title = title
+      }),
+      tab.cdp.send("Page.getNavigationHistory").then((history) => {
+        tab.canGoBack = history.currentIndex > 0
+        tab.canGoForward = history.currentIndex < history.entries.length - 1
+      }),
+    ])
+  } finally {
+    tab.metadataPending = false
   }
 }
 
@@ -333,6 +358,10 @@ async function attach(
     used: Date.now(),
     title: "New tab",
     loading: false,
+    canGoBack: false,
+    canGoForward: false,
+    metadataPending: false,
+    metadataUpdated: 0,
     snapshot: 0,
     cast: Promise.resolve(),
     castQuality: 0,
@@ -498,14 +527,16 @@ async function screencast(tab: Tab) {
 }
 
 function target(tab: Tab, input: BrowserRequest) {
+  const selector = input.locator ?? input.selector
+  if (!selector) return null
+  const reference = tab.refs.get(selector)
+  if (reference) return reference
   if (input.locator?.startsWith("aria-ref=")) {
     const locator = tab.refs.get(input.locator.slice(9))
     if (!locator) throw new Error("Element reference is stale. Take a fresh snapshot.")
     return locator
   }
-  const selector = input.locator ?? input.selector
-  if (selector) return tab.page.locator(selector)
-  return null
+  return tab.page.locator(selector)
 }
 
 async function operate(
@@ -521,8 +552,12 @@ async function operate(
         await tab.page.close()
     return result(session, {}, caller)
   }
-  if (input.operation === "status" || input.operation === "profiles")
+  if (input.operation === "status" || input.operation === "profiles") {
+    await Promise.all(
+      [...tabs.values()].filter((tab) => tab.session === session).map(refreshMetadata)
+    )
     return result(session, {}, caller)
+  }
   if (
     [
       "createProfile",
@@ -600,6 +635,8 @@ async function operate(
     ? tabs.get(input.tabId)
     : [...tabs.values()].find((tab) => tab.session === session && tab.caller === caller)
   if (input.operation === "open" && (!tab || input.reuseExistingTab === false)) {
+    if (input.width && input.height && input.width * input.height > 3840 * 2160)
+      throw new Error("Viewport area is too large")
     const profile = input.profileId ?? defaultProfileId
     tab = await attach(
       await (await context(profile, session)).newPage(),
@@ -609,7 +646,6 @@ async function operate(
       caller
     )
     if (input.width && input.height) {
-      if (input.width * input.height > 3840 * 2160) throw new Error("Viewport area is too large")
       await tab.page.setViewportSize({ width: input.width, height: input.height })
       tab.width = input.width
       tab.height = input.height
@@ -712,10 +748,8 @@ async function operate(
       case "snapshot": {
         selected.refs.clear()
         const snapshot = ++selected.snapshot
-        const generation = randomUUID()
-        const trees: string[] = []
         const hidden = new Set<string>()
-        for (const [frameIndex, frame] of page.frames().slice(0, 8).entries()) {
+        for (const frame of page.frames()) {
           if (snapshot !== selected.snapshot || Date.now() >= deadline)
             throw new Error("Snapshot interrupted. Take a fresh snapshot.")
           signal?.throwIfAborted()
@@ -746,39 +780,22 @@ async function operate(
             if (value.length > 64000) throw new Error("A password field cannot be safely masked")
             hidden.add(value)
           }
-          trees.push(await frame.locator("body").ariaSnapshot({ timeout: Math.min(timeout, 3000) }))
-          // Resolve visibility with Playwright, then label and tag the batch in
-          // one renderer call. Per-element calls made large snapshots take seconds.
-          const refs = await frame
-            .locator("a,button,input,textarea,select,[role=button],[contenteditable=true]")
-            .filter({ visible: true })
-            .evaluateAll(
-              (elements, prefix) =>
-                elements.slice(0, 200).map((element, index) => {
-                  const id = `${prefix}-${index}`
-                  element.setAttribute("data-agentz-ref", id)
-                  const label =
-                    element.getAttribute("aria-label") ??
-                    element.textContent?.slice(0, 120) ??
-                    element.tagName
-                  return { id, label }
-                }),
-              `${generation}-${frameIndex}`
-            )
-          if (snapshot !== selected.snapshot || Date.now() >= deadline)
-            throw new Error("Snapshot interrupted. Take a fresh snapshot.")
-          signal?.throwIfAborted()
-          for (const { id, label } of refs) {
-            selected.refs.set(id, frame.locator(`[data-agentz-ref="${id}"]`))
-            trees.push(`[ref=${id}] ${label}`)
-          }
         }
+        let tree = await page.ariaSnapshot({
+          mode: "ai",
+          timeout: Math.max(1, deadline - Date.now()),
+          signal,
+        })
+        tree = tree.replace(/\[ref=([^\]]+)\]/g, (_, ref: string) => {
+          const id = `${snapshot}-${ref}`
+          selected.refs.set(id, page.getByRef(ref))
+          return `[ref=${id}]`
+        })
         if (snapshot !== selected.snapshot)
           throw new Error("Snapshot interrupted. Take a fresh snapshot.")
         let text = await page
           .locator("body")
           .innerText({ timeout: Math.max(1, deadline - Date.now()) })
-        let tree = trees.join("\n")
         for (const value of [...hidden].sort((a, b) => b.length - a.length)) {
           text = text.split(value).join("••••••••")
           tree = tree.split(value).join("••••••••")
@@ -1229,7 +1246,9 @@ server.on("upgrade", (req, socket, head) => {
       previous = message
       ws.send(message)
     }
-    const status = setInterval(publish, 500)
+    const status = setInterval(() => {
+      void refreshMetadata(tab).then(publish)
+    }, 500)
     publish()
     void screencast(tab).catch(() => ws.close())
     ws.on("message", (data) => {
@@ -1313,6 +1332,8 @@ server.on("upgrade", (req, socket, head) => {
               return
             }
             if (input.type === "wheel") {
+              if (input.x !== undefined && input.y !== undefined)
+                await tab.page.mouse.move(input.x, input.y)
               await tab.page.mouse.wheel(input.deltaX ?? 0, input.deltaY ?? 0)
               return
             }

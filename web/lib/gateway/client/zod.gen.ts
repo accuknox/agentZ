@@ -1086,6 +1086,8 @@ export const zBrowserTab = z.object({
   id: z.string(),
   url: z.string(),
   title: z.string(),
+  canGoBack: z.boolean().optional(),
+  canGoForward: z.boolean().optional(),
   sessionId: z.string(),
   profileId: z.string(),
   owner: z.enum(["agent", "human", "unclaimed"]),

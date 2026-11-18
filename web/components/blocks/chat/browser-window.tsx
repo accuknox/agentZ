@@ -1,6 +1,6 @@
 "use client"
 
-import { useLayoutEffect, useRef, type ReactNode } from "react"
+import { useLayoutEffect, useRef, type ReactNode, type KeyboardEventHandler } from "react"
 import { PanelRight, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -14,10 +14,12 @@ export function BrowserWindow({
   onDock,
   onClose,
   children,
+  onKeyDownCapture,
 }: {
   floating: boolean
   onDock: () => void
   onClose: () => void
+  onKeyDownCapture?: KeyboardEventHandler<HTMLElement>
   children: ReactNode
 } & Pick<BrowserTab, "title" | "width" | "height">) {
   const windowRef = useRef<HTMLElement>(null)
@@ -77,6 +79,7 @@ export function BrowserWindow({
   return (
     <section
       ref={windowRef}
+      onKeyDownCapture={onKeyDownCapture}
       aria-label={floating ? "Floating browser preview" : "Browser"}
       className={
         floating

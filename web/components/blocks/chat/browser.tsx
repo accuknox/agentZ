@@ -6,10 +6,15 @@ import {
   ArrowLeft,
   ArrowRight,
   Camera,
+  Search,
+  Link2,
+  Unlink2,
+  PanelTop,
   Circle,
   Globe,
   Hand,
   MousePointer2,
+  MousePointerClick,
   Plus,
   RefreshCw,
   Square,
@@ -17,7 +22,6 @@ import {
   MoreHorizontal,
   ScanLine,
   Download,
-  Minimize2,
   Check,
   CircleUserRound,
   Cookie,
@@ -28,11 +32,9 @@ import {
   Pencil,
   RotateCcw,
   RotateCw,
-  Ruler,
   Smartphone,
   SquareDashed,
   Sun,
-  Tablet,
   Trash2,
   Users,
   VenetianMask,
@@ -66,6 +68,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   runBrowser,
+  type BrowserResult,
+  type BrowserInput,
   type BrowserRequest,
   type BrowserTab,
   type BrowserArtifact,
@@ -108,7 +112,6 @@ export function Browser({
     setLastReveal(reveal)
     setSelected(reveal.id)
   }
-  const [profileOverride, setProfile] = useState<string>()
   const [viewportDialog, setViewportDialog] = useState(false)
   const viewportWidth = useRef<HTMLInputElement>(null)
   const viewportHeight = useRef<HTMLInputElement>(null)
@@ -120,11 +123,24 @@ export function Browser({
   const [editingAddress, setEditingAddress] = useState(false)
   const touch = useRef<{ x: number; y: number; moved: boolean }>(null)
   const [connected, setConnected] = useState(false)
+  const [hasFrame, setHasFrame] = useState(false)
+  const [streamError, setStreamError] = useState<string>()
+  const [reconnect, setReconnect] = useState(0)
+  const [deviceToolbar, setDeviceToolbar] = useState(false)
+  const [aspectLocked, setAspectLocked] = useState(false)
+  const [fitPanel, setFitPanel] = useState(false)
+  const [picking, setPicking] = useState(false)
+  const pickingGesture = useRef(false)
+  const forwardedKeys = useRef(new Set<string>())
+  const [findOpen, setFindOpen] = useState(false)
+  const [findText, setFindText] = useState("")
+  const [findResult, setFindResult] = useState<string>()
+  const findInput = useRef<HTMLInputElement>(null)
   const [control, setControl] = useState(false)
   const [profileDialog, setProfileDialog] = useState<"create" | "rename" | null>(null)
   const [profileName, setProfileName] = useState("")
   const [busy, setBusy] = useState(false)
-  const [live, setLive] = useState<BrowserTab>()
+  const pendingActions = useRef(0)
   const socket = useRef<WebSocket>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const addressInput = useRef<HTMLInputElement>(null)
@@ -147,9 +163,8 @@ export function Browser({
       retry: false,
     })
   )
-  const profile = profileOverride ?? query.data?.defaultProfileId ?? "default"
-  const current = query.data?.tabs.find((tab) => tab.id === selected) ?? query.data?.tabs[0]
-  const tab = live?.id === current?.id ? live : current
+  const profile = query.data?.defaultProfileId ?? "default"
+  const tab = query.data?.tabs.find((tab) => tab.id === selected) ?? query.data?.tabs[0]
   const tabId = tab?.id
   let url = tab?.url ?? address
   if (tab?.url === "about:blank") url = ""
@@ -175,18 +190,27 @@ export function Browser({
     })
   }
   const downloads = downloadShelf.files
-  const [lastTab, setLastTab] = useState(tabId)
-  if (lastTab !== tabId) {
-    setLastTab(tabId)
-    setLive(undefined)
+  const [lastView, setLastView] = useState({ tabId, visible, reconnect })
+  if (
+    lastView.tabId !== tabId ||
+    lastView.visible !== visible ||
+    lastView.reconnect !== reconnect
+  ) {
+    setLastView({ tabId, visible, reconnect })
     setConnected(false)
+    setHasFrame(false)
     setControl(false)
-    setAddress("")
-    setEditingAddress(false)
+    setStreamError(undefined)
+    setPicking(false)
+    if (lastView.tabId !== tabId) {
+      setFindResult(undefined)
+      setAddress("")
+      setEditingAddress(false)
+    }
   }
   useEffect(() => {
-    if (control && current?.url === "about:blank") addressInput.current?.focus()
-  }, [tabId, control, current?.url])
+    if (control && tab?.url === "about:blank") addressInput.current?.focus()
+  }, [tabId, control, tab?.url])
   const endpoint = `/api/agent/${encodeURIComponent(agentName)}/browser/${encodeURIComponent(sessionId)}`
 
   async function download(file: BrowserArtifact) {
@@ -203,14 +227,20 @@ export function Browser({
     setTimeout(() => URL.revokeObjectURL(url), 60000)
   }
 
+  function send(input: BrowserInput) {
+    if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(input))
+  }
+
   async function action(body: BrowserRequest) {
+    pendingActions.current++
     setBusy(true)
+    if (body.operation === "resize" && body.mode) setFitPanel(body.mode === "fill")
     try {
       if (body.operation === "open") {
         const bounds = viewport.current?.getBoundingClientRect()
         if (bounds)
           body = {
-            width: Math.max(240, Math.floor(bounds.width - 16)),
+            width: Math.max(240, Math.min(3840, Math.floor(bounds.width - 16))),
             height: Math.max(240, Math.min(2160, Math.floor(bounds.height - 16))),
             ...body,
           }
@@ -223,7 +253,12 @@ export function Browser({
       })
       if (error) throw new Error(error.message)
       queryClient.setQueryData(key, data)
-      if (data.tabId && data.tabs.some((item) => item.id === data.tabId)) setSelected(data.tabId)
+      const updated = data.tabs.find((item) => item.id === data.tabId)
+      if (updated) setSelected(updated.id)
+      if (body.operation === "close") {
+        const index = query.data?.tabs.findIndex((item) => item.id === body.tabId) ?? 0
+        setSelected(data.tabs[Math.min(Math.max(0, index), data.tabs.length - 1)]?.id)
+      }
       if (data.artifact) await download(data.artifact)
 
       return data
@@ -231,38 +266,52 @@ export function Browser({
       toast.error(error instanceof Error ? error.message : "Browser action failed")
       return undefined
     } finally {
-      setBusy(false)
+      pendingActions.current--
+      setBusy(pendingActions.current > 0)
     }
   }
 
   const receive = useEffectEvent(
-    (connection: WebSocket, event: MessageEvent<string | ArrayBuffer>) => {
+    async (connection: WebSocket, event: MessageEvent<string | ArrayBuffer>) => {
       if (connection !== socket.current) return
-      if (typeof event.data === "string") {
-        const message = zBrowserStreamEvent.parse(JSON.parse(event.data))
-        if (message.type === "error") {
-          toast.error(message.message)
+      try {
+        if (typeof event.data === "string") {
+          const message = zBrowserStreamEvent.parse(JSON.parse(event.data))
+          if (message.type === "error") {
+            toast.error(message.message)
+            return
+          }
+          queryClient.setQueryData<BrowserResult>(key, (previous) => {
+            if (!previous) return previous
+            return {
+              ...previous,
+              tabs: previous.tabs.map((tab) => (tab.id === message.state.id ? message.state : tab)),
+            }
+          })
+          setControl(message.canOperate)
           return
         }
-        setLive(message.state)
-        setControl(message.canOperate)
-        return
-      }
-      void createImageBitmap(new Blob([event.data], { type: "image/jpeg" })).then((image) => {
-        const target = canvas.current
-        if (connection !== socket.current) {
-          image.close()
-          return
-        }
-        if (target) {
+        const image = await createImageBitmap(new Blob([event.data], { type: "image/jpeg" }))
+        try {
+          if (connection !== socket.current) return
+          const target = canvas.current
+          if (!target) return
           if (target.width !== image.width) target.width = image.width
           if (target.height !== image.height) target.height = image.height
           target.getContext("2d")?.drawImage(image, 0, 0)
+          setHasFrame(true)
+          setStreamError(undefined)
+        } finally {
+          image.close()
         }
-        image.close()
-        if (connection.readyState === WebSocket.OPEN)
+      } catch {
+        if (connection === socket.current)
+          setStreamError("Could not display the browser stream. Reconnect to try again.")
+      } finally {
+        // A failed decode must also release the server's frame backpressure.
+        if (typeof event.data !== "string" && connection.readyState === WebSocket.OPEN)
           connection.send(JSON.stringify({ type: "ack" }))
-      })
+      }
     }
   )
 
@@ -271,6 +320,13 @@ export function Browser({
     const abort = new AbortController()
     let ws: WebSocket | undefined
     let retry: ReturnType<typeof setTimeout> | undefined
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+    let attempts = 0
+    function scheduleRetry() {
+      if (abort.signal.aborted) return
+      clearTimeout(retry)
+      retry = setTimeout(() => void connect(), Math.min(1000 * 2 ** attempts++, 15000))
+    }
     async function connect() {
       try {
         const [base, token] = await Promise.all([getGatewayBaseURL(), getGatewayToken(workspaceId)])
@@ -282,30 +338,134 @@ export function Browser({
         ws = connection
         ws.binaryType = "arraybuffer"
         socket.current = ws
+        // A socket can open while the renderer never produces its first frame.
+        watchdog = setTimeout(() => connection.close(), 15000)
         ws.onopen = () => {
           if (connection === socket.current) setConnected(true)
         }
-        ws.onmessage = (event) => receive(connection, event)
+        ws.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
+          if (typeof event.data !== "string") {
+            clearTimeout(watchdog)
+            attempts = 0
+          }
+          void receive(connection, event)
+        }
         ws.onclose = () => {
-          // A replaced socket can close after the next tab has connected.
           if (abort.signal.aborted || connection !== socket.current) return
+          clearTimeout(watchdog)
           setConnected(false)
           setControl(false)
-          retry = setTimeout(() => void connect(), 2000)
+          setStreamError("Connection lost. Reconnecting…")
+          scheduleRetry()
         }
+        ws.onerror = () => connection.close()
       } catch (error) {
-        if (!abort.signal.aborted)
-          toast.error(error instanceof Error ? error.message : "Browser connection failed")
+        if (abort.signal.aborted) return
+        setStreamError(error instanceof Error ? error.message : "Browser connection failed")
+        scheduleRetry()
       }
     }
     void connect()
     return () => {
       abort.abort()
       clearTimeout(retry)
+      clearTimeout(watchdog)
       socket.current = null
       ws?.close()
     }
-  }, [visible, tabId, viewer, endpoint, workspaceId])
+  }, [visible, tabId, viewer, endpoint, workspaceId, reconnect])
+
+  const resizeToPanel = useEffectEvent(() => {
+    const rect = viewport.current?.getBoundingClientRect()
+    if (rect && control && !busy)
+      void action({
+        operation: "resize",
+        mode: "fill",
+        width: Math.max(240, Math.min(3840, Math.floor(rect.width - 16))),
+        height: Math.max(240, Math.min(2160, Math.floor(rect.height - 16))),
+      })
+  })
+  useEffect(() => {
+    if (!fitPanel || !visible || floating || !control || !tabId || !viewport.current) return
+    let timer: ReturnType<typeof setTimeout>
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timer)
+      timer = setTimeout(() => resizeToPanel(), 200)
+    })
+    observer.observe(viewport.current)
+    return () => {
+      observer.disconnect()
+      clearTimeout(timer)
+    }
+  }, [fitPanel, visible, floating, control, tabId])
+
+  async function find(backwards = false) {
+    if (!findText || !control) return
+    const result = await action({
+      operation: "evaluate",
+      expression: `window.find(${JSON.stringify(findText)}, false, ${backwards}, true)`,
+    })
+    if (result) setFindResult(result.value ? "Match found" : "No matches")
+  }
+
+  const wheel = useEffectEvent((event: WheelEvent) => {
+    if (!control || !tab || !canvas.current) return
+    event.preventDefault()
+    const rect = canvas.current.getBoundingClientRect()
+    let deltaX = event.deltaX
+    let deltaY = event.deltaY
+    switch (event.deltaMode) {
+      case WheelEvent.DOM_DELTA_LINE:
+        deltaX *= 16
+        deltaY *= 16
+        break
+      case WheelEvent.DOM_DELTA_PAGE:
+        deltaX *= tab.width
+        deltaY *= tab.height
+        break
+    }
+    send({
+      type: "wheel",
+      x: ((event.clientX - rect.left) * tab.width) / rect.width,
+      y: ((event.clientY - rect.top) * tab.height) / rect.height,
+      deltaX,
+      deltaY,
+    })
+  })
+  useEffect(() => {
+    const node = canvas.current
+    if (!node) return
+    const listener = (event: WheelEvent) => wheel(event)
+    node.addEventListener("wheel", listener, { passive: false })
+    return () => node.removeEventListener("wheel", listener)
+  }, [tabId])
+
+  async function inspectElement(x: number, y: number) {
+    const result = await action({
+      operation: "evaluate",
+      expression: `(() => {
+      const element = document.elementFromPoint(${x}, ${y});
+      if (!element) return null;
+      const parts = []; let node = element;
+      for (let depth = 0; node && depth < 6; depth++, node = node.parentElement) {
+        if (node.id) { parts.unshift('#' + CSS.escape(node.id)); break; }
+        const siblings = node.parentElement ? Array.from(node.parentElement.children).filter(item => item.tagName === node.tagName) : [];
+        parts.unshift(node.tagName.toLowerCase() + (siblings.length > 1 ? ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')' : ''));
+      }
+      return { tag: element.tagName.toLowerCase(), selector: parts.join(' > '),
+        role: element.getAttribute('role'), label: element.getAttribute('aria-label'),
+        text: (element.innerText ?? element.textContent ?? '').slice(0, 2000) };
+    })()`,
+    })
+    if (!result?.value) return
+    addBrowserContext(
+      sessionId,
+      `Browser element on ${tab?.url}\n${JSON.stringify(result.value, null, 2)}`,
+      hasFrame ? canvas.current?.toDataURL("image/png") : undefined
+    )
+    setPicking(false)
+    toast.success("Element added to chat")
+  }
 
   async function clipboard(cut: boolean) {
     const data = await action({
@@ -329,6 +489,7 @@ export function Browser({
     }
   }
 
+  const activeProfile = query.data?.profiles.find((item) => item.id === tab?.profileId)
   let status = "Agent in control"
   if (tab?.owner === "human") status = "Another viewer is in control"
   if (control) status = "You are in control"
@@ -343,6 +504,25 @@ export function Browser({
       height={tab?.height ?? 800}
       onDock={() => setFloating(false)}
       onClose={onClosePreview}
+      onKeyDownCapture={(event) => {
+        if (!(event.ctrlKey || event.metaKey)) return
+        if (event.key.toLowerCase() === "l" && !floating) {
+          event.preventDefault()
+          event.stopPropagation()
+          send({ type: "resetInput" })
+          forwardedKeys.current.clear()
+          addressInput.current?.focus()
+          addressInput.current?.select()
+        }
+        if (event.key.toLowerCase() === "f" && control && !floating) {
+          event.preventDefault()
+          event.stopPropagation()
+          send({ type: "resetInput" })
+          forwardedKeys.current.clear()
+          setFindOpen(true)
+          requestAnimationFrame(() => findInput.current?.focus())
+        }
+      }}
     >
       <div
         className={cn(
@@ -364,6 +544,8 @@ export function Browser({
               variant={item.id === tabId ? "secondary" : "ghost"}
               size="sm"
               className="min-w-0 flex-1 truncate text-foreground"
+              aria-pressed={item.id === tabId}
+              title={item.url}
               onClick={() => {
                 setSelected(item.id)
                 setAddress(item.url)
@@ -379,7 +561,7 @@ export function Browser({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="Close tab"
+              aria-label={`Close ${item.title || "new tab"}`}
               disabled={busy || item.id !== tabId || !control}
               onClick={() => void action({ operation: "close", tabId: item.id })}
             >
@@ -404,13 +586,36 @@ export function Browser({
         className={cn("flex shrink-0 items-center gap-1 border-b p-2", floating && "hidden")}
         onSubmit={(event) => {
           event.preventDefault()
-          if (!canNavigate) return
-          setEditingAddress(false)
-          void action({
-            operation: tabId ? "navigate" : "open",
-            url: url.trim(),
-            profileId: profile,
-          })
+          if (composing.current || !canNavigate) return
+          try {
+            const value = url.trim()
+            let target = `https://duckduckgo.com/?q=${encodeURIComponent(value)}`
+            if (
+              /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)(:\d+)?([/?#]|$)/i.test(value) ||
+              /^[^/:\s]+:\d+([/?#]|$)/.test(value)
+            ) {
+              target = `http://${value}`
+            } else if (/^https?:\/\//i.test(value)) {
+              target = value
+            } else if (/^[a-z][a-z\d+.-]*:/i.test(value)) {
+              throw new Error("Only HTTP and HTTPS addresses are supported")
+            } else if (!/\s/.test(value) && /^[^/]+\.[^/]+/.test(value)) {
+              target = `https://${value}`
+            }
+            const address = new URL(target).href
+            void action({
+              operation: tabId ? "navigate" : "open",
+              url: address,
+              profileId: profile,
+            }).then((result) => {
+              if (result) {
+                setAddress(address)
+                setEditingAddress(false)
+              }
+            })
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Invalid address")
+          }
         }}
       >
         <Button
@@ -418,7 +623,7 @@ export function Browser({
           variant="ghost"
           size="icon-sm"
           aria-label="Back"
-          disabled={!tabId || !control}
+          disabled={!tabId || !control || busy || !tab?.canGoBack}
           onClick={() => void action({ operation: "history", delta: -1 })}
         >
           <ArrowLeft />
@@ -428,7 +633,7 @@ export function Browser({
           variant="ghost"
           size="icon-sm"
           aria-label="Forward"
-          disabled={!tabId || !control}
+          disabled={!tabId || !control || busy || !tab?.canGoForward}
           onClick={() => void action({ operation: "history", delta: 1 })}
         >
           <ArrowRight />
@@ -438,7 +643,7 @@ export function Browser({
           variant="ghost"
           size="icon-sm"
           aria-label={tab?.loading ? "Stop loading" : "Reload"}
-          disabled={!tabId || !control}
+          disabled={!tabId || !control || (busy && !tab?.loading)}
           onClick={() => void action({ operation: tab?.loading ? "stopLoading" : "reload" })}
         >
           {tab?.loading ? <X /> : <RefreshCw />}
@@ -449,11 +654,20 @@ export function Browser({
           disabled={!!tabId && !control}
           className="h-8 rounded-full border-transparent bg-muted/50 text-xs shadow-none focus-visible:bg-background"
           value={url}
-          placeholder="Enter a website address"
+          placeholder="Search or enter address"
+          autoComplete="off"
+          autoCapitalize="off"
+          spellCheck={false}
           onFocus={(event) => {
             if (!editingAddress) setAddress(url)
             setEditingAddress(true)
             event.currentTarget.select()
+          }}
+          onCompositionStart={() => {
+            composing.current = true
+          }}
+          onCompositionEnd={() => {
+            composing.current = false
           }}
           onChange={(event) => {
             setEditingAddress(true)
@@ -466,6 +680,115 @@ export function Browser({
             event.currentTarget.blur()
           }}
         />
+        <BrowserAction
+          type="button"
+          label="Find in page"
+          variant="ghost"
+          size="icon-sm"
+          disabled={!tabId || !control}
+          onClick={() => {
+            setFindOpen(!findOpen)
+            requestAnimationFrame(() => findInput.current?.focus())
+          }}
+        >
+          <Search />
+        </BrowserAction>
+        <BrowserAction
+          type="button"
+          label="Device toolbar"
+          variant={deviceToolbar ? "secondary" : "ghost"}
+          size="icon-sm"
+          disabled={!tabId}
+          onClick={() => setDeviceToolbar(!deviceToolbar)}
+        >
+          <PanelTop />
+        </BrowserAction>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Browser profiles"
+              title="Browser profiles"
+            >
+              <Users />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-[70vh] min-w-56 overflow-y-auto">
+            <DropdownMenuGroup>
+              {query.data?.profiles.map((item) => (
+                <DropdownMenuItem
+                  key={item.id}
+                  onSelect={() =>
+                    void action({ operation: "setDefaultProfile", profileId: item.id })
+                  }
+                >
+                  {item.incognito ? (
+                    <VenetianMask className="text-muted-foreground" />
+                  ) : (
+                    <CircleUserRound className="text-muted-foreground" />
+                  )}
+                  <span className="flex-1">{item.name}</span>
+                  {profile === item.id ? <Check className="text-primary" /> : null}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onSelect={() => {
+                  setProfileName("")
+                  setProfileDialog("create")
+                }}
+              >
+                <Plus className="text-muted-foreground" />
+                Create profile
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={profile === "default" || profile === "incognito"}
+                onSelect={() => {
+                  setProfileName(
+                    query.data?.profiles.find((item) => item.id === profile)?.name ?? ""
+                  )
+                  setProfileDialog("rename")
+                }}
+              >
+                <Pencil className="text-muted-foreground" />
+                Rename profile
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={profile === "default" || profile === "incognito"}
+                onSelect={() => void action({ operation: "deleteProfile", profileId: profile })}
+              >
+                <Trash2 />
+                Delete profile
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onSelect={() => void action({ operation: "clearCookies", profileId: profile })}
+              >
+                <Cookie className="text-muted-foreground" />
+                Clear cookies
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => void action({ operation: "clearCache", profileId: profile })}
+              >
+                <Eraser className="text-muted-foreground" />
+                Clear cache
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => void action({ operation: "clearProfile", profileId: profile })}
+              >
+                <RotateCcw className="text-muted-foreground" />
+                Reset profile data
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -481,185 +804,25 @@ export function Browser({
           <DropdownMenuContent align="end" className="min-w-56">
             <DropdownMenuGroup>
               <DropdownMenuItem
-                disabled={!tabId || !control}
+                disabled={!tabId || !control || busy}
                 onSelect={() => void action({ operation: "reload", ignoreCache: true })}
               >
                 <RefreshCw className="text-muted-foreground" />
                 Hard reload
               </DropdownMenuItem>
-              <DropdownMenuItem disabled={!tabId} onSelect={() => setFloating(!floating, tabId)}>
-                {floating ? (
-                  <Minimize2 className="text-muted-foreground" />
-                ) : (
-                  <ExternalLink className="text-muted-foreground" />
-                )}
-                {floating ? "Dock browser" : "Float browser"}
+              <DropdownMenuItem disabled={!tabId} onSelect={() => setFloating(true, tabId)}>
+                <ExternalLink className="text-muted-foreground" />
+                Float browser
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              <DropdownMenuItem disabled={!tabId} onSelect={() => setDeviceToolbar(true)}>
+                <Monitor className="text-muted-foreground" />
+                Viewport controls
+              </DropdownMenuItem>
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Users className="text-muted-foreground" />
-                  Shared profiles
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="max-h-[70vh] min-w-56 overflow-y-auto">
-                  <DropdownMenuGroup>
-                    {query.data?.profiles.map((item) => (
-                      <DropdownMenuItem
-                        key={item.id}
-                        onSelect={() => {
-                          setProfile(item.id)
-                          void action({ operation: "setDefaultProfile", profileId: item.id })
-                        }}
-                      >
-                        {item.incognito ? (
-                          <VenetianMask className="text-muted-foreground" />
-                        ) : (
-                          <CircleUserRound className="text-muted-foreground" />
-                        )}
-                        <span className="flex-1">{item.name}</span>
-                        {profile === item.id ? <Check className="text-primary" /> : null}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setProfileName("")
-                        setProfileDialog("create")
-                      }}
-                    >
-                      <Plus className="text-muted-foreground" />
-                      Create profile
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={profile === "default" || profile === "incognito"}
-                      onSelect={() => {
-                        setProfileName(
-                          query.data?.profiles.find((item) => item.id === profile)?.name ?? ""
-                        )
-                        setProfileDialog("rename")
-                      }}
-                    >
-                      <Pencil className="text-muted-foreground" />
-                      Rename profile
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      disabled={profile === "default" || profile === "incognito"}
-                      onSelect={() =>
-                        void action({ operation: "deleteProfile", profileId: profile }).then(
-                          (result) => {
-                            if (result) setProfile("default")
-                          }
-                        )
-                      }
-                    >
-                      <Trash2 />
-                      Delete profile
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        void action({ operation: "clearCookies", profileId: profile })
-                      }
-                    >
-                      <Cookie className="text-muted-foreground" />
-                      Clear cookies
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => void action({ operation: "clearCache", profileId: profile })}
-                    >
-                      <Eraser className="text-muted-foreground" />
-                      Clear cache
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        void action({ operation: "clearProfile", profileId: profile })
-                      }
-                    >
-                      <RotateCcw className="text-muted-foreground" />
-                      Reset profile data
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!tabId || !control}>
-                  <Monitor className="text-muted-foreground" />
-                  Viewport
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="max-h-[70vh] min-w-56 overflow-y-auto">
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      disabled={!tabId || !control}
-                      onSelect={() => {
-                        const rect = viewport.current?.getBoundingClientRect()
-                        if (rect)
-                          void action({
-                            operation: "resize",
-                            mode: "fill",
-                            width: Math.max(240, Math.min(3840, Math.floor(rect.width - 16))),
-                            height: Math.max(240, Math.min(2160, Math.floor(rect.height - 16))),
-                          })
-                      }}
-                    >
-                      <SquareDashed className="text-muted-foreground" />
-                      Fit panel
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={!tabId || !control}
-                      onSelect={() => setViewportDialog(true)}
-                    >
-                      <Ruler className="text-muted-foreground" />
-                      Custom viewport
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
-                    {query.data?.presets?.map((preset) => {
-                      let Icon = Smartphone
-                      if (preset.width >= 600) Icon = Tablet
-                      if (preset.width >= 1000) Icon = Monitor
-                      return (
-                        <DropdownMenuItem
-                          key={preset.id}
-                          disabled={!control}
-                          onSelect={() =>
-                            void action({ operation: "resize", mode: "preset", preset: preset.id })
-                          }
-                        >
-                          <Icon className="text-muted-foreground" />
-                          {preset.label}
-                        </DropdownMenuItem>
-                      )
-                    })}
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      disabled={!control}
-                      onSelect={() =>
-                        void action({
-                          operation: "resize",
-                          mode: "freeform",
-                          width: tab?.height ?? 800,
-                          height: tab?.width ?? 1280,
-                        })
-                      }
-                    >
-                      <RotateCw className="text-muted-foreground" />
-                      Rotate viewport
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!tabId || !control}>
+                <DropdownMenuSubTrigger disabled={!tabId || !control || busy}>
                   <Sun className="text-muted-foreground" />
                   Appearance
                 </DropdownMenuSubTrigger>
@@ -688,36 +851,181 @@ export function Browser({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                disabled={!control}
-                onSelect={() =>
-                  void action({ operation: "resize", zoom: Math.min(5, (tab?.zoom ?? 1) + 0.25) })
-                }
-              >
-                <ZoomIn className="text-muted-foreground" />
-                Zoom in
-                <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                  {Math.round((tab?.zoom ?? 1) * 100)}%
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!control}
-                onSelect={() =>
-                  void action({
-                    operation: "resize",
-                    zoom: Math.max(0.25, (tab?.zoom ?? 1) - 0.25),
-                  })
-                }
-              >
-                <ZoomOut className="text-muted-foreground" />
-                Zoom out
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </form>
+      {deviceToolbar && tab && !floating ? (
+        <div
+          role="toolbar"
+          aria-label="Viewport controls"
+          className="flex shrink-0 flex-wrap items-center justify-center gap-1 border-b bg-muted/30 p-1.5"
+        >
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" disabled={!control || busy}>
+                <Smartphone /> Devices
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="max-h-80 overflow-auto">
+              <DropdownMenuGroup>
+                {query.data?.presets?.map((preset) => (
+                  <DropdownMenuItem
+                    key={preset.id}
+                    onSelect={() => {
+                      void action({ operation: "resize", mode: "preset", preset: preset.id })
+                    }}
+                  >
+                    {preset.label}
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {preset.width} × {preset.height}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <BrowserAction
+            label="Set viewport dimensions"
+            variant="outline"
+            size="sm"
+            disabled={!control || busy}
+            onClick={() => {
+              setViewportDialog(true)
+            }}
+          >
+            <span className="tabular-nums">
+              {tab.width} × {tab.height}
+            </span>
+          </BrowserAction>
+          <BrowserAction
+            label={aspectLocked ? "Unlock aspect ratio" : "Lock aspect ratio"}
+            variant={aspectLocked ? "secondary" : "ghost"}
+            size="icon-sm"
+            disabled={!control || busy}
+            onClick={() => setAspectLocked(!aspectLocked)}
+          >
+            {aspectLocked ? <Link2 /> : <Unlink2 />}
+          </BrowserAction>
+          <BrowserAction
+            label="Rotate viewport"
+            variant="ghost"
+            size="icon-sm"
+            disabled={!control || busy}
+            onClick={() => {
+              void action({
+                operation: "resize",
+                mode: "freeform",
+                width: tab.height,
+                height: tab.width,
+              })
+            }}
+          >
+            <RotateCw />
+          </BrowserAction>
+          <BrowserAction
+            label={fitPanel ? "Stop fitting panel" : "Fit panel automatically"}
+            variant={fitPanel ? "secondary" : "ghost"}
+            size="icon-sm"
+            disabled={!control || busy}
+            onClick={() => setFitPanel(!fitPanel)}
+          >
+            <SquareDashed />
+          </BrowserAction>
+          <BrowserAction
+            label="Zoom out"
+            variant="ghost"
+            size="icon-sm"
+            disabled={!control || busy || tab.zoom <= 0.25}
+            onClick={() =>
+              void action({ operation: "resize", zoom: Math.max(0.25, tab.zoom - 0.25) })
+            }
+          >
+            <ZoomOut />
+          </BrowserAction>
+          <BrowserAction
+            label="Reset zoom"
+            variant="ghost"
+            size="sm"
+            disabled={!control || busy}
+            onClick={() => void action({ operation: "resize", zoom: 1 })}
+          >
+            {Math.round(tab.zoom * 100)}%
+          </BrowserAction>
+          <BrowserAction
+            label="Zoom in"
+            variant="ghost"
+            size="icon-sm"
+            disabled={!control || busy || tab.zoom >= 5}
+            onClick={() => void action({ operation: "resize", zoom: Math.min(5, tab.zoom + 0.25) })}
+          >
+            <ZoomIn />
+          </BrowserAction>
+        </div>
+      ) : null}
+      {findOpen && !floating ? (
+        <form
+          className="flex shrink-0 items-center gap-1 border-b p-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void find()
+          }}
+        >
+          <Input
+            ref={findInput}
+            aria-label="Find in page"
+            value={findText}
+            placeholder="Find in page"
+            className="h-8 min-w-0"
+            disabled={!control}
+            onChange={(event) => {
+              setFindText(event.target.value)
+              setFindResult(undefined)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault()
+                setFindOpen(false)
+                textInput.current?.focus()
+              }
+              if (event.key === "Enter" && event.shiftKey) {
+                event.preventDefault()
+                void find(true)
+              }
+            }}
+          />
+          <span role="status" className="shrink-0 text-xs text-muted-foreground">
+            {findResult}
+          </span>
+          <BrowserAction
+            label="Previous match"
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            disabled={!findText || !control || busy}
+            onClick={() => void find(true)}
+          >
+            <ArrowLeft />
+          </BrowserAction>
+          <BrowserAction
+            label="Next match"
+            type="submit"
+            variant="ghost"
+            size="icon-sm"
+            disabled={!findText || !control || busy}
+          >
+            <ArrowRight />
+          </BrowserAction>
+          <BrowserAction
+            label="Close find"
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setFindOpen(false)}
+          >
+            <X />
+          </BrowserAction>
+        </form>
+      ) : null}
       {query.isError ? (
         <Alert variant="destructive" className="m-3 w-auto">
           <AlertDescription>
@@ -736,12 +1044,15 @@ export function Browser({
       {tab?.dialog ? (
         <div className="space-y-2 border-b p-3">
           <p className="text-sm">{tab.dialog.message}</p>
-          <Input
-            ref={input}
-            aria-label="Dialog answer"
-            defaultValue={tab.dialog.defaultValue}
-            disabled={!control || busy}
-          />
+          {tab.dialog.type === "prompt" ? (
+            <Input
+              key={tab.dialog.message}
+              ref={input}
+              aria-label="Dialog answer"
+              defaultValue={tab.dialog.defaultValue}
+              disabled={!control || busy}
+            />
+          ) : null}
           <Button
             size="sm"
             disabled={!control || busy}
@@ -769,7 +1080,7 @@ export function Browser({
             : "relative flex min-h-0 flex-1 items-start justify-center overflow-auto bg-muted/20 p-2"
         }
       >
-        {!tabId ? (
+        {!tab ? (
           <div className="m-auto flex max-w-64 flex-col items-center gap-4 py-8 text-center">
             <div className="flex size-14 items-center justify-center rounded-2xl border bg-background shadow-xs">
               <Globe className="size-6 text-muted-foreground" />
@@ -783,30 +1094,61 @@ export function Browser({
             {query.isPending ? (
               <Spinner />
             ) : (
-              <Button onClick={() => void action({ operation: "open", profileId: profile })}>
+              <Button
+                disabled={busy || query.isError}
+                onClick={() => void action({ operation: "open", profileId: profile })}
+              >
                 Open browser
               </Button>
             )}
           </div>
         ) : (
           <div className={cn("relative inline-flex max-w-full", !floating && "self-start")}>
+            {!hasFrame || !connected || streamError ? (
+              <div
+                className="absolute inset-0 z-10 flex min-h-40 flex-col items-center justify-center gap-3 bg-background/95 p-4 text-center"
+                role="status"
+              >
+                <Spinner />
+                <p className="text-xs text-muted-foreground">
+                  {streamError ?? (connected ? "Waiting for the page…" : "Connecting to browser…")}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setReconnect((value) => value + 1)}
+                >
+                  Reconnect
+                </Button>
+              </div>
+            ) : null}
             <canvas
               ref={canvas}
               tabIndex={0}
               aria-label="Live browser page"
+              aria-busy={!hasFrame}
+              width={tab.width}
+              height={tab.height}
               style={
                 floating
                   ? {
-                      width: `min(100cqw, calc(100cqh * ${(tab?.width ?? 1280) / (tab?.height ?? 800)}))`,
+                      width: `min(100cqw, calc(100cqh * ${tab.width / tab.height}))`,
                     }
-                  : undefined
+                  : { width: tab.width }
               }
               className={cn(
                 "h-auto max-w-full touch-none bg-white outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                floating ? "max-h-full w-auto" : "self-start border shadow-sm"
+                floating ? "max-h-full w-auto" : "self-start border shadow-sm",
+                picking && control && "cursor-crosshair"
               )}
               onPointerDown={(event) => {
                 if (!control) return
+                if (picking) {
+                  event.preventDefault()
+                  pickingGesture.current = true
+                  event.currentTarget.setPointerCapture(event.pointerId)
+                  return
+                }
                 textInput.current?.focus({ preventScroll: true })
                 event.currentTarget.setPointerCapture(event.pointerId)
                 if (event.pointerType === "touch") {
@@ -817,85 +1159,96 @@ export function Browser({
                 }
               }}
               onMouseDown={(event) => {
-                if (!control) return
+                if (!control || pickingGesture.current) return
                 // Prevent the canvas's default mouse focus from stealing the
                 // textarea. Mouse events carry the browser's click count.
                 event.preventDefault()
                 clicks.current = Math.max(1, Math.min(3, event.detail))
                 const rect = event.currentTarget.getBoundingClientRect()
-                socket.current?.send(
-                  JSON.stringify({
-                    type: "mouse",
-                    action: "down",
-                    x: ((event.clientX - rect.left) * (tab?.width ?? 1280)) / rect.width,
-                    y: ((event.clientY - rect.top) * (tab?.height ?? 800)) / rect.height,
-                    button: event.button === 2 ? "right" : event.button === 1 ? "middle" : "left",
-                    clickCount: clicks.current,
-                  })
-                )
+                send({
+                  type: "mouse",
+                  action: "down",
+                  x: ((event.clientX - rect.left) * tab.width) / rect.width,
+                  y: ((event.clientY - rect.top) * tab.height) / rect.height,
+                  button: event.button === 2 ? "right" : event.button === 1 ? "middle" : "left",
+                  clickCount: clicks.current,
+                })
               }}
               onPointerMove={(event) => {
-                if (!control) return
+                if (!control || pickingGesture.current) return
                 if (event.pointerType === "touch" && touch.current) {
                   const previous = touch.current
                   const deltaX = previous.x - event.clientX
                   const deltaY = previous.y - event.clientY
                   if (Math.abs(deltaX) + Math.abs(deltaY) > 3 || previous.moved) {
-                    socket.current?.send(JSON.stringify({ type: "wheel", deltaX, deltaY }))
+                    const rect = event.currentTarget.getBoundingClientRect()
+                    send({
+                      type: "wheel",
+                      x: ((event.clientX - rect.left) * tab.width) / rect.width,
+                      y: ((event.clientY - rect.top) * tab.height) / rect.height,
+                      deltaX: (deltaX * tab.width) / rect.width,
+                      deltaY: (deltaY * tab.height) / rect.height,
+                    })
                     touch.current = { x: event.clientX, y: event.clientY, moved: true }
                   }
                   return
                 }
                 const rect = event.currentTarget.getBoundingClientRect()
-                socket.current?.send(
-                  JSON.stringify({
-                    type: "mouse",
-                    action: "move",
-                    x: ((event.clientX - rect.left) * (tab?.width ?? 1280)) / rect.width,
-                    y: ((event.clientY - rect.top) * (tab?.height ?? 800)) / rect.height,
-                  })
-                )
+                send({
+                  type: "mouse",
+                  action: "move",
+                  x: ((event.clientX - rect.left) * tab.width) / rect.width,
+                  y: ((event.clientY - rect.top) * tab.height) / rect.height,
+                })
               }}
               onPointerUp={(event) => {
                 if (!control) return
                 if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+                if (pickingGesture.current) {
+                  pickingGesture.current = false
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  void inspectElement(
+                    ((event.clientX - rect.left) * tab.width) / rect.width,
+                    ((event.clientY - rect.top) * tab.height) / rect.height
+                  )
+                  return
+                }
                 if (event.pointerType === "touch") {
                   const gesture = touch.current
                   touch.current = null
                   if (!gesture || gesture.moved) return
                   const rect = event.currentTarget.getBoundingClientRect()
-                  const point = {
+                  send({
                     type: "mouse",
-                    x: ((event.clientX - rect.left) * (tab?.width ?? 1280)) / rect.width,
-                    y: ((event.clientY - rect.top) * (tab?.height ?? 800)) / rect.height,
-                  }
-                  socket.current?.send(JSON.stringify({ ...point, action: "down", button: "left" }))
+                    action: "down",
+                    button: "left",
+                    x: ((event.clientX - rect.left) * tab.width) / rect.width,
+                    y: ((event.clientY - rect.top) * tab.height) / rect.height,
+                  })
                 }
                 const rect = event.currentTarget.getBoundingClientRect()
-                socket.current?.send(
-                  JSON.stringify({
-                    type: "mouse",
-                    action: "up",
-                    x: ((event.clientX - rect.left) * (tab?.width ?? 1280)) / rect.width,
-                    y: ((event.clientY - rect.top) * (tab?.height ?? 800)) / rect.height,
-                    button: event.button === 2 ? "right" : event.button === 1 ? "middle" : "left",
-                    clickCount: clicks.current,
-                  })
-                )
+                send({
+                  type: "mouse",
+                  action: "up",
+                  x: ((event.clientX - rect.left) * tab.width) / rect.width,
+                  y: ((event.clientY - rect.top) * tab.height) / rect.height,
+                  button: event.button === 2 ? "right" : event.button === 1 ? "middle" : "left",
+                  clickCount: clicks.current,
+                })
+              }}
+              onLostPointerCapture={() => {
+                touch.current = null
+                pickingGesture.current = false
+                if (control) send({ type: "resetInput" })
               }}
               onPointerCancel={() => {
                 touch.current = null
-                if (control) socket.current?.send(JSON.stringify({ type: "resetInput" }))
+                pickingGesture.current = false
+                if (control) send({ type: "resetInput" })
               }}
               onContextMenu={(event) => event.preventDefault()}
-              onWheel={(event) => {
-                if (control)
-                  socket.current?.send(
-                    JSON.stringify({ type: "wheel", deltaX: event.deltaX, deltaY: event.deltaY })
-                  )
-              }}
             />
-            {tab?.cursor && !control ? (
+            {tab.cursor && !control ? (
               <MousePointer2
                 aria-hidden
                 className="pointer-events-none absolute size-5 text-primary drop-shadow"
@@ -935,15 +1288,12 @@ export function Browser({
                 if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey)
                   return
                 event.preventDefault()
-                socket.current?.send(
-                  JSON.stringify({ type: "key", action: "down", key: event.key })
-                )
+                forwardedKeys.current.add(event.key)
+                send({ type: "key", action: "down", key: event.key })
               }}
               onKeyUp={(event) => {
-                if (control && !composing.current)
-                  socket.current?.send(
-                    JSON.stringify({ type: "key", action: "up", key: event.key })
-                  )
+                if (control && !composing.current && forwardedKeys.current.delete(event.key))
+                  send({ type: "key", action: "up", key: event.key })
               }}
               onInput={(event) => {
                 if (!control || composing.current) return
@@ -954,11 +1304,11 @@ export function Browser({
                   ["deleteContentBackward", "deleteContentForward"].includes(native.inputType)
                 ) {
                   const key = native.inputType === "deleteContentBackward" ? "Backspace" : "Delete"
-                  socket.current?.send(JSON.stringify({ type: "key", action: "down", key }))
-                  socket.current?.send(JSON.stringify({ type: "key", action: "up", key }))
+                  send({ type: "key", action: "down", key })
+                  send({ type: "key", action: "up", key })
                 } else {
                   const text = event.currentTarget.value.replace(/^\u200b/, "")
-                  if (text) socket.current?.send(JSON.stringify({ type: "text", text }))
+                  if (text) send({ type: "text", text })
                 }
                 event.currentTarget.value = "​"
               }}
@@ -967,19 +1317,16 @@ export function Browser({
               }}
               onCompositionEnd={(event) => {
                 composing.current = false
-                if (control && event.data)
-                  socket.current?.send(JSON.stringify({ type: "text", text: event.data }))
+                if (control && event.data) send({ type: "text", text: event.data })
                 event.currentTarget.value = "​"
               }}
               onPaste={(event) => {
                 if (control) {
                   event.preventDefault()
-                  socket.current?.send(
-                    JSON.stringify({
-                      type: "text",
-                      text: event.clipboardData.getData("text/plain"),
-                    })
-                  )
+                  send({
+                    type: "text",
+                    text: event.clipboardData.getData("text/plain"),
+                  })
                 }
               }}
               onCopy={(event) => {
@@ -993,6 +1340,7 @@ export function Browser({
                 void clipboard(true)
               }}
               onBlur={() => {
+                forwardedKeys.current.clear()
                 if (control && socket.current?.readyState === WebSocket.OPEN)
                   socket.current.send(JSON.stringify({ type: "resetInput" }))
               }}
@@ -1001,45 +1349,55 @@ export function Browser({
         )}
       </div>
       {tab?.fileChooser && control ? (
-        <label className="border-t p-3 text-xs">
-          Choose a file
-          <input
-            type="file"
-            multiple
-            onChange={(event) => {
-              const files = event.target.files
-              if (!files?.length) return
-              if (
-                files.length > 20 ||
-                Array.from(files).reduce((bytes, file) => bytes + file.size, 0) > 50 * 1024 * 1024
-              ) {
-                toast.error("Choose at most 20 files totalling 50 MiB")
-                return
-              }
-              const form = new FormData()
-              for (const file of files) form.append("files", file, file.name)
-              // Reset after capturing the files so the same selection can retry.
-              event.currentTarget.value = ""
-              void getGatewayBaseURL()
-                .then((base) =>
-                  gatewayAuthenticatedFetch(
-                    `${base}${endpoint}?${new URLSearchParams({ viewer, tabId: tabId ?? "" })}`,
-                    {
-                      method: "PUT",
-                      headers: {
-                        "X-AgentZ-Workspace-ID": workspaceId,
-                      },
-                      body: form,
-                    }
+        <div className="flex shrink-0 items-center gap-2 border-t p-3">
+          <label className="min-w-0 flex-1 text-xs">
+            Choose a file
+            <input
+              type="file"
+              multiple
+              onChange={(event) => {
+                const files = event.target.files
+                if (!files?.length) return
+                if (
+                  files.length > 20 ||
+                  Array.from(files).reduce((bytes, file) => bytes + file.size, 0) > 50 * 1024 * 1024
+                ) {
+                  toast.error("Choose at most 20 files totalling 50 MiB")
+                  return
+                }
+                const form = new FormData()
+                for (const file of files) form.append("files", file, file.name)
+                // Reset after capturing the files so the same selection can retry.
+                event.currentTarget.value = ""
+                void getGatewayBaseURL()
+                  .then((base) =>
+                    gatewayAuthenticatedFetch(
+                      `${base}${endpoint}?${new URLSearchParams({ viewer, tabId: tabId ?? "" })}`,
+                      {
+                        method: "PUT",
+                        headers: {
+                          "X-AgentZ-Workspace-ID": workspaceId,
+                        },
+                        body: form,
+                      }
+                    )
                   )
-                )
-                .then((response) => {
-                  if (!response.ok) toast.error("Upload failed")
-                })
-                .catch(() => toast.error("Upload failed"))
-            }}
-          />
-        </label>
+                  .then((response) => {
+                    if (!response.ok) toast.error("Upload failed")
+                  })
+                  .catch(() => toast.error("Upload failed"))
+              }}
+            />
+          </label>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => void action({ operation: "upload", paths: [] })}
+          >
+            Cancel upload
+          </Button>
+        </div>
       ) : null}
       {downloads.length && !floating ? (
         <div aria-label="Downloads" className="flex shrink-0 items-center border-t">
@@ -1084,22 +1442,45 @@ export function Browser({
               connected ? "bg-emerald-500" : "bg-muted-foreground/50"
             )}
           />
-          <span className="truncate">{status}</span>
+          <span className="truncate">
+            {picking && control ? "Click an element to add it to chat" : status}
+          </span>
+          {!floating && activeProfile ? (
+            <span className="truncate border-l pl-2" title="Browser profile shared with this agent">
+              {activeProfile.name}
+            </span>
+          ) : null}
+          {tab?.recording ? (
+            <span className="flex items-center gap-1 text-destructive">
+              <Circle className="size-2 fill-current" /> Recording
+            </span>
+          ) : null}
         </span>
         <div className={floating ? "hidden" : "contents"}>
+          <BrowserAction
+            label={picking ? "Cancel element selection" : "Select element for chat"}
+            size="icon-sm"
+            variant={picking ? "secondary" : "ghost"}
+            disabled={!control || !hasFrame || busy}
+            onClick={() => setPicking(!picking)}
+          >
+            <MousePointerClick />
+          </BrowserAction>
           <BrowserAction
             label="Add screenshot to chat"
             size="icon-sm"
             variant="ghost"
-            disabled={!tabId || !connected}
+            disabled={!tabId || !connected || !hasFrame}
             onClick={() => {
               const page = canvas.current
-              if (page)
+              if (page) {
                 addBrowserContext(
                   sessionId,
                   `Browser screenshot: ${tab?.url}`,
                   page.toDataURL("image/png")
                 )
+                toast.success("Screenshot added to chat")
+              }
             }}
           >
             <ScanLine />
@@ -1108,7 +1489,7 @@ export function Browser({
             label="Save screenshot"
             size="icon-sm"
             variant="ghost"
-            disabled={!tabId || busy}
+            disabled={!tabId || busy || !hasFrame || !connected}
             onClick={() => void action({ operation: "snapshot", save: true })}
           >
             <Camera />
@@ -1131,9 +1512,7 @@ export function Browser({
           variant={control ? "secondary" : "default"}
           disabled={!connected || (!control && tab?.owner === "human")}
           onClick={() => {
-            socket.current?.send(
-              JSON.stringify({ type: control ? "releaseControl" : "takeControl" })
-            )
+            send({ type: control ? "releaseControl" : "takeControl" })
             canvas.current?.focus()
           }}
         >
@@ -1169,6 +1548,12 @@ export function Browser({
                   min={240}
                   max={3840}
                   defaultValue={tab?.width ?? 1280}
+                  onChange={(event) => {
+                    if (aspectLocked && tab && viewportHeight.current && event.target.valueAsNumber)
+                      viewportHeight.current.valueAsNumber = Math.round(
+                        (event.target.valueAsNumber * tab.height) / tab.width
+                      )
+                  }}
                   disabled={!control || busy}
                   required
                 />
@@ -1181,6 +1566,12 @@ export function Browser({
                   min={240}
                   max={3840}
                   defaultValue={tab?.height ?? 800}
+                  onChange={(event) => {
+                    if (aspectLocked && tab && viewportWidth.current && event.target.valueAsNumber)
+                      viewportWidth.current.valueAsNumber = Math.round(
+                        (event.target.valueAsNumber * tab.width) / tab.height
+                      )
+                  }}
                   disabled={!control || busy}
                   required
                 />

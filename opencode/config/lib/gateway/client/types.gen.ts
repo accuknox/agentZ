@@ -1036,6 +1036,8 @@ export type BrowserTab = {
   id: string
   url: string
   title: string
+  canGoBack?: boolean
+  canGoForward?: boolean
   sessionId: string
   profileId: string
   owner: "agent" | "human" | "unclaimed"

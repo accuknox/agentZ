@@ -1233,6 +1233,7 @@ server.on("upgrade", (req, socket, head) => {
     tab.viewers.set(viewer, { socket: ws, inFlight: tab.frame !== null, pending: null })
     if (tab.frame) ws.send(tab.frame)
     let previous = ""
+    let published = 0
     let dragging = false
     let pendingMove: { input: BrowserInput; generation: number } | undefined
     const publish = () => {
@@ -1242,8 +1243,10 @@ server.on("upgrade", (req, socket, head) => {
         state: state(tab),
         canOperate: tab.control.viewer === viewer,
       })
-      if (message === previous) return
+      // Static pages still need traffic so viewers can detect a broken link.
+      if (message === previous && Date.now() - published < 5000) return
       previous = message
+      published = Date.now()
       ws.send(message)
     }
     const status = setInterval(() => {

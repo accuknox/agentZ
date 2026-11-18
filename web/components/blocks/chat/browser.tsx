@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Camera,
-  Search,
   Link2,
   Unlink2,
   PanelTop,
@@ -132,10 +131,6 @@ export function Browser({
   const [picking, setPicking] = useState(false)
   const pickingGesture = useRef(false)
   const forwardedKeys = useRef(new Set<string>())
-  const [findOpen, setFindOpen] = useState(false)
-  const [findText, setFindText] = useState("")
-  const [findResult, setFindResult] = useState<string>()
-  const findInput = useRef<HTMLInputElement>(null)
   const [control, setControl] = useState(false)
   const [profileDialog, setProfileDialog] = useState<"create" | "rename" | null>(null)
   const [profileName, setProfileName] = useState("")
@@ -203,7 +198,6 @@ export function Browser({
     setStreamError(undefined)
     setPicking(false)
     if (lastView.tabId !== tabId) {
-      setFindResult(undefined)
       setAddress("")
       setEditingAddress(false)
     }
@@ -273,13 +267,13 @@ export function Browser({
 
   const receive = useEffectEvent(
     async (connection: WebSocket, event: MessageEvent<string | ArrayBuffer>) => {
-      if (connection !== socket.current) return
+      if (connection !== socket.current) return false
       try {
         if (typeof event.data === "string") {
           const message = zBrowserStreamEvent.parse(JSON.parse(event.data))
           if (message.type === "error") {
             toast.error(message.message)
-            return
+            return false
           }
           queryClient.setQueryData<BrowserResult>(key, (previous) => {
             if (!previous) return previous
@@ -289,29 +283,32 @@ export function Browser({
             }
           })
           setControl(message.canOperate)
-          return
+          return false
         }
         const image = await createImageBitmap(new Blob([event.data], { type: "image/jpeg" }))
         try {
-          if (connection !== socket.current) return
+          if (connection !== socket.current) return false
           const target = canvas.current
-          if (!target) return
+          if (!target) return false
           if (target.width !== image.width) target.width = image.width
           if (target.height !== image.height) target.height = image.height
           target.getContext("2d")?.drawImage(image, 0, 0)
           setHasFrame(true)
           setStreamError(undefined)
+          return true
         } finally {
           image.close()
         }
       } catch {
-        if (connection === socket.current)
-          setStreamError("Could not display the browser stream. Reconnect to try again.")
+        // A static page may never send another frame after a failed decode.
+        // Reconnecting requests its cached frame instead of waiting forever.
+        if (connection === socket.current) connection.close()
       } finally {
         // A failed decode must also release the server's frame backpressure.
         if (typeof event.data !== "string" && connection.readyState === WebSocket.OPEN)
           connection.send(JSON.stringify({ type: "ack" }))
       }
+      return false
     }
   )
 
@@ -320,7 +317,7 @@ export function Browser({
     const abort = new AbortController()
     let ws: WebSocket | undefined
     let retry: ReturnType<typeof setTimeout> | undefined
-    let watchdog: ReturnType<typeof setTimeout> | undefined
+    let watchdog: ReturnType<typeof setInterval> | undefined
     let attempts = 0
     function scheduleRetry() {
       if (abort.signal.aborted) return
@@ -338,21 +335,31 @@ export function Browser({
         ws = connection
         ws.binaryType = "arraybuffer"
         socket.current = ws
-        // A socket can open while the renderer never produces its first frame.
-        watchdog = setTimeout(() => connection.close(), 15000)
+        const started = Date.now()
+        let lastMessage = started
+        let rendered = false
+        // State heartbeats distinguish a static page from a silent connection.
+        // Receiving bytes alone does not mean the first frame was displayed.
+        watchdog = setInterval(() => {
+          if (Date.now() - (rendered ? lastMessage : started) < 15000) return
+          // A broken link may never finish the WebSocket close handshake.
+          // Replacing the effect reconnects without waiting for onclose.
+          setReconnect((value) => value + 1)
+        }, 5000)
         ws.onopen = () => {
           if (connection === socket.current) setConnected(true)
         }
         ws.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
-          if (typeof event.data !== "string") {
-            clearTimeout(watchdog)
+          lastMessage = Date.now()
+          void receive(connection, event).then((displayed) => {
+            if (!displayed || connection !== socket.current) return
+            rendered = true
             attempts = 0
-          }
-          void receive(connection, event)
+          })
         }
         ws.onclose = () => {
           if (abort.signal.aborted || connection !== socket.current) return
-          clearTimeout(watchdog)
+          clearInterval(watchdog)
           setConnected(false)
           setControl(false)
           setStreamError("Connection lost. Reconnecting…")
@@ -369,7 +376,7 @@ export function Browser({
     return () => {
       abort.abort()
       clearTimeout(retry)
-      clearTimeout(watchdog)
+      clearInterval(watchdog)
       socket.current = null
       ws?.close()
     }
@@ -398,15 +405,6 @@ export function Browser({
       clearTimeout(timer)
     }
   }, [fitPanel, visible, floating, control, tabId])
-
-  async function find(backwards = false) {
-    if (!findText || !control) return
-    const result = await action({
-      operation: "evaluate",
-      expression: `window.find(${JSON.stringify(findText)}, false, ${backwards}, true)`,
-    })
-    if (result) setFindResult(result.value ? "Match found" : "No matches")
-  }
 
   const wheel = useEffectEvent((event: WheelEvent) => {
     if (!control || !tab || !canvas.current) return
@@ -513,14 +511,6 @@ export function Browser({
           forwardedKeys.current.clear()
           addressInput.current?.focus()
           addressInput.current?.select()
-        }
-        if (event.key.toLowerCase() === "f" && control && !floating) {
-          event.preventDefault()
-          event.stopPropagation()
-          send({ type: "resetInput" })
-          forwardedKeys.current.clear()
-          setFindOpen(true)
-          requestAnimationFrame(() => findInput.current?.focus())
         }
       }}
     >
@@ -680,19 +670,6 @@ export function Browser({
             event.currentTarget.blur()
           }}
         />
-        <BrowserAction
-          type="button"
-          label="Find in page"
-          variant="ghost"
-          size="icon-sm"
-          disabled={!tabId || !control}
-          onClick={() => {
-            setFindOpen(!findOpen)
-            requestAnimationFrame(() => findInput.current?.focus())
-          }}
-        >
-          <Search />
-        </BrowserAction>
         <BrowserAction
           type="button"
           label="Device toolbar"
@@ -961,70 +938,6 @@ export function Browser({
             <ZoomIn />
           </BrowserAction>
         </div>
-      ) : null}
-      {findOpen && !floating ? (
-        <form
-          className="flex shrink-0 items-center gap-1 border-b p-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void find()
-          }}
-        >
-          <Input
-            ref={findInput}
-            aria-label="Find in page"
-            value={findText}
-            placeholder="Find in page"
-            className="h-8 min-w-0"
-            disabled={!control}
-            onChange={(event) => {
-              setFindText(event.target.value)
-              setFindResult(undefined)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault()
-                setFindOpen(false)
-                textInput.current?.focus()
-              }
-              if (event.key === "Enter" && event.shiftKey) {
-                event.preventDefault()
-                void find(true)
-              }
-            }}
-          />
-          <span role="status" className="shrink-0 text-xs text-muted-foreground">
-            {findResult}
-          </span>
-          <BrowserAction
-            label="Previous match"
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            disabled={!findText || !control || busy}
-            onClick={() => void find(true)}
-          >
-            <ArrowLeft />
-          </BrowserAction>
-          <BrowserAction
-            label="Next match"
-            type="submit"
-            variant="ghost"
-            size="icon-sm"
-            disabled={!findText || !control || busy}
-          >
-            <ArrowRight />
-          </BrowserAction>
-          <BrowserAction
-            label="Close find"
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setFindOpen(false)}
-          >
-            <X />
-          </BrowserAction>
-        </form>
       ) : null}
       {query.isError ? (
         <Alert variant="destructive" className="m-3 w-auto">

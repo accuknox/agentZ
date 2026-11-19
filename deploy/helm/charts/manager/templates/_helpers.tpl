@@ -3,19 +3,20 @@
 {{- end -}}
 
 {{- define "manager.browserImage" -}}
-{{- if .Values.config.browserImage -}}
-{{- .Values.config.browserImage -}}
-{{- else if .Values.browser.image.digest -}}
-{{- printf "%s@%s" .Values.browser.image.repository .Values.browser.image.digest -}}
+{{- $image := .Values.browser.image -}}
+{{- if $image.reference -}}
+{{- $image.reference -}}
+{{- else if $image.digest -}}
+{{- printf "%s@%s" $image.repository $image.digest -}}
 {{- else -}}
-{{- $tag := default (printf "v%s" .Chart.AppVersion) .Values.browser.image.tag -}}
-{{- printf "%s:%s" .Values.browser.image.repository $tag -}}
+{{- $tag := default (printf "v%s" .Chart.AppVersion) $image.tag -}}
+{{- printf "%s:%s" $image.repository $tag -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "manager.browserSeccompProfile" -}}
-{{- if .Values.config.browserSeccompProfile -}}
-{{- .Values.config.browserSeccompProfile -}}
+{{- if .Values.browser.seccomp.localhostProfile -}}
+{{- .Values.browser.seccomp.localhostProfile -}}
 {{- else if .Values.browser.seccomp.enabled -}}
 {{- printf "agentz/browser-%s.json" (.Files.Get "files/browser-seccomp.json" | sha256sum) -}}
 {{- end -}}

@@ -7,32 +7,7 @@ enabled: true
 nameOverride: ""
 fullnameOverride: ""
 
-inference:
-  externalSecrets:
-    enabled: true
-    storeName: ""
-    refreshInterval: 1m
-    serviceAccount:
-      name: ""
-      namespace: ""
-      annotations: {}
-      audiences:
-      - https://kubernetes.default.svc
-    openBao:
-      server: http://openbao.openbao.svc.cluster.local:8200
-      kvMount: kv
-      kubernetesAuthMount: kubernetes
-      role: agentz-inference-external-secrets
-      caBundle: ""
-      caProvider: {}
-    managedNamespaceSelector:
-      app.kubernetes.io/managed-by: agentz
-
-delegation:
-  # Standalone delegation namespace. Umbrella installs derive the gateway's
-  # default namespace; set this to match when overriding the gateway name.
-  namespace: ""
-
+# replicaCount can exceed one with leader election enabled.
 replicaCount: 1
 revisionHistoryLimit: 10
 terminationGracePeriodSeconds: 10
@@ -45,7 +20,8 @@ strategy:
 
 image:
   repository: public.ecr.aws/k9v9d5v2/agentz
-  tag: v0.36.0
+  # tag defaults to v<chart appVersion>. digest takes precedence.
+  tag: ""
   digest: ""
   pullPolicy: IfNotPresent
 
@@ -96,16 +72,60 @@ containerSecurityContext:
     drop:
     - ALL
 
+service:
+  metrics:
+    enabled: true
+    port: 8443
+  webhook:
+    port: 443
+    targetPort: 9443
+
 browser:
   image:
     repository: public.ecr.aws/k9v9d5v2/agentz/browser
-    # Empty uses v<chart appVersion>. A digest takes precedence over the tag.
+    # tag defaults to v<chart appVersion>. digest takes precedence.
     tag: ""
     digest: ""
+    # reference overrides the other image fields for the worker and installer.
+    reference: ""
   seccomp:
-    # Installs Chromium's profile automatically on all Linux nodes.
+    # enabled deploys a DaemonSet to install Chromium's profile on Linux nodes.
+    # The installer runs as root and writes to the node's seccomp directory.
     enabled: true
+    # kubeletDirectory is the node's seccomp directory.
     kubeletDirectory: /var/lib/kubelet/seccomp
+    # localhostProfile is relative to the kubelet's seccomp directory. Set it
+    # for an externally managed profile and disable the installer above. With
+    # the installer disabled and no profile set, browsers use RuntimeDefault.
+    localhostProfile: ""
+    # imagePullPolicy applies to the installer and defaults to image.pullPolicy.
+    imagePullPolicy: ""
+
+inference:
+  externalSecrets:
+    enabled: true
+    storeName: ""
+    refreshInterval: 1m
+    serviceAccount:
+      name: ""
+      namespace: ""
+      annotations: {}
+      audiences:
+      - https://kubernetes.default.svc
+    openBao:
+      server: http://openbao.openbao.svc.cluster.local:8200
+      kvMount: kv
+      kubernetesAuthMount: kubernetes
+      role: agentz-inference-external-secrets
+      caBundle: ""
+      caProvider: {}
+    managedNamespaceSelector:
+      app.kubernetes.io/managed-by: agentz
+
+delegation:
+  # namespace defaults to the gateway's delegation namespace in umbrella
+  # installs. Set it to match when overriding the gateway's name.
+  namespace: ""
 
 config:
   logLevel: info
@@ -116,35 +136,45 @@ config:
   leaderElect: true
   metricsSecure: true
   enableHTTP2: false
+  # workflowRunOrphanRetention prunes orphaned terminal WorkflowRuns. Set 0
+  # to disable pruning.
   workflowRunOrphanRetention: 168h
-  # Empty inherits image.repository and image.tag or image.digest so managed
-  # workloads receive the same fixes as the manager. Set to override.
+  # controllerImage defaults to the manager image for extauth, sinjector,
+  # and agent filesystem sidecars.
   controllerImage: ""
-  browserSeccompProfile: ""
-  # Optional full image override shared by the browser and profile installer.
-  browserImage: ""
+  # agentImage is the default image for Agent resources created by the system.
   agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:v0.36.0
+  # agentInitImage supplies the init container for Nix agents.
   agentInitImage: public.ecr.aws/k9v9d5v2/agentz/init:v0.36.0
+  # gatewayURL is required for standalone installs. Umbrella installs default
+  # to the bundled gateway Service.
   gatewayURL: ""
-  # Body buffer for inference gateway CEL authorization.
+  # inferenceMaxBufferSize is the body buffer for inference gateway CEL
+  # authorization. Use a Kubernetes quantity from 1 to 4294967295 bytes.
   inferenceMaxBufferSize: 32Mi
+  # agentgatewayTraceMode supports service and static. Umbrella installs
+  # default the service name and namespace to the bundled observer.
   agentgatewayTraceMode: service
   agentgatewayTraceServiceName: ""
   agentgatewayTraceServiceNamespace: ""
   agentgatewayTraceServicePort: 4317
   agentgatewayTraceHost: ""
   agentgatewayTracePort: 4317
+  # delegationTracePort is the observer port for delegated gateway exporters.
   delegationTracePort: 4318
+  # nixStorePVC is the name of each scope-local PVC used by agent package jobs.
   nixStorePVC: nix-store
   nixStoreSize: 5Gi
   nixStoreAccessModes:
   - ReadWriteOnce
   nixStoreStorageClass: ""
   nixCacheEndpoint: https://cache.nixos.org
+  # skillsS3Endpoint serves immutable Skill objects.
   skillsS3Endpoint: http://rustfs.rustfs.svc.cluster.local:9000
   skillsS3Region: us-east-1
   skillsS3Bucket: agentz
   openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
+  # managerOpenBaoAddr overrides the OpenBao address for manager provisioning.
   managerOpenBaoAddr: ""
   openBaoSecretMountPath: kv
   openBaoK8sAuthMountPath: kubernetes
@@ -162,7 +192,10 @@ config:
   sinjectorCACertPath: /etc/agentz/sinjector-ca/tls.crt
   sinjectorCAKeyPath: /etc/agentz/sinjector-ca/tls.key
   agentCABundlePath: /etc/agentz/sinjector-ca/ca.crt
+  # tenantSinjectorClusterIssuerName is the ClusterIssuer for tenant CAs.
   tenantSinjectorClusterIssuerName: selfsigned
+  # tenantAgentQuota is copied to new tenants. Existing tenants and agents
+  # keep their configured quotas.
   tenantAgentQuota:
     count: 2
     resources:
@@ -192,21 +225,16 @@ config:
       responseBytes: 2Mi
       pointsPerSeries: 500
       timeout: 5s
+  # watchNamespace accepts one namespace or a comma-separated list.
   watchNamespace: ""
   enableWebhooks: true
 
-service:
-  metrics:
-    enabled: true
-    port: 8443
-  webhook:
-    port: 443
-    targetPort: 9443
-
 certManager:
+  # enabled creates cert-manager resources for the admission webhooks.
   enabled: true
   issuerName: selfsigned-issuer
   webhookCertificateName: serving-cert
   webhookSecretName: ""
 
+# extraArgs are appended to the manager command.
 extraArgs: []

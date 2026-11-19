@@ -206,7 +206,7 @@ install-browser-seccomp:
 	$(HELM) template agentz-dev deploy/helm/charts/manager \
 		--namespace "$(K8S_NAMESPACE)" \
 		--set-string fullnameOverride=agentz-dev-manager \
-		--set-string config.browserImage="$(BROWSER_IMAGE)" \
+		--set-string browser.image.reference="$(BROWSER_IMAGE)" \
 		--set-string config.gatewayURL=http://172.18.0.1:8090 \
 		--set-string config.agentgatewayTraceMode=static \
 		--set-string config.agentgatewayTraceHost=172.18.0.1 \

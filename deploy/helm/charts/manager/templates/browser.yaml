@@ -1,6 +1,6 @@
 {{- if and .Values.enabled .Values.browser.seccomp.enabled }}
-{{- if .Values.config.browserSeccompProfile }}
-{{- fail "Disable browser.seccomp.enabled before setting config.browserSeccompProfile to an externally managed profile" }}
+{{- if .Values.browser.seccomp.localhostProfile }}
+{{- fail "Set browser.seccomp.enabled=false to use an externally managed browser.seccomp.localhostProfile" }}
 {{- end }}
 {{- $name := printf "%s-browser-seccomp" (include "manager.fullname" . | trunc 47 | trimSuffix "-") }}
 {{- $profile := include "manager.browserSeccompProfile" . | base }}
@@ -48,7 +48,7 @@ spec:
       containers:
         - name: install
           image: {{ include "manager.browserImage" . | quote }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ default .Values.image.pullPolicy .Values.browser.seccomp.imagePullPolicy }}
           command: [node, -e]
           args:
             - |

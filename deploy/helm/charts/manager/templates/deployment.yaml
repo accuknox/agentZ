@@ -71,7 +71,8 @@ spec:
       {{- end }}
       containers:
         - name: manager
-          {{- $image := printf "%s:%s" .Values.image.repository .Values.image.tag }}
+          {{- $tag := default (printf "v%s" .Chart.AppVersion) .Values.image.tag }}
+          {{- $image := printf "%s:%s" .Values.image.repository $tag }}
           {{- if .Values.image.digest }}
           {{- $image = printf "%s@%s" .Values.image.repository .Values.image.digest }}
           {{- end }}

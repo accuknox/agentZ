@@ -749,13 +749,12 @@ async function operate(
         selected.refs.clear()
         const snapshot = ++selected.snapshot
         const hidden = new Set<string>()
-        for (const frame of page.frames()) {
-          if (snapshot !== selected.snapshot || Date.now() >= deadline)
-            throw new Error("Snapshot interrupted. Take a fresh snapshot.")
-          signal?.throwIfAborted()
-          const passwords = await frame
-            .locator("input,textarea,[contenteditable]")
-            .evaluateAll((elements) =>
+        const passwordsByFrame = await Promise.all(
+          page.frames().map(async (frame) => {
+            if (snapshot !== selected.snapshot || Date.now() >= deadline)
+              throw new Error("Snapshot interrupted. Take a fresh snapshot.")
+            signal?.throwIfAborted()
+            return frame.locator("input,textarea,[contenteditable]").evaluateAll((elements) =>
               elements.flatMap((element) => {
                 const field =
                   element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
@@ -776,6 +775,9 @@ async function operate(
                   .filter(Boolean)
               })
             )
+          })
+        )
+        for (const passwords of passwordsByFrame) {
           for (const value of passwords) {
             if (value.length > 64000) throw new Error("A password field cannot be safely masked")
             hidden.add(value)
@@ -996,7 +998,10 @@ async function operate(
         break
       case "recordingStart": {
         if (selected.recording) throw new Error("Recording already running")
-        const encoderContext = await context("incognito", `recording-${selected.id}`)
+        // Encoding needs an isolated page, not another Chromium process.
+        const browser = page.context().browser()
+        if (!browser) throw new Error("Browser disconnected")
+        const encoderContext = await browser.newContext()
         const encoder = await encoderContext.newPage()
         try {
           await encoder.evaluate(recordingEncoderScript)

@@ -32,7 +32,7 @@ func (r *Reconciler) reconcileBrowser(ctx context.Context, agt *agentzv1alpha1.A
 	}
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, secret, func() error {
 		if secret.ResourceVersion != "" && !metav1.IsControlledBy(secret, agt) {
-			return fmt.Errorf("Secret %q already exists and is not controlled by this Agent", secret.Name)
+			return fmt.Errorf("secret %q already exists and is not controlled by this Agent", secret.Name)
 		}
 		if secret.Data == nil {
 			secret.Data = make(map[string][]byte, 2)

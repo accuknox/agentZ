@@ -43,7 +43,7 @@ func Validate(tools []agentzv1alpha1.AgentTool, p *field.Path) field.ErrorList {
 	}
 	// OpenCode permits overriding built-ins. Uploaded tools must not change
 	// platform behavior or impersonate gateway MCP tools, including future ones.
-	reserved := []string{
+	reserved := slices.Concat([]string{
 		"report_progress",
 		"bash", "shell", "read", "write", "edit", "glob", "grep", "task",
 		"webfetch", "websearch", "todowrite", "question", "lsp", "apply_patch",
@@ -54,8 +54,7 @@ func Validate(tools []agentzv1alpha1.AgentTool, p *field.Path) field.ErrorList {
 		"list_workflow_schedules", "set_workflowrun_status", "create_dashboard",
 		"get_dashboard", "list_dashboards", "delete_dashboard", "publish_dashboard_data",
 		"list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource",
-	}
-	reserved = append(reserved, BrowserNames()...)
+	}, BrowserNames())
 	types := []agentzv1alpha1.ToolInputType{
 		agentzv1alpha1.ToolInputString,
 		agentzv1alpha1.ToolInputNumber,

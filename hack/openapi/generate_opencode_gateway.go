@@ -53,6 +53,7 @@ var baseOperationCapabilities = map[string][]string{
 		"listSecrets", "watchSecrets",
 	},
 	"agent.use_shared": {
+		"runBrowser", "streamBrowser", "uploadBrowserFile",
 		"listChatBackground",
 		"listChatInputs",
 		"updateChatSession",

@@ -35,7 +35,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
+
+// AgentRuntimePolicyName identifies the policy separating Agent pod ingress
+// from the rest of its namespace.
+const AgentRuntimePolicyName = "agent-runtime"
 
 // Target is one admitted TCP destination.
 type Target struct {
@@ -242,4 +248,41 @@ func ReconcileRuntimeIsolation(ctx context.Context, c client.Client, namespace *
 		return fmt.Errorf("reconcile runtime isolation: %w", err)
 	}
 	return nil
+}
+
+// AgentIngress separates Agent runtime ingress from broad infrastructure grants.
+// It excludes Agent endpoints from infrastructure and returns their runtime rule.
+// The browser control port is reachable only by the configured gateway identity.
+func AgentIngress(infrastructure *ciliumapi.Rule, gatewayNamespace, gatewayAccount string) *ciliumapi.Rule {
+	const agentLabel = "k8s.agentz.accuknox.com/agent"
+	agent := infrastructure.DeepCopy()
+	infrastructure.EndpointSelector.AddMatchExpression(agentLabel, slimv1.LabelSelectorOpDoesNotExist, nil)
+	agent.EndpointSelector.AddMatchExpression(agentLabel, slimv1.LabelSelectorOpExists, nil)
+	for i := range agent.Ingress {
+		if len(agent.Ingress[i].ToPorts) != 0 {
+			continue
+		}
+		agent.Ingress[i].ToPorts = ciliumapi.PortRules{{Ports: []ciliumapi.PortProtocol{
+			{Port: "4096", Protocol: ciliumapi.ProtoTCP},
+			{Port: "4097", Protocol: ciliumapi.ProtoTCP},
+		}}}
+	}
+	if gatewayNamespace == "" || gatewayAccount == "" {
+		return agent
+	}
+	gateway := ciliumapi.NewESFromK8sLabelSelector("k8s.", &slimv1.LabelSelector{
+		MatchLabels: map[string]string{
+			"io.kubernetes.pod.namespace":         gatewayNamespace,
+			"io.cilium.k8s.policy.serviceaccount": gatewayAccount,
+		},
+	})
+	agent.Ingress = append(agent.Ingress, ciliumapi.IngressRule{
+		IngressCommonRule: ciliumapi.IngressCommonRule{
+			FromEndpoints: []ciliumapi.EndpointSelector{gateway},
+		},
+		ToPorts: ciliumapi.PortRules{{Ports: []ciliumapi.PortProtocol{
+			{Port: strconv.Itoa(int(agentzv1alpha1.BrowserPort)), Protocol: ciliumapi.ProtoTCP},
+		}}},
+	})
+	return agent
 }

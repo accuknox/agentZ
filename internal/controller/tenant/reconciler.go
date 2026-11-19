@@ -452,117 +452,129 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, tenant *agent
 			Namespace: nsName,
 		},
 	}
-	_, err = controllerutil.CreateOrPatch(
-		ctx,
-		r.directClient(),
-		policy,
-		func() error {
-			if policy.Labels == nil {
-				policy.Labels = map[string]string{}
-			}
-			policy.Labels[agentzv1alpha1.TenantManagedByLabel] = agentzv1alpha1.TenantManagedByValue
-			policy.Labels[agentzv1alpha1.TenantNameLabel] = tenant.Name
-			selector := ciliumpolicyapi.NewESFromK8sLabelSelector(
-				ciliumlabels.LabelSourceK8sKeyPrefix,
-				&slimv1.LabelSelector{
-					MatchExpressions: []slimv1.LabelSelectorRequirement{
-						{
-							Key:      "io.cilium.k8s.policy.serviceaccount",
-							Operator: slimv1.LabelSelectorOpNotIn,
-							Values:   []string{"inference", "mcp", "extauth"},
-						},
-						{
-							Key:      agentzv1alpha1.AgentPackageJobLabel,
-							Operator: slimv1.LabelSelectorOpDoesNotExist,
-						},
-						{
-							Key:      workflowScheduleRunnerLabelKey,
-							Operator: slimv1.LabelSelectorOpDoesNotExist,
-						},
-					},
+	selector := ciliumpolicyapi.NewESFromK8sLabelSelector(
+		ciliumlabels.LabelSourceK8sKeyPrefix,
+		&slimv1.LabelSelector{
+			MatchExpressions: []slimv1.LabelSelectorRequirement{
+				{
+					Key:      "io.cilium.k8s.policy.serviceaccount",
+					Operator: slimv1.LabelSelectorOpNotIn,
+					Values:   []string{"inference", "mcp", "extauth"},
 				},
-			)
-			peerSelector := ciliumpolicyapi.NewESFromK8sLabelSelector(
-				ciliumlabels.LabelSourceK8sKeyPrefix,
-				&slimv1.LabelSelector{
-					MatchExpressions: []slimv1.LabelSelectorRequirement{
-						{
-							Key:      agentzv1alpha1.AgentPackageJobLabel,
-							Operator: slimv1.LabelSelectorOpDoesNotExist,
-						},
-						{
-							Key:      workflowScheduleRunnerLabelKey,
-							Operator: slimv1.LabelSelectorOpDoesNotExist,
-						},
-						{
-							Key:      agentLabelKey,
-							Operator: slimv1.LabelSelectorOpDoesNotExist,
-						},
-					},
+				{
+					Key:      agentzv1alpha1.AgentPackageJobLabel,
+					Operator: slimv1.LabelSelectorOpDoesNotExist,
 				},
-			)
-
-			policy.Spec = &ciliumpolicyapi.Rule{
-				Description:      "Restrict tenant traffic and isolate agents from each other.",
-				EndpointSelector: selector,
-				Ingress: []ciliumpolicyapi.IngressRule{
-					{
-						IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
-							FromEndpoints: []ciliumpolicyapi.EndpointSelector{
-								peerSelector,
-							},
-						},
-					},
-					{
-						IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
-							FromEndpoints: []ciliumpolicyapi.EndpointSelector{
-								ciliumpolicyapi.NewESFromLabels(
-									ciliumlabels.NewLabel(
-										"io.kubernetes.pod.namespace",
-										r.ManagerServiceAccountNamespace,
-										ciliumlabels.LabelSourceK8s,
-									),
-								),
-							},
-						},
-					},
+				{
+					Key:      workflowScheduleRunnerLabelKey,
+					Operator: slimv1.LabelSelectorOpDoesNotExist,
 				},
-				Egress: []ciliumpolicyapi.EgressRule{
-					{
-						EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
-							ToEndpoints: []ciliumpolicyapi.EndpointSelector{
-								peerSelector,
-							},
-						},
-					},
-					{
-						EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
-							ToEndpoints: []ciliumpolicyapi.EndpointSelector{
-								{
-									LabelSelector: &slimv1.LabelSelector{
-										MatchLabels: map[string]string{
-											"k8s:io.kubernetes.pod.namespace": "kube-system",
-											"k8s:k8s-app":                     "kube-dns",
-										},
-									},
-								},
-							},
-						},
-						ToPorts: []ciliumpolicyapi.PortRule{
-							{
-								Ports: []ciliumpolicyapi.PortProtocol{
-									{Port: "53", Protocol: "UDP"},
-									{Port: "53", Protocol: "TCP"},
-								},
-							},
-						},
-					},
-				},
-			}
-			policy.Specs = nil
-			return controllerutil.SetControllerReference(tenant, policy, r.Scheme)
+			},
 		},
 	)
+	peerSelector := ciliumpolicyapi.NewESFromK8sLabelSelector(
+		ciliumlabels.LabelSourceK8sKeyPrefix,
+		&slimv1.LabelSelector{
+			MatchExpressions: []slimv1.LabelSelectorRequirement{
+				{
+					Key:      agentzv1alpha1.AgentPackageJobLabel,
+					Operator: slimv1.LabelSelectorOpDoesNotExist,
+				},
+				{
+					Key:      workflowScheduleRunnerLabelKey,
+					Operator: slimv1.LabelSelectorOpDoesNotExist,
+				},
+				{
+					Key:      agentLabelKey,
+					Operator: slimv1.LabelSelectorOpDoesNotExist,
+				},
+			},
+		},
+	)
+
+	isolation := &ciliumpolicyapi.Rule{
+		Description:      "Restrict tenant traffic and isolate agents from each other.",
+		EndpointSelector: selector,
+		Ingress: []ciliumpolicyapi.IngressRule{
+			{
+				IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
+					FromEndpoints: []ciliumpolicyapi.EndpointSelector{
+						peerSelector,
+					},
+				},
+			},
+			{
+				IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
+					FromEndpoints: []ciliumpolicyapi.EndpointSelector{
+						ciliumpolicyapi.NewESFromLabels(
+							ciliumlabels.NewLabel(
+								"io.kubernetes.pod.namespace",
+								r.ManagerServiceAccountNamespace,
+								ciliumlabels.LabelSourceK8s,
+							),
+						),
+					},
+				},
+			},
+		},
+		Egress: []ciliumpolicyapi.EgressRule{
+			{
+				EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
+					ToEndpoints: []ciliumpolicyapi.EndpointSelector{
+						peerSelector,
+					},
+				},
+			},
+			{
+				EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
+					ToEndpoints: []ciliumpolicyapi.EndpointSelector{
+						{
+							LabelSelector: &slimv1.LabelSelector{
+								MatchLabels: map[string]string{
+									"k8s:io.kubernetes.pod.namespace": "kube-system",
+									"k8s:k8s-app":                     "kube-dns",
+								},
+							},
+						},
+					},
+				},
+				ToPorts: []ciliumpolicyapi.PortRule{
+					{
+						Ports: []ciliumpolicyapi.PortProtocol{
+							{Port: "53", Protocol: "UDP"},
+							{Port: "53", Protocol: "TCP"},
+						},
+					},
+				},
+			},
+		},
+	}
+	agentRule := networkpolicy.AgentIngress(isolation, r.GatewayServiceAccountNamespace, r.GatewayServiceAccountName)
+	// Install Agent ingress before the existing policy stops selecting Agents.
+	runtimePolicy := &ciliumv2.CiliumNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      networkpolicy.AgentRuntimePolicyName,
+			Namespace: nsName,
+		},
+	}
+	_, err = controllerutil.CreateOrPatch(ctx, r.directClient(), runtimePolicy, func() error {
+		runtimePolicy.Spec = agentRule
+		runtimePolicy.Specs = nil
+		return controllerutil.SetControllerReference(tenant, runtimePolicy, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("reconcile agent ingress: %w", err)
+	}
+	_, err = controllerutil.CreateOrPatch(ctx, r.directClient(), policy, func() error {
+		if policy.Labels == nil {
+			policy.Labels = map[string]string{}
+		}
+		policy.Labels[agentzv1alpha1.TenantManagedByLabel] = agentzv1alpha1.TenantManagedByValue
+		policy.Labels[agentzv1alpha1.TenantNameLabel] = tenant.Name
+		policy.Spec = isolation
+		policy.Specs = nil
+		return controllerutil.SetControllerReference(tenant, policy, r.Scheme)
+	})
 	if err != nil {
 		return fmt.Errorf("reconcile cilium network policy: %w", err)
 	}

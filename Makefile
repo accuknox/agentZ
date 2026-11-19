@@ -3,6 +3,11 @@ SHELL := bash
 
 IMAGE ?= public.ecr.aws/k9v9d5v2/agentz:latest
 AGENT_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/agent:latest
+BROWSER_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/browser:latest
+BROWSER_SECCOMP_FILES := $(wildcard deploy/helm/charts/manager/files/browser-seccomp-*.json)
+BROWSER_BUNDLED_SECCOMP_PROFILE = agentz/browser-$(shell cat $(BROWSER_SECCOMP_FILES) | sha256sum | cut -d' ' -f1).json
+# Matches install-browser-seccomp. Override for an externally managed node profile.
+BROWSER_SECCOMP_PROFILE ?= $(BROWSER_BUNDLED_SECCOMP_PROFILE)
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
 CODING_GITHUB_CLIENT_ID ?=
@@ -28,7 +33,13 @@ GATEWAY_FLAGS ?=
 
 KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize
-CONTROLLER_GEN ?= controller-gen
+HELM ?= helm
+# Use the same locked generator packages as the Nix development shell.
+NIX ?= nix
+CONTROLLER_GEN := $(NIX) run .\#controller-gen --
+OAPI_CODEGEN := $(NIX) run .\#oapi-codegen --
+SQLC := $(NIX) run .\#sqlc --
+YAMLFMT := $(NIX) run .\#yamlfmt --
 
 # Codex 0.162.1 protocol schemas, including experimental gateway OAuth.
 CODEX_SOURCE_URL := https://raw.githubusercontent.com/openai/codex/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs
@@ -41,12 +52,14 @@ all: generate lint build
 
 .PHONY: generate
 generate:
+	python3 hack/browser/seccomp.py
 	cd web && bun run gen:db-schema
-	sqlc generate
+	$(SQLC) generate
 	go run ./hack/inference/generate_providers.go
 	go run ./hack/openapi/generate_opencode_gateway.go
+	$(YAMLFMT) openapi/gateway.yaml
 	$(MAKE) generate-codex
-	oapi-codegen \
+	$(OAPI_CODEGEN) \
 		--include-tags guardrails,coding,agents,tenants,workspaces,event-trail,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,chat-sessions,session,sessions,event,global,config,project,permission,question,pty,dashboards \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
@@ -56,6 +69,7 @@ generate:
 		output:webhook:artifacts:config=deploy/kustomize/webhook \
 		output:crd:artifacts:config=deploy/kustomize/crd/bases
 	cp deploy/kustomize/crd/bases/*.yaml deploy/helm/charts/manager/crds/
+	$(YAMLFMT) deploy/kustomize
 	cd web && bun run gen:openapi-client
 	cd opencode/config && bun run gen:openapi-client
 
@@ -75,9 +89,10 @@ generate-codex:
 fmt:
 	go fmt $(GO_PKGS)
 	goimports -w cmd hack internal pkg
-	yamlfmt .
+	$(YAMLFMT) .
 	cd web && bun run format
 	cd opencode/config && bun run format
+	cd opencode/config && bunx prettier --config prettier.config.mjs ../browser/*.ts --write
 	$(MAKE) fmt-markdown
 
 .PHONY: fmt-markdown lint-markdown
@@ -91,6 +106,7 @@ fmt-markdown lint-markdown:
 .PHONY: test
 test:
 	go test -race -shuffle=on $(GO_PKGS) -coverprofile cover.out
+	cd opencode/browser && bun run test
 
 .PHONY: lint
 lint:
@@ -99,11 +115,13 @@ lint:
 	yamllint .
 	cd web && bun run lint && bun run typecheck
 	cd opencode/config && bun run lint && bun run typecheck
+	cd opencode/browser && bun run typecheck
 	$(MAKE) lint-markdown
 
 .PHONY: build
 build:
 	go build $(GO_PKGS)
+	cd opencode/browser && bun run build
 
 .PHONY: run-gateway
 run-gateway:
@@ -121,6 +139,7 @@ run-gateway:
 		--addr=0.0.0.0:8090 \
 		--target-override=localhost:4096 \
 		--filesystem-target-override=localhost:4097 \
+		--browser-target-override=localhost:4098 \
 		--delegation-namespace="$(DELEGATION_NAMESPACE)" \
 		--delegation-gateway-url="$(DELEGATION_GATEWAY_URL)" \
 		--postgres-dsn="$(POSTGRES_DSN)" \
@@ -155,6 +174,8 @@ run-manager:
 		--delegation-namespace="$(DELEGATION_NAMESPACE)" \
 		--controller-image=$(IMAGE) \
 		--agent-image=$(AGENT_IMAGE) \
+		--browser-image="$(BROWSER_IMAGE)" \
+		--browser-seccomp-profile="$(BROWSER_SECCOMP_PROFILE)" \
 		--openbao-addr=http://openbao.openbao.svc.cluster.local:8200 \
 		--openbao-secret-mount-path=kv \
 		--manager-openbao-addr=http://localhost:8200 \
@@ -179,6 +200,28 @@ run-manager:
 		--agentgateway-trace-port=4317 \
 		--delegation-trace-port=4318 \
 		--gateway-url=http://172.18.0.1:8090
+
+# Run once per development cluster before enabling browser use, unless Helm installed it.
+.PHONY: install-browser-seccomp
+install-browser-seccomp:
+	$(HELM) template agentz-dev deploy/helm/charts/manager \
+		--namespace "$(K8S_NAMESPACE)" \
+		--set-string fullnameOverride=agentz-dev-manager \
+		--set-string browser.image.reference="$(BROWSER_IMAGE)" \
+		--set-string config.gatewayURL=http://172.18.0.1:8090 \
+		--set-string config.agentgatewayTraceMode=static \
+		--set-string config.agentgatewayTraceHost=172.18.0.1 \
+		--show-only templates/browser.yaml | $(KUBECTL) -n "$(K8S_NAMESPACE)" apply -f -
+	$(KUBECTL) -n "$(K8S_NAMESPACE)" rollout status daemonset/agentz-dev-manager-browser-seccomp --timeout=120s
+
+# Set K8S_NAMESPACE to the Kustomize manager namespace. Restart an existing
+# manager Deployment after updating the ConfigMap.
+.PHONY: configure-kustomize-browser
+configure-kustomize-browser: install-browser-seccomp
+	$(KUBECTL) -n "$(K8S_NAMESPACE)" create configmap agentz-browser \
+		--from-literal=AGENTZ_BROWSER_IMAGE="$(BROWSER_IMAGE)" \
+		--from-literal=AGENTZ_BROWSER_SECCOMP_PROFILE="$(BROWSER_BUNDLED_SECCOMP_PROFILE)" \
+		--dry-run=client -o yaml | $(KUBECTL) -n "$(K8S_NAMESPACE)" apply -f -
 
 .PHONY: run-observer
 run-observer:

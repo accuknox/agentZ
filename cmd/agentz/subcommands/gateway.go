@@ -123,6 +123,10 @@ var gatewayServeCmd = &cli.Command{
 			},
 		},
 		&cli.StringFlag{
+			Name:  "browser-target-override",
+			Usage: "Override browser target for local port-forward testing",
+		},
+		&cli.StringFlag{
 			Name:  "filesystem-target-override",
 			Usage: "Override the filesystem target for local port-forward testing",
 			Config: cli.StringConfig{
@@ -235,6 +239,7 @@ var gatewayServeCmd = &cli.Command{
 				InternalK8sTokenAudience:       c.String("internal-k8s-token-audience"),
 				TargetOverride:                 c.String("target-override"),
 				FilesystemTargetOverride:       c.String("filesystem-target-override"),
+				BrowserTargetOverride:          c.String("browser-target-override"),
 				AgentImage:                     c.String("agent-image"),
 				AgentTraceEndpoint:             c.String("agent-trace-endpoint"),
 				OpenBaoAddr:                    c.String("openbao-addr"),

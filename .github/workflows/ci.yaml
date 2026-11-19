@@ -51,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        directory: [web, opencode/config]
+        directory: [web, opencode/config, opencode/browser]
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
@@ -60,7 +60,7 @@ jobs:
     - uses: oven-sh/setup-bun@v2.2.0
       id: bun
       with:
-        bun-version: latest
+        bun-version: 1.4.4
     - uses: actions/cache@v6.1.0
       with:
         path: ~/.bun/install/cache
@@ -70,6 +70,7 @@ jobs:
     - name: Install dependencies
       run: bun install --frozen-lockfile
     - name: Lint
+      if: matrix.directory != 'opencode/browser'
       run: bun run lint
     - name: Check Markdown formatting
       if: matrix.directory == 'opencode/config'
@@ -77,6 +78,9 @@ jobs:
     - name: Generate route types
       if: matrix.directory == 'web'
       run: bun run next typegen
+    - name: Browser control tests
+      if: matrix.directory == 'opencode/browser'
+      run: bun run test
     - name: Typecheck
       run: bun run typecheck
 
@@ -128,6 +132,10 @@ jobs:
           repository: public.ecr.aws/k9v9d5v2/agentz/init
           context: .
           file: Dockerfile.init
+        - name: browser
+          repository: public.ecr.aws/k9v9d5v2/agentz/browser
+          context: .
+          file: Dockerfile.browser
         - name: agentgateway
           repository: public.ecr.aws/k9v9d5v2/agentz/agentgateway
           nix-package: agentgatewayImage
@@ -241,6 +249,8 @@ jobs:
           repository: public.ecr.aws/k9v9d5v2/agentz/web
         - name: init
           repository: public.ecr.aws/k9v9d5v2/agentz/init
+        - name: browser
+          repository: public.ecr.aws/k9v9d5v2/agentz/browser
         - name: agentgateway
           repository: public.ecr.aws/k9v9d5v2/agentz/agentgateway
         - name: agent

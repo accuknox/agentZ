@@ -560,6 +560,7 @@ func (s *Service) CreateAgent(w http.ResponseWriter, r *http.Request) {
 				Instruction: &agt.Spec.Instruction,
 			},
 			AutoArchiveHours: agt.Spec.AutoArchiveHours,
+			Browser:          gatewayapi.AgentBrowserConfig{Enabled: agt.Spec.Browser.Enabled},
 			Memory: gatewayapi.AgentMemoryConfig{
 				Enabled: agt.Spec.Memory.Enabled,
 			},
@@ -643,7 +644,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 	}
 	empty := req.Appearance == nil && req.Env == nil &&
 		req.Sandbox == nil && req.Opencode == nil &&
-		req.Memory == nil && req.Skills == nil && req.AutoArchiveHours == nil
+		req.Memory == nil && req.Browser == nil && req.Skills == nil && req.AutoArchiveHours == nil
 	if empty {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadRequest,
@@ -777,6 +778,7 @@ func (s *Service) UpdateAgent(w http.ResponseWriter, r *http.Request, agentName 
 				Instruction: &updated.Spec.Instruction,
 			},
 			AutoArchiveHours: updated.Spec.AutoArchiveHours,
+			Browser:          gatewayapi.AgentBrowserConfig{Enabled: updated.Spec.Browser.Enabled},
 			Memory: gatewayapi.AgentMemoryConfig{
 				Enabled: updated.Spec.Memory.Enabled,
 			},
@@ -1679,7 +1681,7 @@ func (s *Service) WatchAgents(w http.ResponseWriter, r *http.Request) {
 				sameAppearance &&
 				prevItem.Name == item.Name &&
 				prevItem.Sandbox == item.Sandbox &&
-				prevItem.Memory == item.Memory &&
+				prevItem.Memory == item.Memory && prevItem.Browser == item.Browser &&
 				prevItem.AutoArchiveHours == item.AutoArchiveHours &&
 				*prevItem.Opencode.Instruction == *item.Opencode.Instruction &&
 				prevItem.LastActivity.Equal(item.LastActivity) &&
@@ -2483,6 +2485,7 @@ func (s *Service) listAgentItems(ctx context.Context, q gatewaydb.GatewayListAge
 				},
 				Capabilities:     caps[row.AgentName],
 				AutoArchiveHours: agt.Spec.AutoArchiveHours,
+				Browser:          gatewayapi.AgentBrowserConfig{Enabled: agt.Spec.Browser.Enabled},
 				Memory: gatewayapi.AgentMemoryConfig{
 					Enabled: agt.Spec.Memory.Enabled,
 				},
@@ -2647,6 +2650,9 @@ func (s *Service) agentFromCreateRequest(req gatewayapi.CreateAgentRequest, name
 	if req.Skills != nil {
 		agt.Spec.Skills = resourceReferencesToCRD(*req.Skills)
 	}
+	if req.Browser != nil {
+		agt.Spec.Browser.Enabled = req.Browser.Enabled
+	}
 	if req.Memory != nil {
 		agt.Spec.Memory.Enabled = req.Memory.Enabled
 	}
@@ -2672,6 +2678,9 @@ func applyUpdateAgentRequest(agt *agentzv1alpha1.Agent, req gatewayapi.UpdateAge
 	}
 	if req.Skills != nil {
 		agt.Spec.Skills = resourceReferencesToCRD(*req.Skills)
+	}
+	if req.Browser != nil {
+		agt.Spec.Browser.Enabled = req.Browser.Enabled
 	}
 	if req.Memory != nil {
 		agt.Spec.Memory.Enabled = req.Memory.Enabled

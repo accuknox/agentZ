@@ -934,6 +934,233 @@ export const zAgentAppearance = z.object({
   color: zMascotColor,
 })
 
+export const zAgentBrowserConfig = z.object({
+  enabled: z.boolean(),
+})
+
+export const zBrowserDevTarget = z.object({
+  kind: z.enum(["environment-port"]),
+  port: z.int().gte(1).lte(65535),
+  protocol: z.enum(["http", "https"]).optional(),
+  path: z.string().optional(),
+})
+
+export const zBrowserInput = z.object({
+  clickCount: z.int().gte(1).lte(3).optional(),
+  type: z.enum([
+    "mouse",
+    "key",
+    "text",
+    "wheel",
+    "ack",
+    "takeControl",
+    "releaseControl",
+    "resetInput",
+    "captureSize",
+  ]),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  action: z.enum(["move", "down", "up"]).optional(),
+  button: z.enum(["left", "right", "middle"]).optional(),
+  key: z.string().max(100).optional(),
+  text: z.string().max(64000).optional(),
+  deltaX: z.number().optional(),
+  deltaY: z.number().optional(),
+  captureWidth: z.int().gte(1).lte(1440).optional(),
+  captureHeight: z.int().gte(1).lte(1440).optional(),
+})
+
+export const zBrowserStreamError = z.object({
+  type: z.enum(["error"]),
+  message: z.string(),
+})
+
+export const zBrowserCursorHint = z.object({
+  type: z.enum(["cursor"]),
+  pointer: z.boolean(),
+})
+
+export const zBrowserPreset = z.object({
+  id: z.string(),
+  label: z.string(),
+  width: z.int(),
+  height: z.int(),
+})
+
+export const zBrowserRequest = z.object({
+  operation: z.enum([
+    "status",
+    "open",
+    "navigate",
+    "close",
+    "snapshot",
+    "click",
+    "type",
+    "hover",
+    "select",
+    "drag",
+    "upload",
+    "press",
+    "scroll",
+    "evaluate",
+    "waitFor",
+    "dialog",
+    "resize",
+    "setColorScheme",
+    "recordingStart",
+    "recordingStop",
+    "takeControl",
+    "releaseControl",
+    "history",
+    "reload",
+    "stopLoading",
+    "profiles",
+    "createProfile",
+    "renameProfile",
+    "setDefaultProfile",
+    "deleteProfile",
+    "clearProfile",
+    "clearCookies",
+    "closeSession",
+    "clearCache",
+  ]),
+  tabId: z.string().max(128).optional(),
+  url: z.string().max(2048).optional(),
+  profileId: z.string().max(128).optional(),
+  name: z.string().max(48).optional(),
+  reuseExistingTab: z.boolean().optional(),
+  open: z.boolean().optional(),
+  locator: z.string().optional(),
+  selector: z.string().optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  button: z.enum(["left", "middle", "right"]).optional(),
+  clickCount: z.int().gte(1).lte(3).optional(),
+  text: z.string().max(64000).optional(),
+  clear: z.boolean().optional(),
+  key: z.string().optional(),
+  modifiers: z.array(z.enum(["Alt", "Control", "Meta", "Shift"])).optional(),
+  deltaX: z.number().optional(),
+  deltaY: z.number().optional(),
+  values: z.array(z.string()).optional(),
+  source: z.string().optional(),
+  target: z.string().optional(),
+  paths: z.array(z.string()).max(20).optional(),
+  expression: z.string().max(64000).optional(),
+  awaitPromise: z.boolean().optional(),
+  urlIncludes: z.string().optional(),
+  timeoutMs: z.int().gte(1).lte(60000).optional(),
+  accept: z.boolean().optional(),
+  promptText: z.string().optional(),
+  mode: z.enum(["fill", "freeform", "preset"]).optional(),
+  preset: z.string().optional(),
+  orientation: z.enum(["portrait", "landscape"]).optional(),
+  width: z.int().gte(240).lte(3840).optional(),
+  height: z.int().gte(240).lte(3840).optional(),
+  colorScheme: z.enum(["light", "dark", "system"]).optional(),
+  zoom: z.number().gte(0.25).lte(5).optional(),
+  includeImage: z.boolean().optional(),
+  save: z.boolean().optional(),
+  delta: z.union([z.literal(-1), z.literal(1)]).optional(),
+  port: z.int().gte(1).lte(65535).optional(),
+  protocol: z.enum(["http", "https"]).optional(),
+  path: z.string().optional(),
+  returnByValue: z.boolean().optional(),
+  ignoreCache: z.boolean().optional(),
+})
+
+export const zBrowserProfile = z.object({
+  id: z.string(),
+  name: z.string(),
+  incognito: z.boolean(),
+})
+
+export const zBrowserDialog = z.object({
+  type: z.string(),
+  message: z.string(),
+  defaultValue: z.string(),
+})
+
+export const zBrowserTab = z.object({
+  reveal: z.int().optional(),
+  cursor: z
+    .object({
+      x: z.number(),
+      y: z.number(),
+      click: z.boolean(),
+    })
+    .optional(),
+  ownedByCaller: z.boolean().optional(),
+  id: z.string(),
+  url: z.string(),
+  title: z.string(),
+  canGoBack: z.boolean().optional(),
+  canGoForward: z.boolean().optional(),
+  sessionId: z.string(),
+  profileId: z.string(),
+  owner: z.enum(["agent", "human", "unclaimed"]),
+  generation: z.int(),
+  loading: z.boolean(),
+  visible: z.boolean(),
+  openerTabId: z.string().optional(),
+  width: z.int(),
+  height: z.int(),
+  zoom: z.number(),
+  colorScheme: z.enum(["system", "light", "dark"]),
+  recording: z.boolean(),
+  dialog: zBrowserDialog.optional(),
+  fileChooser: z.boolean(),
+  error: z.string().optional(),
+})
+
+export const zBrowserViewerState = z.object({
+  type: z.enum(["state"]),
+  state: zBrowserTab,
+  canOperate: z.boolean(),
+  supportsCaptureSize: z.boolean().optional(),
+})
+
+export const zBrowserStreamEvent = z.union([
+  zBrowserViewerState,
+  zBrowserStreamError,
+  zBrowserCursorHint,
+])
+
+export const zBrowserDiagnostic = z.object({
+  kind: z.enum(["console", "network", "action"]),
+  text: z.string(),
+  timestamp: z.string(),
+})
+
+export const zBrowserArtifact = z.object({
+  id: z.string(),
+  fileName: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.int(),
+  url: z.string(),
+})
+
+export const zBrowserResult = z.object({
+  defaultProfileId: z.string().optional(),
+  presets: z.array(zBrowserPreset).optional(),
+  available: z.boolean(),
+  epoch: z.string(),
+  tabs: z.array(zBrowserTab),
+  profiles: z.array(zBrowserProfile),
+  tabId: z.string().optional(),
+  accessibilityTree: z.string().optional(),
+  visibleText: z.string().optional(),
+  diagnostics: z.array(zBrowserDiagnostic).optional(),
+  screenshot: z.string().optional(),
+  width: z.int().optional(),
+  height: z.int().optional(),
+  value: z.unknown().optional(),
+  selected: z.array(z.string()).optional(),
+  artifact: zBrowserArtifact.optional(),
+  downloads: z.array(zBrowserArtifact).optional(),
+  generation: z.int().optional(),
+})
+
 export const zAgentMemoryConfig = z.object({
   enabled: z.boolean(),
 })
@@ -1546,6 +1773,7 @@ export const zAgent = z.object({
   created_by: zResourceActor,
   last_modified_by: zResourceActor,
   last_activity: z.iso.datetime({ offset: true }),
+  browser: zAgentBrowserConfig,
   memory: zAgentMemoryConfig,
   opencode: zAgentOpencodeConfig.optional(),
   created_at: z.iso.datetime({ offset: true }),
@@ -1564,6 +1792,7 @@ export const zCreateAgentRequest = z.object({
   auto_archive_hours: z.int().gte(0).lte(8760).optional(),
   appearance: zAgentAppearance.optional(),
   name: zAgentName,
+  browser: zAgentBrowserConfig.optional(),
   memory: zAgentMemoryConfig.optional(),
   env: z.record(z.string(), z.string()).optional(),
   sandbox: zResourceReference,
@@ -1575,6 +1804,7 @@ export const zUpdateAgentRequest = z.object({
   auto_archive_hours: z.int().gte(0).lte(8760).optional(),
   appearance: zAgentAppearance.optional(),
   env: z.record(z.string(), z.string()).optional(),
+  browser: zAgentBrowserConfig.optional(),
   memory: zAgentMemoryConfig.optional(),
   sandbox: zResourceReference.optional(),
   skills: z.array(zResourceReference).optional(),
@@ -4915,6 +5145,16 @@ export const zListAgentsResponse2 = zListAgentsResponse
  * Agent resource created.
  */
 export const zCreateAgentResponse = zAgent
+
+/**
+ * Browser result.
+ */
+export const zRunBrowserResponse = zBrowserResult
+
+/**
+ * File accepted.
+ */
+export const zUploadBrowserFileResponse = z.void()
 
 /**
  * Agent was deleted.

@@ -2,6 +2,28 @@
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "manager.browserImage" -}}
+{{- $image := .Values.browser.image -}}
+{{- if $image.reference -}}
+{{- $image.reference -}}
+{{- else if $image.digest -}}
+{{- printf "%s@%s" $image.repository $image.digest -}}
+{{- else -}}
+{{- $tag := default (printf "v%s" .Chart.AppVersion) $image.tag -}}
+{{- printf "%s:%s" $image.repository $tag -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "manager.browserSeccompProfile" -}}
+{{- if .Values.browser.seccomp.localhostProfile -}}
+{{- .Values.browser.seccomp.localhostProfile -}}
+{{- else if .Values.browser.seccomp.enabled -}}
+{{- $amd64 := .Files.Get "files/browser-seccomp-amd64.json" -}}
+{{- $arm64 := .Files.Get "files/browser-seccomp-arm64.json" -}}
+{{- printf "agentz/browser-%s.json" (printf "%s%s" $amd64 $arm64 | sha256sum) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "manager.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
@@ -36,6 +58,10 @@ control-plane: controller-manager
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "manager.gatewayServiceAccountName" -}}
+{{- default (printf "%s-gateway" .Release.Name | trunc 63 | trimSuffix "-") .Values.config.gatewayServiceAccountName -}}
 {{- end -}}
 
 {{- define "manager.webhookSecretName" -}}

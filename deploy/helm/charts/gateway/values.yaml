@@ -22,10 +22,12 @@ strategy:
 
 image:
   repository: public.ecr.aws/k9v9d5v2/agentz
-  tag: latest
+  # tag defaults to v<chart appVersion>. digest takes precedence.
+  tag: ""
   digest: ""
   pullPolicy: IfNotPresent
 
+# waitImage supplies the init container that waits for the web JWKS endpoint.
 waitImage:
   repository: busybox
   tag: "1.37.0"
@@ -87,6 +89,7 @@ service:
   port: 8090
 
 waitForJWKS:
+  # timeoutSeconds bounds how long startup waits for the JWKS endpoint.
   timeoutSeconds: 300
 
 config:
@@ -97,27 +100,41 @@ config:
   logLevel: info
   logFormat: text
   logWithSource: false
+  # externalJWTJWKSURL is required for standalone installs. Umbrella installs
+  # default to the bundled web Service.
   externalJWTJWKSURL: ""
+  # externalJWTIssuer is the public Better Auth URL.
   externalJWTIssuer: ""
   externalJWTAudience: agentz-gateway
   internalK8sTokenAudience: agentz-gateway
+  # allowedWebOrigins lists the browser origins that may call the gateway.
+  # Wildcards are rejected.
   allowedWebOrigins: []
   targetOverride: ""
+  # filesystemTargetOverride can point to a local port-forward. Leave empty
+  # to use each agent's Kubernetes Service on port 4097.
   filesystemTargetOverride: ""
+  # Gateway-created Agents default to this chart's release image.
   agentImage: ""
+  # agentTraceEndpoint is the OTLP/gRPC destination exposed to agents.
+  # Umbrella installs default to the bundled observer Service.
   agentTraceEndpoint: ""
   openBaoAddr: http://openbao.openbao.svc.cluster.local:8200
   openBaoSecretMountPath: kv
   openBaoK8sAuthRole: gateway
   openBaoK8sAuthMountPath: kubernetes
   openBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
+  # mcpProbeStaleAfter is the age at which MCP probe results become stale.
   mcpProbeStaleAfter: 5m
   # Provider resource application. Configure v2 access tokens and the idtyp claim in Entra.
   copilotStudioAudience: ""
   # Public HTTPS gateway origin used for Copilot Studio webhook callbacks.
   copilotStudioBaseURL: ""
+  # skillsS3Endpoint and skillsS3Bucket are required for standalone installs.
+  # Umbrella installs default to the platform's shared Skill object store.
   skillsS3Endpoint: ""
   skillsS3Region: us-east-1
   skillsS3Bucket: ""
 
+# extraArgs are appended to the gateway command.
 extraArgs: []

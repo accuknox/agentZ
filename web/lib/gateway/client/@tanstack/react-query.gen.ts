@@ -167,10 +167,12 @@ import {
   replaceWorkspaceInheritedResources,
   resolveWorkspaceSlug,
   retryWorkspace,
+  runBrowser,
   runCodingGit,
   setWorkflowLock,
   startCodingOperation,
   statAgentFile,
+  streamBrowser,
   submitChatInput,
   suggestCodingText,
   transferAgentOwner,
@@ -191,6 +193,7 @@ import {
   updateWorkflowEvaluation,
   updateWorkflowSchedule,
   updateWorkspaceLifecycle,
+  uploadBrowserFile,
   upsertAgentShare,
   writeAgentFile,
   writeAgentFileRaw,
@@ -666,6 +669,9 @@ import type {
   RetryWorkspaceData,
   RetryWorkspaceError,
   RetryWorkspaceResponse,
+  RunBrowserData,
+  RunBrowserError,
+  RunBrowserResponse,
   RunCodingGitData,
   RunCodingGitError,
   RunCodingGitResponse,
@@ -678,6 +684,8 @@ import type {
   StatAgentFileData,
   StatAgentFileError,
   StatAgentFileResponse,
+  StreamBrowserData,
+  StreamBrowserError,
   SubmitChatInputData,
   SubmitChatInputError,
   SubmitChatInputResponse,
@@ -738,6 +746,9 @@ import type {
   UpdateWorkspaceLifecycleData,
   UpdateWorkspaceLifecycleError,
   UpdateWorkspaceLifecycleResponse,
+  UploadBrowserFileData,
+  UploadBrowserFileError,
+  UploadBrowserFileResponse,
   UpsertAgentShareData,
   UpsertAgentShareError,
   UpsertAgentShareResponse,
@@ -2267,6 +2278,76 @@ export const createAgentMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await createAgent({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+export const streamBrowserQueryKey = (options: Options<StreamBrowserData>) =>
+  createQueryKey("streamBrowser", options)
+
+/**
+ * Watch a session browser, transfer files, or upgrade its interactive stream.
+ */
+export const streamBrowserOptions = (options: Options<StreamBrowserData>) =>
+  queryOptions<unknown, StreamBrowserError, unknown, ReturnType<typeof streamBrowserQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await streamBrowser({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    queryKey: streamBrowserQueryKey(options),
+  })
+
+/**
+ * Control the browser belonging to an Agent session.
+ */
+export const runBrowserMutation = (
+  options?: Partial<Options<RunBrowserData>>
+): UseMutationOptions<RunBrowserResponse, RunBrowserError, Options<RunBrowserData>> => {
+  const mutationOptions: UseMutationOptions<
+    RunBrowserResponse,
+    RunBrowserError,
+    Options<RunBrowserData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await runBrowser({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      })
+      return data
+    },
+  }
+  return mutationOptions
+}
+
+/**
+ * Answer a browser file chooser.
+ */
+export const uploadBrowserFileMutation = (
+  options?: Partial<Options<UploadBrowserFileData>>
+): UseMutationOptions<
+  UploadBrowserFileResponse,
+  UploadBrowserFileError,
+  Options<UploadBrowserFileData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UploadBrowserFileResponse,
+    UploadBrowserFileError,
+    Options<UploadBrowserFileData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await uploadBrowserFile({
         ...options,
         ...fnOptions,
         throwOnError: true,

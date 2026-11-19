@@ -1,0 +1,116 @@
+{{- if and .Values.enabled .Values.browser.seccomp.enabled }}
+{{- if .Values.browser.seccomp.localhostProfile }}
+{{- fail "Set browser.seccomp.enabled=false to use an externally managed browser.seccomp.localhostProfile" }}
+{{- end }}
+{{- $name := printf "%s-browser-seccomp" (include "manager.fullname" . | trunc 47 | trimSuffix "-") }}
+{{- $profile := include "manager.browserSeccompProfile" . | base }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+data:
+  {{- (.Files.Glob "files/browser-seccomp-*.json").AsConfig | nindent 2 }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "manager.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/name: {{ $name }}
+      annotations:
+        agentz.accuknox.com/seccomp-profile: {{ $profile }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        kubernetes.io/os: linux
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: [amd64, arm64]
+      tolerations:
+        - operator: Exists
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: install
+          image: {{ include "manager.browserImage" . | quote }}
+          imagePullPolicy: {{ default .Values.image.pullPolicy .Values.browser.seccomp.imagePullPolicy }}
+          command: [node, -e]
+          args:
+            - |
+              const fs = require('node:fs');
+              const target = '/profiles/{{ $profile }}';
+              const arch = process.arch === 'x64' ? 'amd64' : process.arch;
+              const source = '/source/browser-seccomp-' + arch + '.json';
+              const sync = () => {
+                const profile = fs.readFileSync(source);
+                if (fs.existsSync(target) && fs.readFileSync(target).equals(profile)) return;
+                const temporary = target + '.' + require('node:crypto').randomUUID();
+                fs.writeFileSync(temporary, profile, {mode: 0o644});
+                fs.renameSync(temporary, target);
+                console.log('Installed Chromium seccomp profile');
+              };
+              sync();
+              setInterval(sync, 60000);
+              process.on('SIGTERM', () => process.exit(0));
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 1m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          readinessProbe:
+            exec:
+              command:
+                - node
+                - -e
+                - |
+                  const fs = require('node:fs');
+                  const arch = process.arch === 'x64' ? 'amd64' : process.arch;
+                  const profile = fs.readFileSync('/source/browser-seccomp-' + arch + '.json');
+                  process.exit(fs.readFileSync('/profiles/{{ $profile }}').equals(profile) ? 0 : 1);
+            periodSeconds: 5
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: profiles
+              mountPath: /profiles
+      volumes:
+        - name: source
+          configMap:
+            name: {{ $name }}
+        - name: profiles
+          hostPath:
+            path: {{ .Values.browser.seccomp.kubeletDirectory }}/agentz
+            type: DirectoryOrCreate
+{{- end }}

@@ -684,6 +684,34 @@ export default function Chat({
   const reducedMotion = useReducedMotion()
   const agentReadiness = useAgentReadiness(agentName, workspaceId)
   const composerRef = useRef<PromptInputController | null>(null)
+
+  const { browserContext, clearBrowserContext } = useFileWorkspace()
+  useEffect(() => {
+    if (!browserContext || browserContext.sessionId !== sessionId) return
+    const composer = composerRef.current
+    if (!composer) return
+    const current = composer.getMessage()
+    const file = browserContext.image
+    const files = [...current.files]
+    if (file) {
+      files.push({
+        source: "local",
+        type: "file",
+        file,
+        filename: file.name,
+        mediaType: file.type,
+        size: file.size,
+        url: URL.createObjectURL(file),
+      })
+    }
+    composer.setMessage({
+      ...current,
+      text: [current.text, browserContext.text].filter(Boolean).join("\n\n"),
+      files,
+    })
+    clearBrowserContext()
+  }, [browserContext, clearBrowserContext, sessionId])
+
   const { data: authSession } = authClient.useSession()
   const timelineRef = useRef<LegendListRef>(null)
   const timelineLoaded = useRef(false)
@@ -2046,6 +2074,7 @@ export default function Chat({
         )}
       >
         <div
+          data-chat-composer
           className={cn(
             "pointer-events-auto mx-auto flex min-h-0 w-full max-w-3xl flex-col",
             showStarter ? "gap-8" : "min-w-0 bg-background"

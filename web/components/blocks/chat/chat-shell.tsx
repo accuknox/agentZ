@@ -198,7 +198,7 @@ export function ChatShell({
 
   return (
     <AgentAppearanceContext value={appearance ?? null}>
-      <div className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
+      <div data-chat-workspace className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="@container/header-actions flex h-(--workspace-topbar-height) min-w-0 shrink-0 items-center gap-1.5 px-3">
             <SidebarTrigger className="shrink-0" />
@@ -233,7 +233,7 @@ export function ChatShell({
               ) : null}
             </div>
           </header>
-          <div className="@container/chat relative min-h-0 min-w-0 flex-1">
+          <div data-chat-content className="@container/chat relative min-h-0 min-w-0 flex-1">
             {degraded ? (
               <div className="absolute inset-0 z-10 grid place-items-center overflow-y-auto bg-background">
                 <AgentUnavailable agent={agent} />
@@ -318,7 +318,7 @@ export function ChatShell({
         ) : null}
         {!coding ? (
           <Workspace
-            key={`${workspaceId}:${agentName}`}
+            key={`${workspaceId}:${agentName}:${activeSessionId ?? "draft"}`}
             agentName={agentName}
             onPreviewerOpenChange={setPreviewerOpen}
             sessionId={activeSessionId}

@@ -25,8 +25,14 @@
 {{- if and .Values.web.enabled .Values.gateway.enabled (or .Values.gateway.nameOverride .Values.gateway.fullnameOverride) (not .Values.web.env.internalGatewayBaseURL) }}
 {{- fail "web.env.internalGatewayBaseURL is required when the gateway name is overridden" }}
 {{- end }}
-{{- if and .Values.manager.enabled .Values.gateway.enabled .Values.gateway.serviceAccount.name (not .Values.manager.config.gatewayServiceAccountName) }}
-{{- fail "manager.config.gatewayServiceAccountName is required when gateway.serviceAccount.name is set" }}
+{{- if and .Values.manager.enabled .Values.gateway.enabled }}
+{{- $account := include "gateway.serviceAccountName" .Subcharts.gateway }}
+{{- if ne $account (include "manager.gatewayServiceAccountName" .Subcharts.manager) }}
+{{- fail (printf "manager.config.gatewayServiceAccountName must match the gateway ServiceAccount %s" $account) }}
+{{- end }}
+{{- if ne .Release.Namespace (default .Release.Namespace .Values.manager.config.gatewayServiceAccountNamespace) }}
+{{- fail (printf "manager.config.gatewayServiceAccountNamespace must match the gateway namespace %s" .Release.Namespace) }}
+{{- end }}
 {{- end }}
 {{- if and .Values.manager.enabled .Values.gateway.enabled (or .Values.global.agentz.delegationEnabled .Values.global.agentz.copilotStudioEnabled) }}
 {{- $namespace := printf "%s-delegations" (include "agentz.gatewayFullname" .) | trunc 63 | trimSuffix "-" }}

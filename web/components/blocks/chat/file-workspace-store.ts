@@ -13,11 +13,14 @@ type RootState = {
 }
 
 type WorkspaceState = {
+  browserContext?: { sessionId: string; text: string; image?: File }
   pendingPreview?: { agent: string; tab: FileTab }
   roots: Record<string, RootState>
 }
 
 type FileWorkspace = WorkspaceState & {
+  addBrowserContext: (context: NonNullable<WorkspaceState["browserContext"]>) => void
+  clearBrowserContext: () => void
   closeRoot: (root: string) => void
   closeTab: (root: string, path: string) => void
   deleteEntry: (root: string, path: string) => void
@@ -45,6 +48,8 @@ export function FileWorkspaceProvider({
   })
   const actions = React.useMemo<Omit<FileWorkspace, keyof WorkspaceState>>(
     () => ({
+      addBrowserContext: (browserContext) => setState((state) => ({ ...state, browserContext })),
+      clearBrowserContext: () => setState((state) => ({ ...state, browserContext: undefined })),
       closeRoot: (root) =>
         setState((state) => {
           if (!state.roots[root]) return state

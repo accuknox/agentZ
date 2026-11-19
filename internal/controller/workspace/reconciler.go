@@ -574,60 +574,70 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 			r.SkillsS3Target,
 		}),
 	}).WithEnableDefaultDeny(true, true)
-	policies := []*ciliumv2.CiliumNetworkPolicy{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      agentzv1alpha1.WorkspaceIsolationPolicyName,
-				Namespace: workspace.Name,
-			},
-			Spec: &ciliumpolicyapi.Rule{
-				Description:      "Isolate Agents while allowing Workspace infrastructure and DNS.",
-				EndpointSelector: nonPackageJobs,
-				Ingress: []ciliumpolicyapi.IngressRule{
-					{
-						IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
-							FromEndpoints: []ciliumpolicyapi.EndpointSelector{workspacePeers},
-						},
-					},
-					{
-						IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
-							FromEndpoints: []ciliumpolicyapi.EndpointSelector{gateway},
-						},
-						ToPorts: []ciliumpolicyapi.PortRule{{
-							Ports: []ciliumpolicyapi.PortProtocol{
-								{Port: "4096", Protocol: ciliumpolicyapi.ProtoTCP},
-								{Port: "4097", Protocol: ciliumpolicyapi.ProtoTCP},
-							},
-						}},
+	isolation := &ciliumv2.CiliumNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      agentzv1alpha1.WorkspaceIsolationPolicyName,
+			Namespace: workspace.Name,
+		},
+		Spec: &ciliumpolicyapi.Rule{
+			Description:      "Isolate Agents while allowing Workspace infrastructure and DNS.",
+			EndpointSelector: nonPackageJobs,
+			Ingress: []ciliumpolicyapi.IngressRule{
+				{
+					IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
+						FromEndpoints: []ciliumpolicyapi.EndpointSelector{workspacePeers},
 					},
 				},
-				Egress: []ciliumpolicyapi.EgressRule{
-					{
-						EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
-							ToEndpoints: []ciliumpolicyapi.EndpointSelector{workspacePeers},
-						},
+				{
+					IngressCommonRule: ciliumpolicyapi.IngressCommonRule{
+						FromEndpoints: []ciliumpolicyapi.EndpointSelector{gateway},
 					},
-					{
-						EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
-							ToEndpoints: []ciliumpolicyapi.EndpointSelector{{
-								LabelSelector: &slimv1.LabelSelector{
-									MatchLabels: map[string]string{
-										"k8s:io.kubernetes.pod.namespace": "kube-system",
-										"k8s:k8s-app":                     "kube-dns",
-									},
-								},
-							}},
+					ToPorts: []ciliumpolicyapi.PortRule{{
+						Ports: []ciliumpolicyapi.PortProtocol{
+							{Port: "4096", Protocol: ciliumpolicyapi.ProtoTCP},
+							{Port: "4097", Protocol: ciliumpolicyapi.ProtoTCP},
 						},
-						ToPorts: []ciliumpolicyapi.PortRule{{
-							Ports: []ciliumpolicyapi.PortProtocol{
-								{Port: "53", Protocol: "UDP"},
-								{Port: "53", Protocol: "TCP"},
+					}},
+				},
+			},
+			Egress: []ciliumpolicyapi.EgressRule{
+				{
+					EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
+						ToEndpoints: []ciliumpolicyapi.EndpointSelector{workspacePeers},
+					},
+				},
+				{
+					EgressCommonRule: ciliumpolicyapi.EgressCommonRule{
+						ToEndpoints: []ciliumpolicyapi.EndpointSelector{{
+							LabelSelector: &slimv1.LabelSelector{
+								MatchLabels: map[string]string{
+									"k8s:io.kubernetes.pod.namespace": "kube-system",
+									"k8s:k8s-app":                     "kube-dns",
+								},
 							},
 						}},
 					},
+					ToPorts: []ciliumpolicyapi.PortRule{{
+						Ports: []ciliumpolicyapi.PortProtocol{
+							{Port: "53", Protocol: "UDP"},
+							{Port: "53", Protocol: "TCP"},
+						},
+					}},
 				},
 			},
 		},
+	}
+	agentRule := networkpolicy.AgentIngress(isolation.Spec, r.GatewayServiceAccountNamespace, r.GatewayServiceAccountName)
+	policies := []*ciliumv2.CiliumNetworkPolicy{
+		// Install Agent ingress before the existing policy stops selecting Agents.
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      networkpolicy.AgentRuntimePolicyName,
+				Namespace: workspace.Name,
+			},
+			Spec: agentRule,
+		},
+		isolation,
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      agentzv1alpha1.WorkspacePackagePolicyName,

@@ -1,8 +1,10 @@
-# Controller manager chart.
+# Default values for the AgentZ umbrella chart. Each component section lists
+# its supported options. Shared settings apply to all bundled charts.
 global:
   # Operator-managed application credentials in the release namespace.
   secretName: agentz
   agentz:
+    # Use the bundled services for cluster-local connections by default.
     umbrella: true
     # Disable delegation consistently across gateway, manager and web.
     delegationEnabled: true
@@ -39,28 +41,8 @@ migrations:
   # web-migrations and go-migrations container logs; hard timeouts may remove
   # Pods. Exactly one Helm release should manage this database's migrations.
 
+# Controller manager chart.
 manager:
-  inference:
-    externalSecrets:
-      enabled: true
-      storeName: ""
-      refreshInterval: 1m
-      serviceAccount:
-        name: ""
-        namespace: ""
-        annotations: {}
-        audiences:
-        - https://kubernetes.default.svc
-      openBao:
-        server: http://openbao.openbao.svc.cluster.local:8200
-        kvMount: kv
-        kubernetesAuthMount: kubernetes
-        role: agentz-inference-external-secrets
-        caBundle: ""
-        caProvider: {}
-      managedNamespaceSelector:
-        app.kubernetes.io/managed-by: agentz
-
   # Enable the AgentZ controller manager subchart.
   enabled: true
 
@@ -86,8 +68,8 @@ manager:
     # Image repository for the `agentz` binary used by the manager pod.
     repository: public.ecr.aws/k9v9d5v2/agentz
 
-    # Image tag for the manager image.
-    tag: latest
+    # tag defaults to v<chart appVersion>. digest takes precedence.
+    tag: ""
     digest: ""
 
     # Kubernetes image pull policy.
@@ -163,6 +145,68 @@ manager:
       # Drop all Linux capabilities from the manager container.
       drop:
       - ALL
+
+  service:
+    metrics:
+      # Expose the manager metrics Service.
+      enabled: true
+
+      # Service port for metrics.
+      port: 8443
+
+    webhook:
+      # Expose the manager webhook Service.
+      port: 443
+
+      # Container port used by the webhook server.
+      targetPort: 9443
+
+  browser:
+    image:
+      repository: public.ecr.aws/k9v9d5v2/agentz/browser
+      # tag defaults to v<chart appVersion>. digest takes precedence.
+      tag: ""
+      digest: ""
+      # reference overrides the other image fields for the worker and installer.
+      reference: ""
+    seccomp:
+      # enabled deploys a DaemonSet to install Chromium's profile on Linux nodes.
+      # The installer runs as root and writes to the node's seccomp directory.
+      enabled: true
+      kubeletDirectory: /var/lib/kubelet/seccomp
+      # localhostProfile is relative to the kubelet's seccomp directory. Set it
+      # for an externally managed profile and disable the installer above. With
+      # the installer disabled and no profile set, browsers use RuntimeDefault.
+      localhostProfile: ""
+      # imagePullPolicy applies to the installer and inherits the manager's
+      # image.pullPolicy when unset.
+      imagePullPolicy: ""
+
+  inference:
+    externalSecrets:
+      enabled: true
+      storeName: ""
+      refreshInterval: 1m
+      serviceAccount:
+        name: ""
+        namespace: ""
+        annotations: {}
+        audiences:
+        - https://kubernetes.default.svc
+      openBao:
+        server: http://openbao.openbao.svc.cluster.local:8200
+        kvMount: kv
+        kubernetesAuthMount: kubernetes
+        role: agentz-inference-external-secrets
+        caBundle: ""
+        caProvider: {}
+      managedNamespaceSelector:
+        app.kubernetes.io/managed-by: agentz
+
+  delegation:
+    # namespace defaults to the gateway's delegation namespace. Set it to
+    # match when overriding the gateway's name.
+    namespace: ""
 
   config:
     # Application log level passed to `agentz manager`.
@@ -279,6 +323,8 @@ manager:
     # Audience bound onto the projected ServiceAccount token used for gateway
     # auth.
     managerGatewayTokenAudience: agentz-gateway
+    # Identity granted namespace RBAC and network access to Agent browsers.
+    # When the bundled gateway is enabled, use its ServiceAccount and namespace.
     gatewayServiceAccountName: ""
     gatewayServiceAccountNamespace: ""
 
@@ -345,21 +391,6 @@ manager:
     # Helm webhook resources.
     enableWebhooks: true
 
-  service:
-    metrics:
-      # Expose the manager metrics Service.
-      enabled: true
-
-      # Service port for metrics.
-      port: 8443
-
-    webhook:
-      # Expose the manager webhook Service.
-      port: 443
-
-      # Container port used by the webhook server.
-      targetPort: 9443
-
   certManager:
     # Render cert-manager resources for manager webhook TLS.
     enabled: true
@@ -402,8 +433,8 @@ gateway:
     # Image repository for the gateway workload.
     repository: public.ecr.aws/k9v9d5v2/agentz
 
-    # Image tag for the gateway workload.
-    tag: latest
+    # tag defaults to v<chart appVersion>. digest takes precedence.
+    tag: ""
     digest: ""
 
     # Kubernetes image pull policy.
@@ -520,8 +551,8 @@ gateway:
     # Default agent image used by the gateway when creating Agent resources.
     agentImage: ""
 
-    # Required OTLP/gRPC endpoint exposed to agents for opencode trace export.
-    # Example: `observer:4317`
+    # OTLP/gRPC endpoint exposed to agents for OpenCode trace export. Defaults
+    # to the bundled observer Service when it is enabled.
     agentTraceEndpoint: ""
 
     # OpenBao address used by the gateway.
@@ -539,7 +570,8 @@ gateway:
     # ServiceAccount token path used for OpenBao auth.
     openBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
 
-    # Required Better Auth JWKS URL used to verify external bearer tokens.
+    # Better Auth JWKS URL for verifying external bearer tokens. Defaults to
+    # the bundled web Service when it is enabled.
     externalJWTJWKSURL: ""
 
     # Required Better Auth issuer used to verify external bearer tokens.
@@ -551,7 +583,8 @@ gateway:
     # Required audience for internal projected ServiceAccount bearer tokens.
     internalK8sTokenAudience: agentz-gateway
 
-    # Browser origins permitted to call the gateway. Wildcards are rejected.
+    # Browser origins permitted to call the gateway. Set at least one
+    # explicit origin, such as https://agentz.example.com.
     allowedWebOrigins: []
 
     # Maximum age before MCP probe results are treated as stale.
@@ -596,8 +629,8 @@ observer:
     # Image repository for the observer workload.
     repository: public.ecr.aws/k9v9d5v2/agentz
 
-    # Image tag for the observer workload.
-    tag: latest
+    # tag defaults to v<chart appVersion>. digest takes precedence.
+    tag: ""
     digest: ""
 
     # Kubernetes image pull policy.
@@ -721,8 +754,8 @@ web:
     # Image repository for the built Next.js web application.
     repository: public.ecr.aws/k9v9d5v2/agentz/web
 
-    # Image tag for the web workload.
-    tag: latest
+    # tag defaults to v<chart appVersion>. digest takes precedence.
+    tag: ""
     digest: ""
 
     # Kubernetes image pull policy.
@@ -785,6 +818,8 @@ web:
     # Container and Service port for the Next.js server.
     port: 3000
 
+  # Configure at least one sign-in method with enableEmailPasswordAuth,
+  # githubClientID, or googleClientID.
   env:
     # Required public Better Auth issuer URL.
     betterAuthURL: ""
@@ -831,13 +866,13 @@ web:
     # Optional custom S3-compatible API endpoint. Leave empty for AWS S3.
     organizationAssetsS3Endpoint: ""
 
-    # S3-compatible region for public Organisation profile images.
+    # Required S3-compatible region for public Organisation profile images.
     organizationAssetsS3Region: ""
 
-    # S3-compatible bucket for public Organisation profile images.
+    # Required S3-compatible bucket for public Organisation profile images.
     organizationAssetsS3Bucket: ""
 
-    # Public base URL for immutable Organisation profile images.
+    # Required public base URL for immutable Organisation profile images.
     organizationAssetsPublicBaseURL: ""
 
     # Use path-style S3 addressing for providers such as MinIO.
@@ -874,3 +909,6 @@ ingress:
 
   # TLS blocks passed through directly to the Ingress.
   tls: []
+  # - secretName: agentz-tls
+  #   hosts:
+  #   - agentz.local

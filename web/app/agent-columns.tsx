@@ -182,6 +182,7 @@ function AgentActions({ row }: CellContext<Agent, unknown>) {
           initialAutoArchiveHours={agent.auto_archive_hours}
           initialAppearance={agent.appearance}
           initialSandboxName={agent.sandbox.name}
+          initialBrowserEnabled={agent.browser.enabled}
           initialMemoryEnabled={agent.memory.enabled}
           initialSkills={agent.skills}
           initialInstruction={agent.opencode?.instruction}

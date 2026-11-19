@@ -2,11 +2,17 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import dynamic from "next/dynamic"
-import { Files, Maximize2, Minimize2, PanelRightClose, type LucideIcon } from "lucide-react"
+import { Globe, Files, Maximize2, Minimize2, PanelRightClose, type LucideIcon } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { watchAgentsQueryOptions } from "@/components/agent-readiness"
 import { useFileWorkspace } from "./file-workspace-store"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import type { BrowserTab } from "@/lib/gateway/client"
 import { cn } from "@/lib/utils"
+import { browserQueryOptions } from "./browser-query"
+
+const Browser = dynamic(() => import("./browser").then((module) => module.Browser), { ssr: false })
 
 const FilesWorkspace = dynamic(
   () => import("./files-workspace").then((module) => module.FilesWorkspace),
@@ -54,11 +60,21 @@ export function Workspace({
   footer?: ReactNode
 }): React.JSX.Element {
   const { pendingPreview } = useFileWorkspace()
+  const { data: agents = [] } = useQuery(watchAgentsQueryOptions(workspaceId))
+  const browserEnabled = agents.find((agent) => agent.name === agentName)?.browser.enabled ?? false
   const [{ tab, open }, setPanel] = useState({ tab: initialTool, open: false })
   const [visited, setVisited] = useState<Set<string>>(new Set())
   const [width, setWidth] = useState(480)
   const [expanded, setExpanded] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [floatingTab, setFloatingTab] = useState<string>()
+  const browserFloating = floatingTab !== undefined
+  const [revealed, setRevealed] = useState<{
+    epoch: string
+    time: number
+    tab?: Pick<BrowserTab, "id" | "reveal">
+  }>()
+  const panelOpen = open && !(tab === "browser" && browserFloating)
   const views: WorkspaceTool[] = [
     {
       id: "files",
@@ -74,7 +90,62 @@ export function Workspace({
       ),
     },
     ...tools,
+    ...(browserEnabled && sessionId
+      ? [
+          {
+            id: "browser",
+            label: "Browser",
+            icon: Globe,
+            render: ({ visible }: { visible: boolean }) => (
+              <Browser
+                agentName={agentName}
+                sessionId={sessionId}
+                workspaceId={workspaceId}
+                visible={visible || browserFloating}
+                query={browser}
+                floating={browserFloating}
+                reveal={revealed?.tab}
+                onFloatingChange={(floating, id) => {
+                  setFloatingTab(floating ? id : undefined)
+                  if (!floating || tab === "browser") setPanel({ tab: "browser", open: !floating })
+                }}
+                onClosePreview={() => {
+                  setFloatingTab(undefined)
+                  if (tab === "browser") setPanel({ tab: "browser", open: false })
+                }}
+              />
+            ),
+          },
+        ]
+      : []),
   ]
+  const browser = useQuery({
+    ...browserQueryOptions(workspaceId, agentName, sessionId),
+    enabled: browserEnabled && !!sessionId,
+    refetchInterval: browserEnabled && sessionId ? 3000 : false,
+  })
+  let latest: BrowserTab | undefined
+  let reveal = 0
+  for (const candidate of browser.data?.tabs ?? []) {
+    if ((candidate.reveal ?? 0) <= reveal) continue
+    latest = candidate
+    reveal = candidate.reveal ?? 0
+  }
+  if (browser.data && browser.data.epoch !== revealed?.epoch) {
+    // The first list is a baseline, not a new agent action. Reloading must
+    // not resurrect previews the viewer already dismissed.
+    setRevealed({ epoch: browser.data.epoch, time: reveal })
+    setFloatingTab(undefined)
+  } else if (latest && revealed && reveal > revealed.time) {
+    setRevealed({ epoch: revealed.epoch, time: reveal, tab: latest })
+    if (!(open && tab === "browser" && !browserFloating)) setFloatingTab(latest.id)
+    setVisited((current) => new Set(current).add("browser"))
+  } else if (
+    floatingTab &&
+    browser.data &&
+    !browser.data.tabs.some((tab) => tab.id === floatingTab)
+  )
+    setFloatingTab(undefined)
   const active = views.find((view) => view.id === tab)
 
   useEffect(() => {
@@ -94,28 +165,34 @@ export function Workspace({
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.code !== "KeyB") return
       event.preventDefault()
       event.stopPropagation()
+      if (browserFloating && tab === "browser") {
+        setFloatingTab(undefined)
+        setPanel({ tab: "browser", open: true })
+        return
+      }
       setVisited((current) => new Set(current).add(tab))
       setPanel((current) => ({ ...current, open: !current.open }))
     }
     window.addEventListener("keydown", onKeyDown, true)
     return () => window.removeEventListener("keydown", onKeyDown, true)
-  }, [tab])
+  }, [tab, browserFloating])
 
   return (
     <>
       <aside
         aria-label="Workspace panel"
         className={cn(
-          "min-h-0 min-w-0 shrink-0 flex-col border-l bg-background",
-          open
-            ? "absolute inset-y-0 right-12 left-0 z-30 flex lg:relative lg:inset-auto lg:z-auto lg:w-auto lg:max-w-[calc(100%-22rem)]"
-            : "hidden",
-          expanded &&
+          "min-h-0 min-w-0 shrink-0 flex-col bg-background",
+          panelOpen
+            ? "absolute inset-y-0 right-12 left-0 z-30 flex border-l lg:relative lg:inset-auto lg:z-auto lg:w-auto lg:max-w-[calc(100%-22rem)]"
+            : "contents",
+          panelOpen &&
+            expanded &&
             "lg:absolute lg:inset-y-0 lg:right-12 lg:left-0 lg:z-30 lg:w-auto lg:max-w-none"
         )}
-        style={{ flexBasis: width }}
+        style={panelOpen ? { flexBasis: width } : undefined}
       >
-        {!expanded ? (
+        {panelOpen && !expanded ? (
           <WorkspaceResizeHandle
             label="Resize workspace panel"
             width={width}
@@ -124,7 +201,12 @@ export function Workspace({
             onResize={setWidth}
           />
         ) : null}
-        <header className="flex h-(--workspace-topbar-height) shrink-0 items-center gap-2 border-b px-3">
+        <header
+          className={cn(
+            "flex h-(--workspace-topbar-height) shrink-0 items-center gap-2 border-b px-3",
+            !panelOpen && "hidden"
+          )}
+        >
           <span className="flex-1 text-sm font-semibold">{active?.label}</span>
           {active?.count !== undefined ? (
             <span className="text-xs text-muted-foreground tabular-nums">
@@ -155,10 +237,14 @@ export function Workspace({
           visited.has(view.id) ? (
             <div
               key={view.id}
-              className={cn("flex min-h-0 flex-1 flex-col", tab !== view.id && "hidden")}
+              className={
+                view.id === "browser" && browserFloating
+                  ? "contents"
+                  : cn("flex min-h-0 flex-1 flex-col", (tab !== view.id || !panelOpen) && "hidden")
+              }
             >
               {view.render({
-                visible: open && tab === view.id,
+                visible: panelOpen && tab === view.id,
                 expanded,
                 onExpand: () => setExpanded(true),
                 onClose: () =>
@@ -169,7 +255,7 @@ export function Workspace({
             </div>
           ) : null
         )}
-        {footer}
+        {panelOpen ? footer : null}
       </aside>
       <nav
         aria-label="Workspace tools"
@@ -180,11 +266,24 @@ export function Workspace({
             <TooltipTrigger asChild>
               <Button
                 aria-label={label}
-                aria-pressed={open && tab === id}
-                variant={open && tab === id ? "secondary" : "ghost"}
+                aria-pressed={(panelOpen && tab === id) || (id === "browser" && browserFloating)}
+                variant={
+                  (panelOpen && tab === id) || (id === "browser" && browserFloating)
+                    ? "secondary"
+                    : "ghost"
+                }
                 size="icon"
-                className={cn("relative", open && tab === id && "text-primary")}
+                className={cn(
+                  "relative",
+                  ((panelOpen && tab === id) || (id === "browser" && browserFloating)) &&
+                    "text-primary"
+                )}
                 onClick={() => {
+                  if (id === "browser" && browserFloating) {
+                    setFloatingTab(undefined)
+                    setPanel({ tab: id, open: true })
+                    return
+                  }
                   setPanel((current) => ({
                     tab: id,
                     open: current.tab === id ? !current.open : true,

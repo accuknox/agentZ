@@ -206,7 +206,7 @@ func (r *Reconciler) deleteDeployment(ctx context.Context, agt *agentzv1alpha1.A
 }
 
 func (r *Reconciler) buildService(agt *agentzv1alpha1.Agent) *corev1.Service {
-	return &corev1.Service{
+	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        agt.Name,
 			Namespace:   agt.Namespace,
@@ -232,6 +232,15 @@ func (r *Reconciler) buildService(agt *agentzv1alpha1.Agent) *corev1.Service {
 			},
 		},
 	}
+	if agt.Spec.Browser.Enabled {
+		service.Spec.Ports = append(service.Spec.Ports, corev1.ServicePort{
+			Name:       "browser",
+			Port:       agentzv1alpha1.BrowserPort,
+			TargetPort: intstr.FromInt32(agentzv1alpha1.BrowserPort),
+			Protocol:   corev1.ProtocolTCP,
+		})
+	}
+	return service
 }
 
 func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, envCfg sandboxConfig, mountConfig bool) *appsv1.Deployment {
@@ -502,7 +511,7 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 		podResources = nil
 	}
 
-	return &appsv1.Deployment{
+	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        agt.Name,
 			Namespace:   agt.Namespace,
@@ -614,6 +623,10 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 			},
 		},
 	}
+	if agt.Spec.Browser.Enabled {
+		r.addBrowser(agt, &deployment.Spec.Template.Spec)
+	}
+	return deployment
 }
 
 func (r *Reconciler) agentEnv(agt *agentzv1alpha1.Agent, envCfg sandboxConfig, mountConfig bool) []corev1.EnvVar {

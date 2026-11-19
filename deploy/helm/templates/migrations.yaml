@@ -1,26 +1,27 @@
 {{- if .Values.migrations.enabled }}
-{{- range $name := list "web" "gateway" }}
+{{- $names := list "web" "gateway" }}
+{{- if .Values.observer.enabled }}
+{{- $names = append $names "observer" }}
+{{- end }}
+{{- $images := dict }}
+{{- range $name := $names }}
 {{- $image := (index $.Values $name).image }}
-{{- if and (not $image.digest) (or (not $image.tag) (eq $image.tag "latest")) }}
+{{- if $image.digest }}
+{{- $_ := set $images $name (printf "%s@%s" $image.repository $image.digest) }}
+{{- else }}
+{{- $appVersion := $.Chart.AppVersion }}
+{{- with index $.Subcharts $name }}
+{{- $appVersion = .Chart.AppVersion }}
+{{- end }}
+{{- $tag := default (printf "v%s" $appVersion) $image.tag }}
+{{- if eq $tag "latest" }}
 {{- fail (printf "%s.image requires an immutable release tag or digest when migrations.enabled=true" $name) }}
 {{- end }}
+{{- $_ := set $images $name (printf "%s:%s" $image.repository $tag) }}
 {{- end }}
-{{- $goImage := printf "%s:%s" .Values.gateway.image.repository .Values.gateway.image.tag }}
-{{- if .Values.gateway.image.digest }}
-{{- $goImage = printf "%s@%s" .Values.gateway.image.repository .Values.gateway.image.digest }}
 {{- end }}
-{{- $webImage := printf "%s:%s" .Values.web.image.repository .Values.web.image.tag }}
-{{- if .Values.web.image.digest }}
-{{- $webImage = printf "%s@%s" .Values.web.image.repository .Values.web.image.digest }}
-{{- end }}
-{{- if .Values.observer.enabled }}
-{{- $observerImage := printf "%s:%s" .Values.observer.image.repository .Values.observer.image.tag }}
-{{- if .Values.observer.image.digest }}
-{{- $observerImage = printf "%s@%s" .Values.observer.image.repository .Values.observer.image.digest }}
-{{- end }}
-{{- if ne $goImage $observerImage }}
+{{- if and .Values.observer.enabled (ne $images.gateway $images.observer) }}
 {{- fail "observer.image must match gateway.image when migrations.enabled=true" }}
-{{- end }}
 {{- end }}
 {{- $name := printf "%s-migrate" .Release.Name }}
 {{- $secretName := required "global.secretName is required" .Values.global.secretName }}
@@ -64,7 +65,7 @@ spec:
       {{- end }}
       initContainers:
         - name: web-migrations
-          image: {{ $webImage | quote }}
+          image: {{ $images.web | quote }}
           imagePullPolicy: {{ .Values.web.image.pullPolicy }}
           command: ["bun", "node_modules/drizzle-kit/bin.cjs", "migrate"]
           env:
@@ -79,7 +80,7 @@ spec:
             {{- toYaml .Values.migrations.resources | nindent 12 }}
       containers:
         - name: go-migrations
-          image: {{ $goImage | quote }}
+          image: {{ $images.gateway | quote }}
           imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
           command: ["/agentz"]
           args: ["migrate", {{ printf "--timeout=%vs" .Values.migrations.timeoutSeconds | quote }}]

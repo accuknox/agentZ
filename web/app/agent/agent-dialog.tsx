@@ -85,6 +85,7 @@ type AgentDialogProps = {
   initialAutoArchiveHours?: number
   initialAppearance?: Agent["appearance"]
   initialSandboxName?: string
+  initialBrowserEnabled?: boolean
   initialMemoryEnabled?: boolean
   initialSkills?: Agent["skills"]
   initialInstruction?: AgentOpencodeConfig["instruction"]
@@ -364,6 +365,7 @@ function AgentForm({
   initialAutoArchiveHours = 0,
   initialAppearance = defaultAgentAppearance,
   initialSandboxName,
+  initialBrowserEnabled = false,
   initialMemoryEnabled = false,
   initialSkills = [],
   initialInstruction = "",
@@ -387,6 +389,7 @@ function AgentForm({
     sandboxScope: "Organisation",
     sandboxName: initialSandboxName ?? (mode === "create" ? (sandboxes[0]?.name ?? "") : ""),
     skills: initialSkills,
+    browserEnabled: initialBrowserEnabled,
     memoryEnabled: actionScope.workspaceType !== "coding" && initialMemoryEnabled,
     instruction: initialInstruction,
   }
@@ -452,6 +455,11 @@ function AgentForm({
             case "sandboxScope":
             case "sandboxName":
               field = "sandboxName"
+              break
+            case "browser":
+            case "browser.enabled":
+            case "browserEnabled":
+              field = "browserEnabled"
               break
             case "memory":
             case "memoryEnabled":
@@ -649,6 +657,26 @@ function AgentForm({
             <FieldLegend className="sr-only">Behavior</FieldLegend>
             <Separator className="h-0 border-t-2 border-dashed border-muted-foreground/50 bg-transparent" />
             <FieldGroup className="gap-4 px-5 pt-4">
+              <Controller
+                name="browserEnabled"
+                control={form.control}
+                render={({ field }) => (
+                  <Field orientation="horizontal">
+                    <FieldContent>
+                      <FieldLabel htmlFor="browser-use">Browser use</FieldLabel>
+                      <FieldDescription>
+                        Everyone who can use this agent shares its browser profiles and sign-ins.
+                      </FieldDescription>
+                    </FieldContent>
+                    <Switch
+                      id="browser-use"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      disabled={isPending}
+                    />
+                  </Field>
+                )}
+              />
               {actionScope.workspaceType !== "coding" && (
                 <Controller
                   name="memoryEnabled"

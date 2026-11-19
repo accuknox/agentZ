@@ -903,6 +903,225 @@ export type AgentAppearance = {
   color: MascotColor
 }
 
+export type AgentBrowserConfig = {
+  enabled: boolean
+}
+
+export type BrowserDevTarget = {
+  kind: "environment-port"
+  port: number
+  protocol?: "http" | "https"
+  path?: string
+}
+
+export type BrowserInput = {
+  clickCount?: number
+  type:
+    | "mouse"
+    | "key"
+    | "text"
+    | "wheel"
+    | "ack"
+    | "takeControl"
+    | "releaseControl"
+    | "resetInput"
+    | "captureSize"
+  x?: number
+  y?: number
+  action?: "move" | "down" | "up"
+  button?: "left" | "right" | "middle"
+  key?: string
+  text?: string
+  deltaX?: number
+  deltaY?: number
+  captureWidth?: number
+  captureHeight?: number
+}
+
+export type BrowserViewerState = {
+  type: "state"
+  state: BrowserTab
+  canOperate: boolean
+  supportsCaptureSize?: boolean
+}
+
+export type BrowserStreamError = {
+  type: "error"
+  message: string
+}
+
+export type BrowserCursorHint = {
+  type: "cursor"
+  pointer: boolean
+}
+
+export type BrowserStreamEvent = BrowserViewerState | BrowserStreamError | BrowserCursorHint
+
+export type BrowserPreset = {
+  id: string
+  label: string
+  width: number
+  height: number
+}
+
+export type BrowserRequest = {
+  operation:
+    | "status"
+    | "open"
+    | "navigate"
+    | "close"
+    | "snapshot"
+    | "click"
+    | "type"
+    | "hover"
+    | "select"
+    | "drag"
+    | "upload"
+    | "press"
+    | "scroll"
+    | "evaluate"
+    | "waitFor"
+    | "dialog"
+    | "resize"
+    | "setColorScheme"
+    | "recordingStart"
+    | "recordingStop"
+    | "takeControl"
+    | "releaseControl"
+    | "history"
+    | "reload"
+    | "stopLoading"
+    | "profiles"
+    | "createProfile"
+    | "renameProfile"
+    | "setDefaultProfile"
+    | "deleteProfile"
+    | "clearProfile"
+    | "clearCookies"
+    | "closeSession"
+    | "clearCache"
+  tabId?: string
+  url?: string
+  profileId?: string
+  name?: string
+  reuseExistingTab?: boolean
+  open?: boolean
+  locator?: string
+  selector?: string
+  x?: number
+  y?: number
+  button?: "left" | "middle" | "right"
+  clickCount?: number
+  text?: string
+  clear?: boolean
+  key?: string
+  modifiers?: Array<"Alt" | "Control" | "Meta" | "Shift">
+  deltaX?: number
+  deltaY?: number
+  values?: Array<string>
+  source?: string
+  target?: string
+  paths?: Array<string>
+  expression?: string
+  awaitPromise?: boolean
+  urlIncludes?: string
+  timeoutMs?: number
+  accept?: boolean
+  promptText?: string
+  mode?: "fill" | "freeform" | "preset"
+  preset?: string
+  orientation?: "portrait" | "landscape"
+  width?: number
+  height?: number
+  colorScheme?: "light" | "dark" | "system"
+  zoom?: number
+  includeImage?: boolean
+  save?: boolean
+  delta?: -1 | 1
+  port?: number
+  protocol?: "http" | "https"
+  path?: string
+  returnByValue?: boolean
+  ignoreCache?: boolean
+}
+
+export type BrowserProfile = {
+  id: string
+  name: string
+  incognito: boolean
+}
+
+export type BrowserDialog = {
+  type: string
+  message: string
+  defaultValue: string
+}
+
+export type BrowserTab = {
+  reveal?: number
+  cursor?: {
+    x: number
+    y: number
+    click: boolean
+  }
+  ownedByCaller?: boolean
+  id: string
+  url: string
+  title: string
+  canGoBack?: boolean
+  canGoForward?: boolean
+  sessionId: string
+  profileId: string
+  owner: "agent" | "human" | "unclaimed"
+  generation: number
+  loading: boolean
+  visible: boolean
+  openerTabId?: string
+  width: number
+  height: number
+  zoom: number
+  colorScheme: "system" | "light" | "dark"
+  recording: boolean
+  dialog?: BrowserDialog
+  fileChooser: boolean
+  error?: string
+}
+
+export type BrowserDiagnostic = {
+  kind: "console" | "network" | "action"
+  text: string
+  timestamp: string
+}
+
+export type BrowserArtifact = {
+  id: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  url: string
+}
+
+export type BrowserResult = {
+  defaultProfileId?: string
+  presets?: Array<BrowserPreset>
+  available: boolean
+  epoch: string
+  tabs: Array<BrowserTab>
+  profiles: Array<BrowserProfile>
+  tabId?: string
+  accessibilityTree?: string
+  visibleText?: string
+  diagnostics?: Array<BrowserDiagnostic>
+  screenshot?: string
+  width?: number
+  height?: number
+  value?: unknown
+  selected?: Array<string>
+  artifact?: BrowserArtifact
+  downloads?: Array<BrowserArtifact>
+  generation?: number
+}
+
 export type AgentMemoryConfig = {
   enabled: boolean
 }
@@ -1077,6 +1296,7 @@ export type Agent = {
   created_by: ResourceActor
   last_modified_by: ResourceActor
   last_activity: string
+  browser: AgentBrowserConfig
   memory: AgentMemoryConfig
   opencode?: AgentOpencodeConfig
   created_at: string
@@ -1309,6 +1529,7 @@ export type CreateAgentRequest = {
   auto_archive_hours?: number
   appearance?: AgentAppearance
   name: AgentName
+  browser?: AgentBrowserConfig
   memory?: AgentMemoryConfig
   env?: {
     [key: string]: string
@@ -1667,6 +1888,7 @@ export type UpdateAgentRequest = {
   env?: {
     [key: string]: string
   }
+  browser?: AgentBrowserConfig
   memory?: AgentMemoryConfig
   sandbox?: ResourceReference
   skills?: Array<ResourceReference>
@@ -6465,6 +6687,158 @@ export type CreateAgentResponses = {
 }
 
 export type CreateAgentResponse = CreateAgentResponses[keyof CreateAgentResponses]
+
+export type StreamBrowserData = {
+  body?: never
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    sessionId: string
+  }
+  query?: {
+    viewer?: string
+    tabId?: string
+    /**
+     * Maximum outstanding preview frames. Values above one enable cursor hints.
+     */
+    frameWindow?: number
+    /**
+     * Initial preview width in display pixels.
+     */
+    captureWidth?: number
+    /**
+     * Initial preview height in display pixels.
+     */
+    captureHeight?: number
+    artifact?: string
+  }
+  url: "/api/agent/{agentName}/browser/{sessionId}"
+}
+
+export type StreamBrowserErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type StreamBrowserError = StreamBrowserErrors[keyof StreamBrowserErrors]
+
+export type StreamBrowserResponses = {
+  /**
+   * Browser file or state.
+   */
+  200: unknown
+}
+
+export type RunBrowserData = {
+  body: BrowserRequest
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    sessionId: string
+  }
+  query?: {
+    viewer?: string
+  }
+  url: "/api/agent/{agentName}/browser/{sessionId}"
+}
+
+export type RunBrowserErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Request conflicts with current state. For tenant-gated APIs this can also mean the current tenant is still bootstrapping and the error code is `tenant_not_ready`.
+   *
+   */
+  409: Error
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type RunBrowserError = RunBrowserErrors[keyof RunBrowserErrors]
+
+export type RunBrowserResponses = {
+  /**
+   * Browser result.
+   */
+  200: BrowserResult
+}
+
+export type RunBrowserResponse = RunBrowserResponses[keyof RunBrowserResponses]
+
+export type UploadBrowserFileData = {
+  body: Blob | File
+  headers?: {
+    /**
+     * Stable Workspace ID selecting Workspace scope. Omit for Organisation scope.
+     *
+     */
+    "X-AgentZ-Workspace-ID"?: string
+  }
+  path: {
+    /**
+     * Agent name.
+     */
+    agentName: AgentName
+    sessionId: string
+  }
+  query?: {
+    viewer?: string
+    tabId?: string
+    name?: string
+    locator?: string
+  }
+  url: "/api/agent/{agentName}/browser/{sessionId}"
+}
+
+export type UploadBrowserFileErrors = {
+  /**
+   * The authenticated principal lacks authority for this operation.
+   */
+  403: Error
+  /**
+   * Unexpected server error.
+   */
+  default: Error
+}
+
+export type UploadBrowserFileError = UploadBrowserFileErrors[keyof UploadBrowserFileErrors]
+
+export type UploadBrowserFileResponses = {
+  /**
+   * File accepted.
+   */
+  204: void
+}
+
+export type UploadBrowserFileResponse = UploadBrowserFileResponses[keyof UploadBrowserFileResponses]
 
 export type DeleteAgentData = {
   body?: never

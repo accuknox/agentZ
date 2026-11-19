@@ -28,6 +28,7 @@ import { toast } from "sonner"
 import { createAgentOpencodeClient } from "@/lib/opencode/client"
 import { describeMessageError, opencodeErrorMessage } from "@/components/blocks/chat/errors"
 import { chatCache } from "./cache"
+import { browserQueryOptions } from "./browser-query"
 
 type SessionMessageRecord = SessionMessagesResponse2[number]
 
@@ -814,12 +815,23 @@ export function useOpencodeChat(
 
     const storeEvents: StreamEvent[] = []
     let refreshSession = false
+    let refreshBrowser = false
     const changedDiffs = new Set<string>()
     const nextHitlEvents: StreamEvent[] = []
     const inactive = new Map<string, StreamEvent[]>()
     const removed = new Set<string>()
 
     for (const event of events) {
+      if (!refreshBrowser && event.type === "message.part.updated") {
+        const { part, sessionID: caller } = event.properties
+        if (
+          part.type === "tool" &&
+          part.state.status === "completed" &&
+          (part.tool === "preview_open" || part.tool === "preview_close")
+        ) {
+          refreshBrowser = visibleSessionIDs(hitlStore.sessions, sessionID).includes(caller)
+        }
+      }
       if (event.type === "message.removed" || event.type === "message.part.removed")
         removed.add(event.properties.sessionID)
       switch (event.type) {
@@ -908,6 +920,15 @@ export function useOpencodeChat(
         default:
           break
       }
+    }
+
+    if (refreshBrowser) {
+      // The tool result arrives before the next status poll and can reveal
+      // the tab immediately. Polling still discovers popups and missed events.
+      void queryClient.invalidateQueries({
+        queryKey: browserQueryOptions(workspaceId, agentName, sessionID).queryKey,
+        exact: true,
+      })
     }
 
     for (const id of removed) void chatCache.clear([workspaceId, agentName, id])

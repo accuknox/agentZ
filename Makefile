@@ -4,8 +4,10 @@ SHELL := bash
 IMAGE ?= public.ecr.aws/k9v9d5v2/agentz:latest
 AGENT_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/agent:latest
 BROWSER_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/browser:latest
+BROWSER_SECCOMP_FILES := $(wildcard deploy/helm/charts/manager/files/browser-seccomp-*.json)
+BROWSER_BUNDLED_SECCOMP_PROFILE = agentz/browser-$(shell cat $(BROWSER_SECCOMP_FILES) | sha256sum | cut -d' ' -f1).json
 # Matches install-browser-seccomp. Override for an externally managed node profile.
-BROWSER_SECCOMP_PROFILE ?= agentz/browser-$(shell sha256sum deploy/helm/charts/manager/files/browser-seccomp.json | cut -d' ' -f1).json
+BROWSER_SECCOMP_PROFILE ?= $(BROWSER_BUNDLED_SECCOMP_PROFILE)
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
 CODING_GITHUB_CLIENT_ID ?=
@@ -211,6 +213,15 @@ install-browser-seccomp:
 		--set-string config.agentgatewayTraceHost=172.18.0.1 \
 		--show-only templates/browser.yaml | $(KUBECTL) -n "$(K8S_NAMESPACE)" apply -f -
 	$(KUBECTL) -n "$(K8S_NAMESPACE)" rollout status daemonset/agentz-dev-manager-browser-seccomp --timeout=120s
+
+# Set K8S_NAMESPACE to the Kustomize manager namespace. Restart an existing
+# manager Deployment after updating the ConfigMap.
+.PHONY: configure-kustomize-browser
+configure-kustomize-browser: install-browser-seccomp
+	$(KUBECTL) -n "$(K8S_NAMESPACE)" create configmap agentz-browser \
+		--from-literal=AGENTZ_BROWSER_IMAGE="$(BROWSER_IMAGE)" \
+		--from-literal=AGENTZ_BROWSER_SECCOMP_PROFILE="$(BROWSER_BUNDLED_SECCOMP_PROFILE)" \
+		--dry-run=client -o yaml | $(KUBECTL) -n "$(K8S_NAMESPACE)" apply -f -
 
 .PHONY: run-observer
 run-observer:

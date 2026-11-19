@@ -629,6 +629,14 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 	}
 	agentRule := networkpolicy.AgentIngress(isolation.Spec, r.GatewayServiceAccountNamespace, r.GatewayServiceAccountName)
 	policies := []*ciliumv2.CiliumNetworkPolicy{
+		// Install Agent ingress before the existing policy stops selecting Agents.
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      networkpolicy.AgentRuntimePolicyName,
+				Namespace: workspace.Name,
+			},
+			Spec: agentRule,
+		},
 		isolation,
 		{
 			ObjectMeta: metav1.ObjectMeta{
@@ -636,13 +644,6 @@ func (r *Reconciler) reconcileIsolationPolicy(ctx context.Context, workspace *ag
 				Namespace: workspace.Name,
 			},
 			Spec: packageRule,
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      networkpolicy.AgentRuntimePolicyName,
-				Namespace: workspace.Name,
-			},
-			Spec: agentRule,
 		},
 	}
 

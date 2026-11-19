@@ -1311,9 +1311,9 @@ export function Browser({
                 if (!files?.length) return
                 if (
                   files.length > 20 ||
-                  Array.from(files).reduce((bytes, file) => bytes + file.size, 0) > 50 * 1024 * 1024
+                  Array.from(files).reduce((bytes, file) => bytes + file.size, 0) > 50_000_000
                 ) {
-                  toast.error("Choose at most 20 files totalling 50 MiB")
+                  toast.error("Choose at most 20 files totalling 50 MB")
                   return
                 }
                 const form = new FormData()
@@ -1535,7 +1535,7 @@ export function Browser({
           if (!open) setProfileDialog(null)
         }}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>
               {profileDialog === "rename" ? "Rename browser profile" : "New browser profile"}

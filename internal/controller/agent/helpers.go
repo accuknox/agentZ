@@ -30,6 +30,7 @@ import (
 
 	"github.com/accuknox/agentz/internal/mcp"
 	"github.com/accuknox/agentz/internal/skill"
+	"github.com/accuknox/agentz/internal/tool"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -234,8 +235,16 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 	// though the global runtime policy permits their use during execution.
 	plan := agent
 	plan.Permission = maps.Clone(agent.Permission)
+	browserNames := tool.BrowserNames()
+	legacyBrowserTools := make(map[string]bool)
 	for _, t := range agt.Spec.Tools {
 		plan.Permission[t.Name] = map[string]opencodePermissionRule{"*": "deny"}
+		if slices.Contains(browserNames, t.Name) {
+			if agt.Spec.Browser.Enabled {
+				return nil, nil, fmt.Errorf("rename uploaded tool %q before enabling browser use", t.Name)
+			}
+			legacyBrowserTools[t.Name] = true
+		}
 	}
 	if !general {
 		// Restore Plan's native restrictions while allowing its document in
@@ -293,14 +302,10 @@ func renderOpencodeConfig(agt *agentzv1alpha1.Agent, envCfg sandboxConfig) ([]by
 		"journal":                  general && agt.Spec.Memory.Enabled,
 	}
 
-	browserTools := []string{
-		"preview_status", "preview_open", "preview_navigate", "preview_snapshot",
-		"preview_act", "preview_evaluate", "preview_wait_for", "preview_dialog",
-		"preview_resize", "preview_set_appearance", "preview_recording_start",
-		"preview_recording_stop", "preview_close",
-	}
-	for _, name := range browserTools {
-		cfg.Tools[name] = agt.Spec.Browser.Enabled
+	for _, name := range browserNames {
+		if !legacyBrowserTools[name] {
+			cfg.Tools[name] = agt.Spec.Browser.Enabled
+		}
 	}
 	// Plan can observe and navigate. Editing pages, evaluating scripts and
 	// answering dialogs require execution mode, as other mutation tools do.

@@ -20,17 +20,19 @@ export class Control {
     return result
   }
 
-  async take(viewer: string) {
+  async take(viewer: string, reset?: () => Promise<void>) {
     if (this.viewer && this.viewer !== viewer) throw new Error("Another viewer controls this tab")
     this.viewer = viewer
     this.generation++
+    if (reset) this.tail = this.tail.then(reset)
     await this.tail
   }
 
-  async release(viewer: string) {
+  async release(viewer: string, reset?: () => Promise<void>) {
     if (this.viewer !== viewer) throw new Error("Only the controlling viewer can release this tab")
     this.viewer = null
     this.generation++
+    if (reset) this.tail = this.tail.then(reset)
     await this.tail
   }
 

@@ -341,11 +341,13 @@ var managerCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:        "browser-seccomp-profile",
 			Usage:       "Node-local seccomp profile for Chromium user namespaces",
+			Sources:     cli.EnvVars("AGENTZ_BROWSER_SECCOMP_PROFILE"),
 			Destination: &browserSeccompProfile,
 		},
 		&cli.StringFlag{
 			Name:        "browser-image",
 			Usage:       "Browser worker image for browser-enabled Agents",
+			Sources:     cli.EnvVars("AGENTZ_BROWSER_IMAGE"),
 			Destination: &browserImage,
 		},
 		&cli.StringFlag{

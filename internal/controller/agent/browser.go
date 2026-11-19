@@ -31,6 +31,9 @@ func (r *Reconciler) reconcileBrowser(ctx context.Context, agt *agentzv1alpha1.A
 		},
 	}
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, secret, func() error {
+		if secret.ResourceVersion != "" && !metav1.IsControlledBy(secret, agt) {
+			return fmt.Errorf("Secret %q already exists and is not controlled by this Agent", secret.Name)
+		}
 		if secret.Data == nil {
 			secret.Data = make(map[string][]byte, 2)
 		}
@@ -65,6 +68,10 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, pod *corev1.PodSpec) 
 			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
 				SecretName:  secretName,
 				DefaultMode: new(int32(0o440)),
+				Items: []corev1.KeyToPath{
+					{Key: browserAgentTokenKey, Path: browserAgentTokenKey},
+					{Key: agentzv1alpha1.BrowserGatewayTokenKey, Path: agentzv1alpha1.BrowserGatewayTokenKey},
+				},
 			}},
 		},
 		// The agent executes user commands. Only the worker can read the

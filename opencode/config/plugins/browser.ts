@@ -16,6 +16,7 @@ import type {
 
 const workerURL = "http://127.0.0.1:4098/"
 const maxFileBytes = 50 * 1024 * 1024
+const maxUploadBytes = 50_000_000
 const fields = zBrowserRequest.omit({ operation: true })
 const definitions = {
   preview_status: [
@@ -92,11 +93,9 @@ const definitions = {
 } as const
 
 export default (async (plugin) => {
-  const tokenPath = process.env.AGENTZ_BROWSER_TOKEN_PATH
+  const tokenPath = process.env.AGENTZ_BROWSER_TOKEN_PATH ?? ""
   if (!tokenPath) return { tool: {} }
-  const token = await readFile(tokenPath, "utf8")
-  const authorization = `Bearer ${token}`
-  const roots = new Map<string, string>()
+  const roots = new Map<string, { id: string; directory: string }>()
 
   async function requestWorker(
     query: URLSearchParams,
@@ -104,6 +103,7 @@ export default (async (plugin) => {
     body?: Buffer,
     limit = Infinity
   ) {
+    const authorization = `Bearer ${await readFile(tokenPath, "utf8")}`
     const response = await new Promise<IncomingMessage>((resolve, reject) => {
       const req = request(
         new URL(`?${query}`, workerURL),
@@ -133,23 +133,28 @@ export default (async (plugin) => {
     file?: { bytes: Buffer; contentType: string; locator?: string }
   ) {
     signal.throwIfAborted()
-    let root = roots.get(session) ?? session
-    if (!roots.has(session)) {
+    let root = roots.get(session)
+    if (!root) {
+      let id = session
       const ancestors = new Set<string>()
       for (;;) {
-        if (ancestors.has(root)) throw new Error("Session ancestry contains a cycle")
-        ancestors.add(root)
+        if (ancestors.has(id)) throw new Error("Session ancestry contains a cycle")
+        ancestors.add(id)
         const current = await plugin.client.session.get({
-          path: { id: root },
+          path: { id },
           throwOnError: true,
           signal,
         })
-        if (!current.data?.parentID) break
-        root = current.data.parentID
+        if (!current.data) throw new Error("Browser session could not be resolved")
+        if (!current.data.parentID) {
+          root = { id, directory: current.data.directory }
+          break
+        }
+        id = current.data.parentID
       }
       roots.set(session, root)
     }
-    const query = new URLSearchParams({ session: root })
+    const query = new URLSearchParams({ session: root.id })
     if (file) {
       if (input.tabId) query.set("tabId", input.tabId)
       if (file.locator) query.set("locator", file.locator)
@@ -186,7 +191,7 @@ export default (async (plugin) => {
     const output = join(context.directory, ".agentz", "browser")
     await mkdir(output, { recursive: true })
     const query = new URLSearchParams({
-      session: roots.get(context.sessionID) ?? context.sessionID,
+      session: roots.get(context.sessionID)?.id ?? context.sessionID,
       artifact: artifact.id,
     })
     const { status, bytes } = await requestWorker(
@@ -334,7 +339,7 @@ export default (async (plugin) => {
   const actions = ["click", "type", "hover", "select", "drag", "upload", "press", "scroll"] as const
   const act = tool({
     description:
-      'Act on your tab using locator="aria-ref=<ref>" from preview_snapshot or coordinates. For upload, first click the attachment button, then supply paths without a locator to answer its file chooser. An upload locator must target an input[type=file], never the attachment button. Paths must be regular files under the agent home. Human takeover blocks agent mutations.',
+      'Act on your tab using locator="aria-ref=<ref>" from preview_snapshot or coordinates. For upload, first click the attachment button, then supply paths without a locator to answer its file chooser. An upload locator must target an input[type=file], never the attachment button. In coding workspaces, upload files from the session checkout or its attachments. Human takeover blocks agent mutations.',
     args: {
       ...fields.pick({
         tabId: true,
@@ -367,7 +372,8 @@ export default (async (plugin) => {
         metadata: { tabId: input.tabId, action },
       })
       if (action === "upload" && input.paths?.length) {
-        const home = await realpath(process.env.AGENTZ_HOME ?? "/home/agentz")
+        const homePath = process.env.AGENTZ_HOME ?? "/home/agentz"
+        const home = await realpath(homePath)
         const status = zBrowserResult.parse(
           JSON.parse(
             (await call(context.sessionID, { operation: "status" }, context.abort)).toString()
@@ -375,17 +381,25 @@ export default (async (plugin) => {
         )
         const tabId = input.tabId ?? status.tabs.find((tab) => tab.ownedByCaller)?.id
         if (!tabId) throw new Error("No browser tab is open")
+        const allowed = [home]
+        if (process.env.AGENTZ_WORKSPACE_TYPE === "coding") {
+          const root = roots.get(context.sessionID)
+          if (!root) throw new Error("Browser session could not be resolved")
+          const checkout = relative(homePath, root.directory)
+          if (!checkout || checkout === ".." || checkout.startsWith(`..${sep}`))
+            throw new Error("Session checkout must be under the agent home")
+          allowed.splice(0, 1, join(home, checkout), join(home, ".agentz", "attachments", root.id))
+        }
         const form = new FormData()
         let total = 0
         for (const path of input.paths) {
           const file = await realpath(resolve(context.directory, path))
-          const within = relative(home, file)
-          if (!within || within === ".." || within.startsWith(`..${sep}`))
-            throw new Error("Upload file must be under the agent home")
+          if (!allowed.some((root) => file.startsWith(root + sep)))
+            throw new Error("Upload file is outside the session's allowed directories")
           const info = await stat(file)
           total += info.size
-          if (!info.isFile() || total > maxFileBytes)
-            throw new Error("Uploads must be regular files totalling at most 50 MiB")
+          if (!info.isFile() || total > maxUploadBytes)
+            throw new Error("Uploads must be regular files totalling at most 50 MB")
           form.append(
             "files",
             new Blob([await readFile(file, { signal: context.abort })]),

@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -88,10 +90,13 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 		return
 	}
 	viewer := r.URL.Query().Get("viewer")
-	if len(viewer) > 128 {
-		apiutil.WriteError(w, r, resourceForbidden(errors.New("invalid browser viewer")))
+	if !utf8.ValidString(viewer) || utf8.RuneCountInString(viewer) > 2048 {
+		err := apiutil.NewError(http.StatusBadRequest, "invalid_viewer", "Invalid browser viewer ID", nil)
+		apiutil.WriteError(w, r, err)
 		return
 	}
+	// Viewer IDs are opaque query values. Hash them to a fixed-size header.
+	viewerID := fmt.Sprintf("%s:%x", access.userID, sha256.Sum256([]byte(viewer)))
 	target := &url.URL{
 		Scheme: "http",
 		Host:   fmt.Sprintf("%s.%s.svc.cluster.local:%d", agent, access.namespace, agentzv1alpha1.BrowserPort),
@@ -160,7 +165,7 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 			query.Set("session", session)
 			req.Out.URL.RawQuery = query.Encode()
 			req.Out.Header.Set("Authorization", "Bearer "+token)
-			req.Out.Header.Set("X-Browser-Viewer", access.userID+":"+viewer)
+			req.Out.Header.Set("X-Browser-Viewer", viewerID)
 			req.Out.Header.Set("X-Browser-Caller", session)
 			req.Out.Header.Del("Origin")
 			req.Out.Header.Del("Cookie")

@@ -1,5 +1,6 @@
 import { createReadStream } from "node:fs"
 import { pipeline } from "node:stream/promises"
+import { setTimeout as delay } from "node:timers/promises"
 import { createServer } from "node:http"
 import { timingSafeEqual, randomUUID } from "node:crypto"
 import { readFile, mkdir, rm, writeFile, stat, open, rename } from "node:fs/promises"
@@ -33,17 +34,19 @@ import { recordingEncoderScript } from "./recording"
 const root = process.env.BROWSER_DATA ?? "/var/lib/browser"
 const scratch = process.env.BROWSER_TEMP ?? "/tmp/browser"
 const port = Number(process.env.BROWSER_PORT ?? "4098")
-const agentToken = await readFile(process.env.BROWSER_TOKEN_PATH ?? "/var/run/agentz/browser/token")
-const gatewayToken = await readFile(
+const agentTokenPath = process.env.BROWSER_TOKEN_PATH ?? "/var/run/agentz/browser/token"
+const gatewayTokenPath =
   process.env.BROWSER_GATEWAY_TOKEN_PATH ?? "/var/run/agentz/browser/gateway-token"
-)
-if (!agentToken.length || !gatewayToken.length || agentToken.equals(gatewayToken))
-  throw new Error("Browser credentials are missing or invalid")
 const epoch = randomUUID()
 const profileControl = new Control()
 const tabs = new Map<string, Tab>()
 const contexts = new Map<string, Promise<BrowserContext>>()
 const artifacts = new Map<string, { session: string; path: string; info: BrowserArtifact }>()
+const maxArtifactBytes = 256 * 1024 * 1024
+let artifactBytes = 0
+// Playwright rejects in-memory uploads at or above 50 MiB.
+const maxUploadBytes = 50_000_000
+const maxUploadRequestBytes = maxUploadBytes + 1024 * 1024
 const presets: BrowserPreset[] = [
   { id: "iphone-se", label: "iPhone SE", width: 375, height: 667 },
   { id: "iphone-xr", label: "iPhone XR", width: 414, height: 896 },
@@ -185,6 +188,15 @@ interface Tab {
   keys: Set<string>
   buttons: Set<NonNullable<BrowserInput["button"]>>
   stop?: () => void
+  initialControl?: ReturnType<typeof setTimeout>
+}
+
+async function credentials() {
+  // Read projected Secret files again after kubelet replaces the projection.
+  const [agent, gateway] = await Promise.all([readFile(agentTokenPath), readFile(gatewayTokenPath)])
+  if (!agent.length || !gateway.length || agent.equals(gateway))
+    throw new Error("Browser credentials are missing or invalid")
+  return { agent, gateway }
 }
 
 function authorized(header = "", host = "", token: Buffer) {
@@ -376,6 +388,10 @@ async function trackPointer(tab: Tab) {
 }
 
 async function artifact(tab: Tab, file: string, fileName: string, mimeType: string, bytes: number) {
+  if (bytes > maxArtifactBytes) {
+    await rm(file, { force: true })
+    throw new Error("Browser artifact exceeds 256 MiB")
+  }
   const id = randomUUID()
   const info: BrowserArtifact = {
     id,
@@ -385,12 +401,16 @@ async function artifact(tab: Tab, file: string, fileName: string, mimeType: stri
     url: `?artifact=${id}`,
   }
   artifacts.set(id, { session: tab.session, path: file, info })
-  while (artifacts.size > 100) {
+  artifactBytes += bytes
+  const evicted: string[] = []
+  while (artifacts.size > 100 || artifactBytes > maxArtifactBytes) {
     const first = artifacts.entries().next().value
     if (!first) break
     artifacts.delete(first[0])
-    await rm(first[1].path, { force: true })
+    artifactBytes -= first[1].info.sizeBytes
+    evicted.push(first[1].path)
   }
+  await Promise.all(evicted.map((path) => rm(path, { force: true })))
   return info
 }
 
@@ -493,16 +513,14 @@ async function attach(
   })
   page.on("close", () => {
     tabs.delete(tab.id)
-    if (
-      profiles.get(tab.profile)?.incognito &&
-      ![...tabs.values()].some(
-        (other) => other.session === tab.session && other.profile === tab.profile
-      )
-    ) {
-      contexts.delete(`${tab.profile}:${tab.session}`)
-      void page
-        .context()
-        .close()
+    clearTimeout(tab.initialControl)
+    if (profiles.get(tab.profile)?.incognito) {
+      const browser = page.context()
+      // Serialize the emptiness check with creation of new tabs.
+      void profileControl
+        .run(null, async () => {
+          if (!browser.pages().length) await browser.close()
+        })
         .catch(() => {})
     }
     for (const viewer of tab.viewers.values()) viewer.socket.close(4404, "Tab closed")
@@ -512,11 +530,16 @@ async function attach(
   page.on("download", (download) => {
     void (async () => {
       const file = join(scratch, randomUUID())
-      await download.saveAs(file)
-      const size = (await stat(file)).size
-      if (size > 1024 ** 3) {
-        await rm(file)
-        return
+      let size: number
+      try {
+        size = (await stat(await download.path())).size
+        if (size > maxArtifactBytes) throw new Error("Browser download exceeds 256 MiB")
+        await download.saveAs(file)
+      } catch (error) {
+        await rm(file, { force: true })
+        throw error
+      } finally {
+        await download.delete().catch(() => {})
       }
       await artifact(
         tab,
@@ -573,15 +596,17 @@ async function resetInput(tab: Tab) {
 }
 
 async function handoff(tab: Tab, viewer: string, operation: "takeControl" | "releaseControl") {
-  if (operation === "takeControl") {
-    await tab.control.take(viewer)
+  const reset = async () => {
     await resetInput(tab)
-  } else {
-    if (tab.control.viewer === viewer) await resetInput(tab)
-    await tab.control.release(viewer)
+    tab.refs.clear()
+    tab.snapshot++
   }
-  tab.refs.clear()
-  tab.snapshot++
+  if (operation === "takeControl") {
+    if (!tab.viewers.has(viewer)) throw new Error("Connect the browser viewer first")
+    await tab.control.take(viewer, reset)
+  } else {
+    await tab.control.release(viewer, reset)
+  }
 }
 
 async function zoom(tab: Tab, value: number) {
@@ -644,6 +669,7 @@ async function operate(
   signal?: AbortSignal,
   caller = session
 ): Promise<BrowserResult> {
+  signal?.throwIfAborted()
   if (input.operation === "closeSession") {
     for (const tab of tabs.values())
       if (tab.session === session && (caller === session || tab.caller === caller))
@@ -668,6 +694,7 @@ async function operate(
     ].includes(input.operation)
   ) {
     return profileControl.run(null, async () => {
+      signal?.throwIfAborted()
       const id =
         input.operation === "createProfile" ? randomUUID() : (input.profileId ?? defaultProfileId)
       if (input.operation !== "createProfile" && !profiles.has(id))
@@ -736,13 +763,12 @@ async function operate(
     if (input.width && input.height && input.width * input.height > 3840 * 2160)
       throw new Error("Viewport area is too large")
     const profile = input.profileId ?? defaultProfileId
-    tab = await attach(
-      await (await context(profile, session)).newPage(),
-      session,
-      profile,
-      undefined,
-      caller
-    )
+    tab = await profileControl.run(null, async () => {
+      signal?.throwIfAborted()
+      const browser = await context(profile, session)
+      signal?.throwIfAborted()
+      return attach(await browser.newPage(), session, profile, undefined, caller)
+    })
     if (input.width && input.height) {
       await tab.page.setViewportSize({
         width: input.width,
@@ -751,7 +777,17 @@ async function operate(
       tab.width = input.width
       tab.height = input.height
     }
-    if (viewer) await tab.control.take(viewer)
+    if (viewer) {
+      const opened = tab
+      await opened.control.take(viewer)
+      opened.initialControl = setTimeout(
+        () => {
+          if (!opened.viewers.has(viewer) && opened.control.viewer === viewer)
+            void handoff(opened, viewer, "releaseControl").catch(() => {})
+        },
+        (input.timeoutMs ?? 15000) + 10000
+      )
+    }
     tab.reveal = input.open === false ? 0 : Date.now()
   }
   if (!tab || tab.session !== session) throw new Error("Browser tab not found for this session")
@@ -775,20 +811,18 @@ async function operate(
     selected.stop?.()
     return result(session, caller, { tabId: selected.id })
   }
-  let running = false
-  const run = async (): Promise<BrowserResult> => {
-    running = true
-    signal?.throwIfAborted()
+  const budget = input.timeoutMs ?? (input.operation === "recordingStop" ? 120000 : 15000)
+  const run = async (signal: AbortSignal): Promise<BrowserResult> => {
+    signal.throwIfAborted()
     const page = selected.page
-    const timeout = input.timeoutMs ?? 15000
+    const timeout = budget
     const deadline = Date.now() + timeout
     const locator = target(selected, input.locator ?? input.selector)
-    page.setDefaultTimeout(timeout)
     if (input.operation === "snapshot" && selected.dialog)
       return result(session, caller, { tabId: selected.id })
     report(selected, "action", input.operation)
     if (locator && ["click", "hover", "type"].includes(input.operation)) {
-      const box = await locator.boundingBox()
+      const box = await locator.boundingBox({ timeout, signal })
       if (box)
         selected.cursor = {
           x: box.x + box.width / 2,
@@ -796,6 +830,7 @@ async function operate(
           click: input.operation === "click",
         }
     }
+    signal.throwIfAborted()
     if (
       input.x !== undefined &&
       input.y !== undefined &&
@@ -813,6 +848,7 @@ async function operate(
         )
     }
     const extra: Partial<BrowserResult> = { tabId: selected.id }
+    signal.throwIfAborted()
     switch (input.operation) {
       case "open":
       case "navigate": {
@@ -829,14 +865,12 @@ async function operate(
         if (!["http:", "https:"].includes(url.protocol))
           throw new Error("Only HTTP and HTTPS navigation is supported")
         selected.refs.clear()
-        await page.goto(url.href, { waitUntil: "domcontentloaded", timeout })
+        await page.goto(url.href, { waitUntil: "domcontentloaded", timeout, signal })
         selected.error = undefined
         break
       }
       case "close": {
-        const lastIncognito =
-          profiles.get(selected.profile)?.incognito && page.context().pages().length === 1
-        await (lastIncognito ? page.context().close() : page.close())
+        await page.close()
         break
       }
       case "snapshot": {
@@ -847,7 +881,7 @@ async function operate(
           page.frames().map(async (frame) => {
             if (snapshot !== selected.snapshot || Date.now() >= deadline)
               throw new Error("Snapshot interrupted. Take a fresh snapshot.")
-            signal?.throwIfAborted()
+            signal.throwIfAborted()
             return frame.locator("input,textarea,[contenteditable]").evaluateAll((elements) =>
               elements.flatMap((element) => {
                 const field =
@@ -882,16 +916,18 @@ async function operate(
           timeout: Math.max(1, deadline - Date.now()),
           signal,
         })
-        tree = tree.replace(/\[ref=([^\]]+)\]/g, (_, ref: string) => {
-          const id = `${snapshot}-${ref}`
-          selected.refs.set(id, page.getByRef(ref))
-          return `[ref=${id}]`
-        })
+        signal.throwIfAborted()
         if (snapshot !== selected.snapshot)
           throw new Error("Snapshot interrupted. Take a fresh snapshot.")
+        const refs = new Map<string, Locator>()
+        tree = tree.replace(/\[ref=([^\]]+)\]/g, (_, ref: string) => {
+          const id = `${snapshot}-${ref}`
+          refs.set(id, page.getByRef(ref))
+          return `[ref=${id}]`
+        })
         let text = await page
           .locator("body")
-          .innerText({ timeout: Math.max(1, deadline - Date.now()) })
+          .innerText({ timeout: Math.max(1, deadline - Date.now()), signal })
         for (const value of [...hidden].sort((a, b) => b.length - a.length)) {
           text = text.split(value).join("••••••••")
           tree = tree.split(value).join("••••••••")
@@ -906,7 +942,8 @@ async function operate(
         extra.width = selected.width
         extra.height = selected.height
         if (input.includeImage || input.save) {
-          const image = await page.screenshot({ type: "png", timeout: 3000 })
+          const image = await page.screenshot({ type: "png", timeout: 3000, signal })
+          signal.throwIfAborted()
           if (input.includeImage) extra.screenshot = image.toString("base64")
           if (input.save) {
             const file = join(scratch, randomUUID())
@@ -920,8 +957,10 @@ async function operate(
             )
           }
         }
+        signal.throwIfAborted()
         if (snapshot !== selected.snapshot)
           throw new Error("Snapshot interrupted. Take a fresh snapshot.")
+        selected.refs = refs
         break
       }
       case "click":
@@ -930,6 +969,7 @@ async function operate(
             button: input.button,
             clickCount: input.clickCount,
             timeout,
+            signal,
           })
         else if (input.x !== undefined && input.y !== undefined)
           await page.mouse.click(input.x, input.y, {
@@ -939,7 +979,7 @@ async function operate(
         else throw new Error("Supply one locator or both coordinates")
         break
       case "hover":
-        if (locator) await locator.hover({ timeout })
+        if (locator) await locator.hover({ timeout, signal })
         else if (input.x !== undefined && input.y !== undefined)
           await page.mouse.move(input.x, input.y)
         else throw new Error("Supply one locator or both coordinates")
@@ -947,10 +987,11 @@ async function operate(
       case "type":
         if (input.text === undefined) throw new Error("Text is required")
         if (locator) {
-          if (input.clear) await locator.fill(input.text)
-          else await locator.pressSequentially(input.text)
+          if (input.clear) await locator.fill(input.text, { timeout, signal })
+          else await locator.pressSequentially(input.text, { timeout, signal })
         } else {
           if (input.clear) await page.keyboard.press("ControlOrMeta+A")
+          signal.throwIfAborted()
           await page.keyboard.insertText(input.text)
         }
         break
@@ -960,27 +1001,31 @@ async function operate(
         break
       case "scroll":
         if (locator)
-          await locator.evaluate((element, delta) => element.scrollBy(delta.x, delta.y), {
-            x: input.deltaX ?? 0,
-            y: input.deltaY ?? 0,
-          })
+          await locator.evaluate(
+            (element, delta) => element.scrollBy(delta.x, delta.y),
+            {
+              x: input.deltaX ?? 0,
+              y: input.deltaY ?? 0,
+            },
+            { timeout, signal }
+          )
         else await page.mouse.wheel(input.deltaX ?? 0, input.deltaY ?? 0)
         break
       case "select":
         if (!locator || !input.values) throw new Error("A locator and values are required")
-        extra.selected = await locator.selectOption(input.values)
+        extra.selected = await locator.selectOption(input.values, { timeout, signal })
         break
       case "drag": {
         const source = target(selected, input.source)
         const destination = target(selected, input.target)
         if (!source || !destination) throw new Error("Source and target locators are required")
-        await source.dragTo(destination, { timeout })
+        await source.dragTo(destination, { timeout, signal })
         break
       }
       case "upload":
         if (input.paths?.length) throw new Error("Transfer upload bytes through the file endpoint")
-        if (locator) await locator.setInputFiles([])
-        else if (selected.chooser) await selected.chooser.setFiles([])
+        if (locator) await locator.setInputFiles([], { timeout, signal })
+        else if (selected.chooser) await selected.chooser.setFiles([], { timeout, signal })
         selected.chooser = null
         break
       case "evaluate": {
@@ -991,41 +1036,60 @@ async function operate(
           returnByValue: input.returnByValue ?? true,
           timeout,
         }
-        let evaluated = await selected.cdp.send("Runtime.evaluate", params)
-        if (
-          evaluated.exceptionDetails?.exception?.className === "SyntaxError" &&
-          evaluated.exceptionDetails.scriptId !== undefined &&
-          evaluated.exceptionDetails.stackTrace === undefined &&
-          input.expression.includes("await")
-        ) {
-          evaluated = await selected.cdp.send("Runtime.evaluate", {
-            ...params,
-            replMode: true,
-          })
+        // A dedicated CDP session lets us end an unresolved awaitPromise
+        // without detaching the tab's screencast and input session.
+        const cdp = await page.context().newCDPSession(page)
+        let interrupt: Promise<void> | undefined
+        const cancel = () => {
+          interrupt = cdp
+            .send("Runtime.terminateExecution")
+            .catch(() => {})
+            .then(() => cdp.detach().catch(() => {}))
         }
-        if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text)
-        const value: unknown =
-          input.returnByValue === false
-            ? {
-                objectId: evaluated.result.objectId,
-                description: evaluated.result.description,
-              }
-            : evaluated.result.value
-        if (Buffer.byteLength(JSON.stringify(value ?? null)) > 64000)
-          throw new Error("Evaluation result exceeds 64 KB")
-        extra.value = value ?? null
+        signal.addEventListener("abort", cancel, { once: true })
+        try {
+          signal.throwIfAborted()
+          let evaluated = await cdp.send("Runtime.evaluate", params)
+          if (
+            evaluated.exceptionDetails?.exception?.className === "SyntaxError" &&
+            evaluated.exceptionDetails.scriptId !== undefined &&
+            evaluated.exceptionDetails.stackTrace === undefined &&
+            input.expression.includes("await")
+          ) {
+            signal.throwIfAborted()
+            evaluated = await cdp.send("Runtime.evaluate", {
+              ...params,
+              replMode: true,
+            })
+          }
+          if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text)
+          const value: unknown =
+            input.returnByValue === false
+              ? {
+                  objectId: evaluated.result.objectId,
+                  description: evaluated.result.description,
+                }
+              : evaluated.result.value
+          if (Buffer.byteLength(JSON.stringify(value ?? null)) > 64000)
+            throw new Error("Evaluation result exceeds 64 KB")
+          extra.value = value ?? null
+        } finally {
+          signal.removeEventListener("abort", cancel)
+          await (interrupt ?? cdp.detach().catch(() => {}))
+        }
         break
       }
       case "waitFor": {
         if (!locator && !input.text && !input.urlIncludes)
           throw new Error("Supply at least one wait condition")
         for (;;) {
+          signal.throwIfAborted()
           const checks = await Promise.all([
             locator ? locator.count().then((count) => count > 0) : true,
             input.text
               ? page
                   .locator("body")
-                  .innerText({ timeout: Math.min(timeout, 1000) })
+                  .innerText({ timeout: Math.min(timeout, 1000), signal })
                   .then((text) => text.includes(input.text ?? ""))
                   .catch(() => false)
               : true,
@@ -1034,7 +1098,7 @@ async function operate(
           if (checks.every(Boolean)) break
           if (Date.now() >= deadline)
             throw new Error("Timed out waiting for every browser condition")
-          await new Promise((resolve) => setTimeout(resolve, 100))
+          await delay(100, undefined, { signal })
         }
         break
       }
@@ -1081,8 +1145,8 @@ async function operate(
         })
         break
       case "history":
-        if (input.delta === -1) await page.goBack({ timeout })
-        else await page.goForward({ timeout })
+        if (input.delta === -1) await page.goBack({ timeout, signal })
+        else await page.goForward({ timeout, signal })
         break
       case "reload":
         if (input.ignoreCache)
@@ -1090,7 +1154,7 @@ async function operate(
             cacheDisabled: true,
           })
         try {
-          await page.reload({ timeout, waitUntil: "domcontentloaded" })
+          await page.reload({ timeout, waitUntil: "domcontentloaded", signal })
         } finally {
           if (input.ignoreCache)
             await selected.cdp.send("Network.setCacheDisabled", {
@@ -1166,43 +1230,57 @@ async function operate(
       default:
         throw new Error("Unsupported browser operation")
     }
+    signal.throwIfAborted()
     return result(session, caller, extra)
   }
-  const interrupt = () => {
-    if (!running) return
-    selected.control.generation++
-    selected.snapshot++
-    selected.refs.clear()
-    void selected.cdp.send("Page.stopLoading").catch(() => {})
-    void selected.cdp.send("Runtime.terminateExecution").catch(() => {})
-  }
   signal?.throwIfAborted()
-  const budget = input.timeoutMs ?? (input.operation === "recordingStop" ? 120000 : 15000)
   const execute = async (): Promise<BrowserResult> => {
+    signal?.throwIfAborted()
     if (selected.dialog && !["dialog", "snapshot", "close"].includes(input.operation))
       throw new Error("Answer the pending browser dialog first")
-    const interrupted = Promise.withResolvers<BrowserResult>()
-    const finish = () => interrupted.resolve(result(session, caller, { tabId: selected.id }))
+    const deadline = new AbortController()
+    const stop = new AbortController()
+    const operation = AbortSignal.any([deadline.signal, stop.signal, ...(signal ? [signal] : [])])
+    const reply = Promise.withResolvers<BrowserResult>()
+    const opened = () => reply.resolve(result(session, caller, { tabId: selected.id }))
+    const stopped = () => stop.abort(new Error("Navigation stopped"))
     const navigation = ["open", "navigate", "history", "reload"].includes(input.operation)
-    const mayOpenDialog = ["click", "press", "type", "evaluate"].includes(input.operation)
-    if (navigation) selected.stop = finish
-    if (mayOpenDialog) selected.page.once("dialog", finish)
-    const onAbort = () => {
-      interrupt()
-      interrupted.reject(new Error("Browser operation interrupted"))
+    const mayOpenDialog =
+      navigation || ["click", "press", "type", "evaluate"].includes(input.operation)
+    if (navigation) selected.stop = stopped
+    if (mayOpenDialog) selected.page.once("dialog", opened)
+    const abort = () => {
+      if (read) {
+        reply.reject(operation.reason)
+      } else {
+        selected.control.generation++
+        selected.snapshot++
+        selected.refs.clear()
+      }
     }
-    signal?.addEventListener("abort", onAbort, { once: true })
-    const timer = setTimeout(() => {
-      interrupt()
-      interrupted.reject(new Error(`Browser operation timed out after ${budget}ms`))
-    }, budget)
+    operation.addEventListener("abort", abort, { once: true })
+    const timer = setTimeout(
+      () => deadline.abort(new Error(`Browser operation timed out after ${budget}ms`)),
+      budget
+    )
     try {
-      return await Promise.race([run(), interrupted.promise])
+      // A mutation holds the queue through cancellation. A pending dialog
+      // is the exception because its answer needs the queue to run.
+      return await Promise.race([run(operation), reply.promise])
+    } catch (error) {
+      if (stop.signal.aborted) return result(session, caller, { tabId: selected.id })
+      if (navigation && operation.aborted) {
+        // The navigation waiter can abort after Chromium has started loading.
+        await selected.cdp.send("Page.stopLoading").catch(() => {})
+        selected.loading = false
+      }
+      operation.throwIfAborted()
+      throw error
     } finally {
       clearTimeout(timer)
-      if (selected.stop === finish) selected.stop = undefined
-      if (mayOpenDialog) selected.page.off("dialog", finish)
-      signal?.removeEventListener("abort", onAbort)
+      operation.removeEventListener("abort", abort)
+      if (selected.stop === stopped) selected.stop = undefined
+      if (mayOpenDialog) selected.page.off("dialog", opened)
     }
   }
   if (read) return execute()
@@ -1217,6 +1295,7 @@ const server = createServer(async (req, res) => {
   })
   try {
     const loopback = req.socket.remoteAddress === "127.0.0.1"
+    const { agent: agentToken, gateway: gatewayToken } = await credentials()
     if (req.url === "/health" && loopback) {
       await context("default", "health")
       res.end("ok")
@@ -1254,9 +1333,16 @@ const server = createServer(async (req, res) => {
     }
     const chunks: Buffer[] = []
     let bytes = 0
+    const contentType = req.headers["content-type"] ?? "application/octet-stream"
+    const multipart = req.method === "PUT" && contentType.startsWith("multipart/form-data")
+    const requestLimit = multipart
+      ? maxUploadRequestBytes
+      : req.method === "PUT"
+        ? maxUploadBytes
+        : 50 * 1024 * 1024
     for await (const chunk of req) {
       bytes += chunk.length
-      if (bytes > 50 * 1024 * 1024) throw new Error("Request exceeds 50 MiB")
+      if (bytes > requestLimit) throw new Error("Browser request is too large")
       chunks.push(chunk)
     }
     const body = Buffer.concat(chunks, bytes)
@@ -1268,13 +1354,16 @@ const server = createServer(async (req, res) => {
       await tab.control.run(viewer ?? null, async () => {
         abort.signal.throwIfAborted()
         const files: Array<{ name: string; mimeType: string; buffer: Buffer }> = []
-        const contentType = req.headers["content-type"] ?? "application/octet-stream"
-        if (contentType.startsWith("multipart/form-data")) {
+        if (multipart) {
           const form = await new Response(body, {
             headers: { "content-type": contentType },
           }).formData()
+          let total = 0
           for (const entry of form.values()) {
             if (typeof entry === "string") throw new Error("Upload fields must be files")
+            if (files.length === 20) throw new Error("At most 20 upload files are allowed")
+            total += entry.size
+            if (total > maxUploadBytes) throw new Error("Uploads must total at most 50 MB")
             files.push({
               name: basename(entry.name),
               mimeType: entry.type,
@@ -1287,13 +1376,14 @@ const server = createServer(async (req, res) => {
             mimeType: contentType,
             buffer: body,
           })
-        if (files.length > 20) throw new Error("At most 20 upload files are allowed")
+        const signal = abort.signal
+        signal.throwIfAborted()
         const locator = url.searchParams.get("locator")
         if (locator) {
           const input = target(tab, locator)
           if (!input) throw new Error("Upload target not found")
-          await input.setInputFiles(files, { timeout: 15000 })
-        } else if (tab.chooser) await tab.chooser.setFiles(files, { timeout: 15000 })
+          await input.setInputFiles(files, { timeout: 15000, signal })
+        } else if (tab.chooser) await tab.chooser.setFiles(files, { timeout: 15000, signal })
         else throw new Error("No file chooser is pending")
         tab.chooser = null
       })
@@ -1320,9 +1410,14 @@ const server = createServer(async (req, res) => {
     )
   }
 })
-server.on("upgrade", (req, socket, head) => {
+server.on("upgrade", async (req, socket, head) => {
   const { authorization, host, origin } = req.headers
-  if (origin || !authorized(authorization, host, gatewayToken)) {
+  const onError = () => socket.destroy()
+  socket.on("error", onError)
+  const tokens = await credentials().catch(() => null)
+  socket.off("error", onError)
+  if (socket.destroyed) return
+  if (origin || !tokens || !authorized(authorization, host, tokens.gateway)) {
     socket.destroy()
     return
   }
@@ -1354,6 +1449,7 @@ server.on("upgrade", (req, socket, head) => {
       pending: null,
     }
     tab.viewers.set(viewer, view)
+    if (tab.control.viewer === viewer) clearTimeout(tab.initialControl)
     let previous = ""
     let published = 0
     let dragging = false
@@ -1551,11 +1647,7 @@ server.on("upgrade", (req, socket, head) => {
       if (tab.viewers.get(viewer)?.socket !== ws) return
       tab.viewers.delete(viewer)
       if (tab.control.viewer === viewer) {
-        tab.refs.clear()
-        tab.snapshot++
-        void resetInput(tab)
-          .then(() => tab.control.release(viewer))
-          .catch(() => {})
+        void handoff(tab, viewer, "releaseControl").catch(() => {})
       }
       void screencast(tab).catch(() => {})
     })
@@ -1565,6 +1657,15 @@ const cleanup = setInterval(() => {
   for (const tab of tabs.values())
     if (!tab.viewers.size && !tab.recording && Date.now() - tab.used > 30 * 60 * 1000)
       void tab.page.close()
+  void profileControl
+    .run(null, async () => {
+      for (const [key, pending] of contexts) {
+        if (key === "default") continue
+        const browser = await pending
+        if (!browser.pages().length) await browser.close()
+      }
+    })
+    .catch((error) => console.error("Browser profile cleanup failed", error))
 }, 60000)
 cleanup.unref()
 for (const signal of ["SIGINT", "SIGTERM"] as const)
@@ -1574,5 +1675,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
       [...contexts.values()].map(async (context) => (await context).close())
     ).finally(() => process.exit())
   })
+await credentials()
 await context("default", "startup")
 server.listen(port, "0.0.0.0", () => console.log(`Browser worker ready on ${port}`))

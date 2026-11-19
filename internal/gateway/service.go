@@ -879,7 +879,15 @@ func (s *Service) routes() http.Handler {
 			agentPath, isAgent := strings.CutPrefix(r.URL.Path, "/api/agent/")
 			_, route, _ := strings.Cut(agentPath, "/")
 			if isAgent && strings.HasPrefix(route, "browser/") {
-				r.Body = http.MaxBytesReader(w, r.Body, 50<<20)
+				limit := int64(50 << 20)
+				if r.Method == http.MethodPut {
+					limit = 50_000_000
+					if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+						// The worker checks the decoded files against the 50 MB limit.
+						limit += 1 << 20
+					}
+				}
+				r.Body = http.MaxBytesReader(w, r.Body, limit)
 				browser.ServeHTTP(w, r)
 				return
 			}

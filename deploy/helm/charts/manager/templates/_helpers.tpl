@@ -18,7 +18,9 @@
 {{- if .Values.browser.seccomp.localhostProfile -}}
 {{- .Values.browser.seccomp.localhostProfile -}}
 {{- else if .Values.browser.seccomp.enabled -}}
-{{- printf "agentz/browser-%s.json" (.Files.Get "files/browser-seccomp.json" | sha256sum) -}}
+{{- $amd64 := .Files.Get "files/browser-seccomp-amd64.json" -}}
+{{- $arm64 := .Files.Get "files/browser-seccomp-arm64.json" -}}
+{{- printf "agentz/browser-%s.json" (printf "%s%s" $amd64 $arm64 | sha256sum) -}}
 {{- end -}}
 {{- end -}}
 

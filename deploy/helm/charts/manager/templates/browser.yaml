@@ -11,8 +11,7 @@ metadata:
   labels:
     {{- include "manager.labels" . | nindent 4 }}
 data:
-  browser.json: |
-    {{- .Files.Get "files/browser-seccomp.json" | nindent 4 }}
+  {{- (.Files.Glob "files/browser-seccomp-*.json").AsConfig | nindent 2 }}
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -31,7 +30,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/name: {{ $name }}
       annotations:
-        checksum/profile: {{ .Files.Get "files/browser-seccomp.json" | sha256sum }}
+        agentz.accuknox.com/seccomp-profile: {{ $profile }}
     spec:
       automountServiceAccountToken: false
       {{- with .Values.imagePullSecrets }}
@@ -40,6 +39,14 @@ spec:
       {{- end }}
       nodeSelector:
         kubernetes.io/os: linux
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: [amd64, arm64]
       tolerations:
         - operator: Exists
       securityContext:
@@ -54,8 +61,10 @@ spec:
             - |
               const fs = require('node:fs');
               const target = '/profiles/{{ $profile }}';
+              const arch = process.arch === 'x64' ? 'amd64' : process.arch;
+              const source = '/source/browser-seccomp-' + arch + '.json';
               const sync = () => {
-                const profile = fs.readFileSync('/source/browser.json');
+                const profile = fs.readFileSync(source);
                 if (fs.existsSync(target) && fs.readFileSync(target).equals(profile)) return;
                 const temporary = target + '.' + require('node:crypto').randomUUID();
                 fs.writeFileSync(temporary, profile, {mode: 0o644});
@@ -84,7 +93,11 @@ spec:
               command:
                 - node
                 - -e
-                - "const fs=require('node:fs');process.exit(fs.readFileSync('/profiles/{{ $profile }}').equals(fs.readFileSync('/source/browser.json'))?0:1)"
+                - |
+                  const fs = require('node:fs');
+                  const arch = process.arch === 'x64' ? 'amd64' : process.arch;
+                  const profile = fs.readFileSync('/source/browser-seccomp-' + arch + '.json');
+                  process.exit(fs.readFileSync('/profiles/{{ $profile }}').equals(profile) ? 0 : 1);
             periodSeconds: 5
           volumeMounts:
             - name: source

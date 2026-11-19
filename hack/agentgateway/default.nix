@@ -39,6 +39,9 @@ pkgs.rustPlatform.buildRustPackage {
   inherit version src;
   patches = [ ./telemetry.patch ./guardrails.patch ];
   cargoHash = "sha256-PCE/wyslj4UPHocBKNp24QaqeKIGXRig9KZovBqdcHo=";
+  # keep Cargo's vendored native libraries. The Nixpkgs hook requires system
+  # AWS-LC and zstd and overrides the bundled jemalloc build.
+  dontCargoUseSystemLibs = true;
   nativeBuildInputs = [ pkgs.cmake pkgs.pkg-config pkgs.protobuf ];
   cargoBuildFlags = [ "-p" "agentgateway-app" "--bin" "agentgateway" ];
   buildFeatures = [ "ui" ];

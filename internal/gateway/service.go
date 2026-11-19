@@ -898,9 +898,12 @@ func (s *Service) routes() http.Handler {
 		s.handleOpenCodeProxy,
 	)
 
-	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).Get("/api/agent/{agentName}/browser/{sessionId}", func(w http.ResponseWriter, r *http.Request) {
-		s.StreamBrowser(w, r, chi.URLParam(r, "agentName"), chi.URLParam(r, "sessionId"), gatewayapi.StreamBrowserParams{})
-	})
+	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).Get(
+		"/api/agent/{agentName}/browser/{sessionId}",
+		func(w http.ResponseWriter, r *http.Request) {
+			s.StreamBrowser(w, r, chi.URLParam(r, "agentName"), chi.URLParam(r, "sessionId"), gatewayapi.StreamBrowserParams{})
+		},
+	)
 
 	if s.cfg.DelegationNamespace != "" {
 		r.Route("/api/inference/v1", func(r chi.Router) {

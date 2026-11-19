@@ -245,6 +245,7 @@ func ReconcileRuntimeIsolation(ctx context.Context, c client.Client, namespace *
 }
 
 // AgentIngress separates Agent runtime ingress from broad infrastructure grants.
+// It excludes Agent endpoints from infrastructure and returns their runtime rule.
 // The browser control port is reachable only by the configured gateway identity.
 func AgentIngress(infrastructure *ciliumapi.Rule, gatewayNamespace, gatewayAccount string) *ciliumapi.Rule {
 	const agentLabel = "k8s.agentz.accuknox.com/agent"

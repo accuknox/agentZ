@@ -101,6 +101,7 @@ export function Workspace({
                 sessionId={sessionId}
                 workspaceId={workspaceId}
                 visible={visible || browserFloating}
+                query={browser}
                 floating={browserFloating}
                 reveal={revealed?.tab}
                 onFloatingChange={(floating, id) => {

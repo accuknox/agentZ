@@ -74,8 +74,7 @@ const elasticsearchSearchResponseSchema = z.object({
 export type NixPackage = z.infer<typeof nixPackageSchema>
 
 export type SearchNixPackagesResponse =
-  | { packages: NixPackage[]; error: undefined }
-  | { packages: undefined; error: GatewayError }
+  { packages: NixPackage[]; error: undefined } | { packages: undefined; error: GatewayError }
 
 function getSearchConfig(): SearchConfig {
   const missing = searchConfigEnvKeys.filter((key) => {

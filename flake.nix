@@ -2,18 +2,25 @@
   description = "Zero-trust agentic AI platform. Secure by design.";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs-opencode-v1.url = "github:NixOS/nixpkgs/7fd4004d0511991fff3a0524856a9be09e28c5f0"; # pin OpenCode to v1.19.0 until we upgrade to v2
     nixpkgs-oapi-codegen.url = "github:NixOS/nixpkgs/e7a3ca8092b61ff85b6a45bf863ea2b2d6a661b3";
     flake-utils.url = "github:numtide/flake-utils";
   };
-  outputs = { nixpkgs, nixpkgs-oapi-codegen, flake-utils, ... }:
+  outputs = { nixpkgs, nixpkgs-opencode-v1, nixpkgs-oapi-codegen, flake-utils, ... }:
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ]
       (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          oapiCodegen = nixpkgs-oapi-codegen.legacyPackages.${system}.oapi-codegen;
+          # Shared by Make and the development shell; versions come from flake.lock.
+          generators = {
+            controller-gen = pkgs.kubernetes-controller-tools;
+            oapi-codegen = nixpkgs-oapi-codegen.legacyPackages.${system}.oapi-codegen;
+            sqlc = pkgs.sqlc;
+            yamlfmt = pkgs.yamlfmt;
+          };
           otel = pkgs.callPackage ./opencode/plugin-otel/default.nix { };
           agentgateway = pkgs.callPackage ./hack/agentgateway/default.nix { };
-          opencode = pkgs.opencode.overrideAttrs (old: {
+          opencode = nixpkgs-opencode-v1.legacyPackages.${system}.opencode.overrideAttrs (old: {
             patches = (old.patches or [ ]) ++ [ ./opencode/patches/guardrails.patch ];
           });
           cli = pkgs.buildGo127Module {
@@ -119,7 +126,13 @@
         in
         {
           formatter = pkgs.nixpkgs-fmt;
-          packages = rec {
+          apps = builtins.mapAttrs
+            (name: package: {
+              type = "app";
+              program = "${package}/bin/${name}";
+            })
+            generators;
+          packages = generators // rec {
             inherit agentgateway;
             agentgatewayImage = pkgs.dockerTools.buildLayeredImage {
               name = "public.ecr.aws/k9v9d5v2/agentz/agentgateway";
@@ -240,7 +253,7 @@
             };
           };
           devShells.default = pkgs.mkShell {
-            packages = with pkgs; [
+            packages = builtins.attrValues generators ++ (with pkgs; [
               nixd
               nixpkgs-fmt
               go_1_27
@@ -251,24 +264,19 @@
               goreleaser
               golangci-lint
               grpcurl
-              sqlc
               postgresql_18
-              openapi-generator-cli
-              oapiCodegen
               bun
               python3
               nodejs
               package-version-server
               kubebuilder
-              kubernetes-controller-tools
               kustomize
               kind
-              yamlfmt
               yamllint
               yaml-language-server
               helm-ls
               opencode
-            ];
+            ]);
           };
         });
 }

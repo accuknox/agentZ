@@ -8,8 +8,7 @@ import { inferencePoolsTag } from "@/data/cache"
 import { getGatewayServerClient } from "@/lib/gateway/server-client"
 
 export type InferencePoolsResult =
-  | { pools: InferencePool[]; error: undefined }
-  | { pools: undefined; error: GatewayError }
+  { pools: InferencePool[]; error: undefined } | { pools: undefined; error: GatewayError }
 
 export type InferencePoolsPageResult =
   | {

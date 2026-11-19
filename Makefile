@@ -33,7 +33,12 @@ GATEWAY_FLAGS ?=
 KUBECTL ?= kubectl
 KUSTOMIZE ?= kustomize
 HELM ?= helm
-CONTROLLER_GEN ?= controller-gen
+# Use the same locked generator packages as the Nix development shell.
+NIX ?= nix
+CONTROLLER_GEN := $(NIX) run .\#controller-gen --
+OAPI_CODEGEN := $(NIX) run .\#oapi-codegen --
+SQLC := $(NIX) run .\#sqlc --
+YAMLFMT := $(NIX) run .\#yamlfmt --
 
 # Codex 0.162.1 protocol schemas, including experimental gateway OAuth.
 CODEX_SOURCE_URL := https://raw.githubusercontent.com/openai/codex/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs
@@ -48,11 +53,12 @@ all: generate lint build
 generate:
 	python3 hack/browser/seccomp.py
 	cd web && bun run gen:db-schema
-	sqlc generate
+	$(SQLC) generate
 	go run ./hack/inference/generate_providers.go
 	go run ./hack/openapi/generate_opencode_gateway.go
+	$(YAMLFMT) openapi/gateway.yaml
 	$(MAKE) generate-codex
-	oapi-codegen \
+	$(OAPI_CODEGEN) \
 		--include-tags guardrails,coding,agents,tenants,workspaces,event-trail,lens,secrets,sandboxes,inference,skills,mcp-connections,workflows,workflow-schedules,workflow-runs,workflow-webhooks,chat-sessions,session,sessions,event,global,config,project,permission,question,pty,dashboards \
 		-config oapi-codegen.gateway.yaml openapi/gateway.yaml
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./pkg/apis/..."
@@ -62,6 +68,7 @@ generate:
 		output:webhook:artifacts:config=deploy/kustomize/webhook \
 		output:crd:artifacts:config=deploy/kustomize/crd/bases
 	cp deploy/kustomize/crd/bases/*.yaml deploy/helm/charts/manager/crds/
+	$(YAMLFMT) deploy/kustomize
 	cd web && bun run gen:openapi-client
 	cd opencode/config && bun run gen:openapi-client
 
@@ -81,7 +88,7 @@ generate-codex:
 fmt:
 	go fmt $(GO_PKGS)
 	goimports -w cmd hack internal pkg
-	yamlfmt .
+	$(YAMLFMT) .
 	cd web && bun run format
 	cd opencode/config && bun run format
 	cd opencode/config && bunx prettier --config prettier.config.mjs ../browser/*.ts --write
@@ -205,16 +212,6 @@ install-browser-seccomp:
 		--set-string config.agentgatewayTraceHost=172.18.0.1 \
 		--show-only templates/browser.yaml | $(KUBECTL) -n "$(K8S_NAMESPACE)" apply -f -
 	$(KUBECTL) -n "$(K8S_NAMESPACE)" rollout status daemonset/agentz-dev-manager-browser-seccomp --timeout=120s
-
-# Forward one agent's runtime, filesystem and optional browser to run-gateway.
-.PHONY: run-agent-forward
-run-agent-forward:
-	@test -n "$(AGENT_NAME)" || { echo 'Set AGENT_NAME and K8S_NAMESPACE to the agent deployment and namespace.' >&2; exit 1; }
-	$(KUBECTL) -n "$(K8S_NAMESPACE)" port-forward "deployment/$(AGENT_NAME)" 4096:4096 4097:4097 4098:4098
-
-.PHONY: run-web
-run-web:
-	cd web && bun run dev
 
 .PHONY: run-observer
 run-observer:

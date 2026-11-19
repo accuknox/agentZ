@@ -56,7 +56,8 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 	}
 	secret := &corev1.Secret{}
 	key := types.NamespacedName{Namespace: resolved.Agent.Namespace, Name: agent + agentzv1alpha1.BrowserSecretSuffix}
-	if err := s.k8sClient.Get(r.Context(), key, secret); err != nil {
+	err = s.k8sClient.Get(r.Context(), key, secret)
+	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusServiceUnavailable, "browser_unavailable", "Browser is starting", err))
 		return
 	}
@@ -103,7 +104,8 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 					if event.Agent.Namespace != access.namespace || event.Agent.Name != agent {
 						continue
 					}
-					if event.Type == agentWatchEventDeleted || !event.Agent.Spec.Browser.Enabled || event.Agent.UID != resolved.Agent.UID {
+					unavailable := event.Type == agentWatchEventDeleted || !event.Agent.Spec.Browser.Enabled
+					if unavailable || event.Agent.UID != resolved.Agent.UID {
 						cancel()
 						return
 					}
@@ -154,7 +156,10 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 		ModifyResponse: func(response *http.Response) error {
 			if response.StatusCode == http.StatusSwitchingProtocols {
 				body := response.Body
-				go func() { <-ctx.Done(); _ = body.Close() }()
+				go func() {
+					<-ctx.Done()
+					_ = body.Close()
+				}()
 			}
 			response.Header.Set("Cache-Control", "no-store")
 			response.Header.Set("X-Content-Type-Options", "nosniff")

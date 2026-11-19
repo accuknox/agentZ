@@ -115,13 +115,7 @@ export function AccessSourceChip({ source }: { source: AccessSource }) {
 }
 
 type AdministrationStateKind =
-  | "empty"
-  | "welcome"
-  | "provisioning"
-  | "deleting"
-  | "failed"
-  | "forbidden"
-  | "not-found"
+  "empty" | "welcome" | "provisioning" | "deleting" | "failed" | "forbidden" | "not-found"
 
 export function AdministrationState({
   actions,

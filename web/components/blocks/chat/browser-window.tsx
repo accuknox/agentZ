@@ -5,6 +5,7 @@ import { PanelRight, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { BrowserTab } from "@/lib/gateway/client"
+import { browserWindowLayout } from "./browser-window-layout"
 
 export function BrowserWindow({
   floating,
@@ -31,34 +32,33 @@ export function BrowserWindow({
     const node = windowRef.current
     if (!floating || !node) return
     const chat = node.closest("[data-chat-workspace]")
-    const content = chat?.querySelector("[data-chat-content]")
+    const content = chat?.querySelector<HTMLElement>("[data-chat-content]")
     const fit = () => {
       const area = content?.getBoundingClientRect() ?? new DOMRect(0, 0, innerWidth, innerHeight)
-      const box = node.getBoundingClientRect()
-      const w = Math.min(box.width, area.width - 24)
-      const h = Math.min(box.height, area.height - 76)
-      const left = Math.max(area.left + 12, Math.min(box.left, area.right - w - 12))
-      const top = Math.max(area.top + 56, Math.min(box.top, area.bottom - h - 12))
-      saved.current = new DOMRect(left, top, w, h)
+      const frame = browserWindowLayout(area, node.getBoundingClientRect())
+      saved.current = new DOMRect(frame.left, frame.top, frame.width, frame.height)
       Object.assign(node.style, {
-        width: `${Math.max(1, w)}px`,
-        height: `${Math.max(1, h)}px`,
-        minWidth: `${Math.min(240, area.width - 24)}px`,
-        minHeight: `${Math.min(150, area.height - 76)}px`,
-        left: `${left}px`,
-        top: `${top}px`,
+        width: `${frame.width}px`,
+        height: `${frame.height}px`,
+        minWidth: `${frame.minWidth}px`,
+        minHeight: `${frame.minHeight}px`,
+        left: `${frame.left}px`,
+        top: `${frame.top}px`,
       })
+      // Measure the full canvas, not the area reduced by these insets, so
+      // resizing the preview cannot feed back into its own bounds.
+      content?.style.setProperty("--browser-preview-inset-right", `${frame.insetRight}px`)
+      content?.style.setProperty("--browser-preview-inset-bottom", `${frame.insetBottom}px`)
     }
     fitWindow.current = fit
     const area = content?.getBoundingClientRect() ?? new DOMRect(0, 0, innerWidth, innerHeight)
     const w = saved.current?.width ?? 320
     const h = saved.current?.height ?? Math.min(320, (w * height) / width)
-    const composer = chat?.querySelector("[data-chat-composer]")?.getBoundingClientRect()
     Object.assign(node.style, {
       width: `${w}px`,
       height: `${h}px`,
       left: `${saved.current?.left ?? area.right - w - 12}px`,
-      top: `${saved.current?.top ?? (composer?.top ?? area.bottom - 160) - h - 12}px`,
+      top: `${saved.current?.top ?? area.bottom - h - 12}px`,
     })
     fit()
     const observer = new ResizeObserver(fit)
@@ -71,6 +71,8 @@ export function BrowserWindow({
       // One mounted surface retains its socket/control when it docks. Clear
       // imperative geometry so the inline panel can fill its own container.
       node.removeAttribute("style")
+      content?.style.removeProperty("--browser-preview-inset-right")
+      content?.style.removeProperty("--browser-preview-inset-bottom")
       drag.current = null
       fitWindow.current = null
     }

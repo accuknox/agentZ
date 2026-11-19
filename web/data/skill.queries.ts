@@ -4,8 +4,7 @@ import { getGatewayServerClient } from "@/lib/gateway/server-client"
 import { skillsTag } from "@/data/cache"
 
 type ListImmutableSkillResponse =
-  | { skills: Skill[]; error: undefined }
-  | { skills: undefined; error: Error }
+  { skills: Skill[]; error: undefined } | { skills: undefined; error: Error }
 
 export async function listImmutableSkillsCachedQuery(
   workspaceId?: string

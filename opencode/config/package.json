@@ -3,7 +3,7 @@
   "scripts": {
     "lint": "eslint",
     "format": "prettier . --write",
-    "gen:openapi-client": "openapi-ts",
+    "gen:openapi-client": "openapi-ts && prettier --write lib/gateway/client",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -16,11 +16,11 @@
     "zod": "4.6.6"
   },
   "devDependencies": {
-    "@hey-api/openapi-ts": "^0.97.2",
+    "@hey-api/openapi-ts": "0.97.3",
     "@types/node": "^24.10.0",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
-    "prettier": "^3.8.3",
+    "prettier": "3.9.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.4"
   },

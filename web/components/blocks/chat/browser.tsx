@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useEffectEvent, useRef, useState, type ComponentProps } from "react"
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQueryClient, type UseQueryResult } from "@tanstack/react-query"
 import {
   ArrowLeft,
   ArrowRight,
@@ -87,6 +87,7 @@ export function Browser({
   sessionId,
   workspaceId,
   visible,
+  query,
   floating,
   reveal,
   onFloatingChange: setFloating,
@@ -96,6 +97,7 @@ export function Browser({
   sessionId: string
   workspaceId: string
   visible: boolean
+  query: UseQueryResult<BrowserResult>
   floating: boolean
   reveal?: Pick<BrowserTab, "id" | "reveal">
   onFloatingChange: (floating: boolean, tabId?: string) => void
@@ -140,24 +142,6 @@ export function Browser({
   const canvas = useRef<HTMLCanvasElement>(null)
   const addressInput = useRef<HTMLInputElement>(null)
   const input = useRef<HTMLInputElement>(null)
-  const query = useQuery(
-    queryOptions({
-      queryKey: key,
-      queryFn: async ({ signal }) => {
-        const { data } = await runBrowser({
-          path: { agentName, sessionId },
-          body: { operation: "status" },
-          headers: { "X-AgentZ-Workspace-ID": workspaceId },
-          signal,
-          throwOnError: true,
-        })
-        return data
-      },
-      enabled: visible,
-      refetchInterval: visible ? 3000 : false,
-      retry: false,
-    })
-  )
   const profile = query.data?.defaultProfileId ?? "default"
   const tab = query.data?.tabs.find((tab) => tab.id === selected) ?? query.data?.tabs[0]
   const tabId = tab?.id
@@ -409,7 +393,6 @@ export function Browser({
   const wheel = useEffectEvent((event: WheelEvent) => {
     if (!control || !tab || !canvas.current) return
     event.preventDefault()
-    const rect = canvas.current.getBoundingClientRect()
     let deltaX = event.deltaX
     let deltaY = event.deltaY
     switch (event.deltaMode) {
@@ -424,8 +407,7 @@ export function Browser({
     }
     send({
       type: "wheel",
-      x: ((event.clientX - rect.left) * tab.width) / rect.width,
-      y: ((event.clientY - rect.top) * tab.height) / rect.height,
+      ...pageCoordinates(event, canvas.current, tab),
       deltaX,
       deltaY,
     })
@@ -1077,12 +1059,10 @@ export function Browser({
                 // textarea. Mouse events carry the browser's click count.
                 event.preventDefault()
                 clicks.current = Math.max(1, Math.min(3, event.detail))
-                const rect = event.currentTarget.getBoundingClientRect()
                 send({
                   type: "mouse",
                   action: "down",
-                  x: ((event.clientX - rect.left) * tab.width) / rect.width,
-                  y: ((event.clientY - rect.top) * tab.height) / rect.height,
+                  ...pageCoordinates(event, event.currentTarget, tab),
                   button: event.button === 2 ? "right" : event.button === 1 ? "middle" : "left",
                   clickCount: clicks.current,
                 })
@@ -1097,8 +1077,7 @@ export function Browser({
                     const rect = event.currentTarget.getBoundingClientRect()
                     send({
                       type: "wheel",
-                      x: ((event.clientX - rect.left) * tab.width) / rect.width,
-                      y: ((event.clientY - rect.top) * tab.height) / rect.height,
+                      ...pageCoordinates(event, event.currentTarget, tab),
                       deltaX: (deltaX * tab.width) / rect.width,
                       deltaY: (deltaY * tab.height) / rect.height,
                     })
@@ -1106,12 +1085,10 @@ export function Browser({
                   }
                   return
                 }
-                const rect = event.currentTarget.getBoundingClientRect()
                 send({
                   type: "mouse",
                   action: "move",
-                  x: ((event.clientX - rect.left) * tab.width) / rect.width,
-                  y: ((event.clientY - rect.top) * tab.height) / rect.height,
+                  ...pageCoordinates(event, event.currentTarget, tab),
                 })
               }}
               onPointerUp={(event) => {
@@ -1119,32 +1096,25 @@ export function Browser({
                 if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
                 if (pickingGesture.current) {
                   pickingGesture.current = false
-                  const rect = event.currentTarget.getBoundingClientRect()
-                  void inspectElement(
-                    ((event.clientX - rect.left) * tab.width) / rect.width,
-                    ((event.clientY - rect.top) * tab.height) / rect.height
-                  )
+                  const point = pageCoordinates(event, event.currentTarget, tab)
+                  void inspectElement(point.x, point.y)
                   return
                 }
                 if (event.pointerType === "touch") {
                   const gesture = touch.current
                   touch.current = null
                   if (!gesture || gesture.moved) return
-                  const rect = event.currentTarget.getBoundingClientRect()
                   send({
                     type: "mouse",
                     action: "down",
                     button: "left",
-                    x: ((event.clientX - rect.left) * tab.width) / rect.width,
-                    y: ((event.clientY - rect.top) * tab.height) / rect.height,
+                    ...pageCoordinates(event, event.currentTarget, tab),
                   })
                 }
-                const rect = event.currentTarget.getBoundingClientRect()
                 send({
                   type: "mouse",
                   action: "up",
-                  x: ((event.clientX - rect.left) * tab.width) / rect.width,
-                  y: ((event.clientY - rect.top) * tab.height) / rect.height,
+                  ...pageCoordinates(event, event.currentTarget, tab),
                   button: event.button === 2 ? "right" : event.button === 1 ? "middle" : "left",
                   clickCount: clicks.current,
                 })
@@ -1254,8 +1224,7 @@ export function Browser({
               }}
               onBlur={() => {
                 forwardedKeys.current.clear()
-                if (control && socket.current?.readyState === WebSocket.OPEN)
-                  socket.current.send(JSON.stringify({ type: "resetInput" }))
+                if (control) send({ type: "resetInput" })
               }}
             />
           </div>
@@ -1312,7 +1281,7 @@ export function Browser({
           </Button>
         </div>
       ) : null}
-      {downloads.length && !floating ? (
+      {downloads.length > 0 && !floating ? (
         <div aria-label="Downloads" className="flex shrink-0 items-center border-t">
           <div className="flex max-h-24 min-w-0 flex-1 flex-wrap gap-1 overflow-auto p-2">
             {downloads.map((file) => (
@@ -1567,4 +1536,16 @@ function BrowserAction({
       <TooltipContent side="top">{label}</TooltipContent>
     </Tooltip>
   )
+}
+
+function pageCoordinates(
+  event: Pick<MouseEvent, "clientX" | "clientY">,
+  canvas: HTMLCanvasElement,
+  tab: BrowserTab
+) {
+  const rect = canvas.getBoundingClientRect()
+  return {
+    x: ((event.clientX - rect.left) * tab.width) / rect.width,
+    y: ((event.clientY - rect.top) * tab.height) / rect.height,
+  }
 }

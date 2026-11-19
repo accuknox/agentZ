@@ -145,11 +145,5 @@ export const recordingEncoderScript = `(() => {
       const bytes = new Uint8Array(await chunks[index].arrayBuffer());
       return bytes.toBase64();
     },
-    download() {
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(new Blob(chunks, { type: recorder.mimeType }));
-      link.download = "recording";
-      link.click();
-    },
   };
 })()`

@@ -24,8 +24,7 @@ import { dayjs } from "@/lib/format"
 import { targetLabels } from "./event-trail-event"
 
 type FilterField = { label: string } & (
-  | { kind: "date" }
-  | { kind: "options"; options: { label: string; value: string }[] }
+  { kind: "date" } | { kind: "options"; options: { label: string; value: string }[] }
 )
 
 export function EventTrailFilters({

@@ -2071,7 +2071,6 @@ export default function Chat({
       </div>
       <div
         ref={composerDock}
-        data-chat-composer
         className={cn(
           "pointer-events-none absolute inset-x-0 z-30 flex max-h-full min-h-0 flex-col gap-4 px-3 sm:px-5",
           showStarter ? "top-1/2 -translate-y-1/2" : "bottom-0 bg-background pb-4"

@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    // The generated gateway schemas live outside the browser package.
-    "paths": {
-      "zod": ["./node_modules/zod"]
-    }
-  }
-}

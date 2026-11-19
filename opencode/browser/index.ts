@@ -498,6 +498,18 @@ async function resetInput(tab: Tab) {
   tab.buttons.clear()
 }
 
+async function handoff(tab: Tab, viewer: string, operation: "takeControl" | "releaseControl") {
+  if (operation === "takeControl") {
+    await tab.control.take(viewer)
+    await resetInput(tab)
+  } else {
+    if (tab.control.viewer === viewer) await resetInput(tab)
+    await tab.control.release(viewer)
+  }
+  tab.refs.clear()
+  tab.snapshot++
+}
+
 async function zoom(tab: Tab, value: number) {
   // Page scale emulates pinch zoom and Chromium clamps zoom-out to 100%.
   // Document zoom also keeps input coordinates aligned with the screencast.
@@ -657,20 +669,9 @@ async function operate(
   const selected = tab
   if (input.operation === "open" && input.open !== false) selected.reveal = Date.now()
   selected.used = Date.now()
-  if (input.operation === "takeControl") {
+  if (input.operation === "takeControl" || input.operation === "releaseControl") {
     if (!viewer) throw new Error("A human viewer is required")
-    await selected.control.take(viewer)
-    await resetInput(selected)
-    selected.refs.clear()
-    selected.snapshot++
-    return result(session, { tabId: selected.id }, caller)
-  }
-  if (input.operation === "releaseControl") {
-    if (!viewer) throw new Error("A human viewer is required")
-    if (selected.control.viewer === viewer) await resetInput(selected)
-    await selected.control.release(viewer)
-    selected.refs.clear()
-    selected.snapshot++
+    await handoff(selected, viewer, input.operation)
     return result(session, { tabId: selected.id }, caller)
   }
   const read = ["snapshot", "waitFor"].includes(input.operation)
@@ -718,7 +719,7 @@ async function operate(
           selected.cursor
         )
     }
-    let extra: Partial<BrowserResult> = { tabId: selected.id }
+    const extra: Partial<BrowserResult> = { tabId: selected.id }
     switch (input.operation) {
       case "open":
       case "navigate": {
@@ -924,7 +925,6 @@ async function operate(
       case "waitFor": {
         if (!locator && !input.text && !input.urlIncludes)
           throw new Error("Supply at least one wait condition")
-        const deadline = Date.now() + timeout
         for (;;) {
           const checks = await Promise.all([
             locator ? locator.count().then((count) => count > 0) : true,
@@ -958,7 +958,8 @@ async function operate(
         if (input.mode === "preset") {
           const size = presets.find((preset) => preset.id === input.preset)
           if (!size) throw new Error("Unknown viewport preset")
-          ;[width, height] = [size.width, size.height]
+          width = size.width
+          height = size.height
           const portrait = height >= width
           if (
             (input.orientation === "landscape" && portrait) ||
@@ -1278,19 +1279,8 @@ server.on("upgrade", (req, socket, head) => {
         if (["takeControl", "releaseControl", "resetInput"].includes(input.type)) dragging = false
         if (input.type === "mouse" && input.action === "down") dragging = true
         if (input.type === "mouse" && input.action === "up") dragging = false
-        if (input.type === "takeControl") {
-          await tab.control.take(viewer)
-          await resetInput(tab)
-          tab.refs.clear()
-          tab.snapshot++
-          publish()
-          return
-        }
-        if (input.type === "releaseControl") {
-          if (tab.control.viewer === viewer) await resetInput(tab)
-          await tab.control.release(viewer)
-          tab.refs.clear()
-          tab.snapshot++
+        if (input.type === "takeControl" || input.type === "releaseControl") {
+          await handoff(tab, viewer, input.type)
           publish()
           return
         }

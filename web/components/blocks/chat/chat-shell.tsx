@@ -199,7 +199,10 @@ export function ChatShell({
   return (
     <AgentAppearanceContext value={appearance ?? null}>
       <div data-chat-workspace className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
-        <div data-chat-content className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div
+          data-chat-content
+          className="flex min-h-0 min-w-0 flex-1 flex-col pr-(--browser-preview-inset-right) pb-(--browser-preview-inset-bottom)"
+        >
           <header className="@container/header-actions flex h-(--workspace-topbar-height) min-w-0 shrink-0 items-center gap-1.5 px-3">
             <SidebarTrigger className="shrink-0" />
             <AgentPresence size={32} />

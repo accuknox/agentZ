@@ -681,7 +681,13 @@ export type EventTrailFilters = {
 }
 
 export type EventTrailFilterField =
-  "actor_type" | "actor_id" | "category" | "workspace_id" | "target_type" | "result" | "created_at"
+  | "actor_type"
+  | "actor_id"
+  | "category"
+  | "workspace_id"
+  | "target_type"
+  | "result"
+  | "created_at"
 
 export type EventTrailFilter = {
   field: EventTrailFilterField
@@ -881,7 +887,16 @@ export type ResourceReference = {
 export type MascotBreed = "mochi" | "ziglet" | "slinky" | "mallow" | "pip" | "pi"
 
 export type MascotColor =
-  "cream" | "lilac" | "peach" | "rose" | "coral" | "amber" | "lime" | "mint" | "sky" | "slate"
+  | "cream"
+  | "lilac"
+  | "peach"
+  | "rose"
+  | "coral"
+  | "amber"
+  | "lime"
+  | "mint"
+  | "sky"
+  | "slate"
 
 export type AgentAppearance = {
   breed: MascotBreed
@@ -901,7 +916,16 @@ export type BrowserDevTarget = {
 
 export type BrowserInput = {
   clickCount?: number
-  type: "mouse" | "key" | "text" | "wheel" | "ack" | "takeControl" | "releaseControl" | "resetInput"
+  type:
+    | "mouse"
+    | "key"
+    | "text"
+    | "wheel"
+    | "ack"
+    | "takeControl"
+    | "releaseControl"
+    | "resetInput"
+    | "captureSize"
   x?: number
   y?: number
   action?: "move" | "down" | "up"
@@ -910,12 +934,15 @@ export type BrowserInput = {
   text?: string
   deltaX?: number
   deltaY?: number
+  captureWidth?: number
+  captureHeight?: number
 }
 
 export type BrowserViewerState = {
   type: "state"
   state: BrowserTab
   canOperate: boolean
+  supportsCaptureSize?: boolean
 }
 
 export type BrowserStreamError = {
@@ -923,7 +950,12 @@ export type BrowserStreamError = {
   message: string
 }
 
-export type BrowserStreamEvent = BrowserViewerState | BrowserStreamError
+export type BrowserCursorHint = {
+  type: "cursor"
+  pointer: boolean
+}
+
+export type BrowserStreamEvent = BrowserViewerState | BrowserStreamError | BrowserCursorHint
 
 export type BrowserPreset = {
   id: string
@@ -1610,7 +1642,11 @@ export type WorkflowEvaluationRequest = {
 }
 
 export type WorkflowEvaluationState =
-  "queued" | "running" | "cancelling" | "completed" | "cancelled"
+  | "queued"
+  | "running"
+  | "cancelling"
+  | "completed"
+  | "cancelled"
 
 export type WorkflowEvaluation = {
   id: string
@@ -3114,7 +3150,11 @@ export type DashboardWidgetError = {
 }
 
 export type DashboardWidgetQueryStatus =
-  "ok" | "empty" | "invalid_data" | "limit_exceeded" | "query_failed"
+  | "ok"
+  | "empty"
+  | "invalid_data"
+  | "limit_exceeded"
+  | "query_failed"
 
 export type DashboardWidgetQueryResult = {
   widget_name: DashboardWidgetName
@@ -4304,7 +4344,11 @@ export type ImmutableSkillSortByQuery = "name" | "version"
  * Skill summary field used to order results before pagination.
  */
 export type SkillSummarySortByQuery =
-  "name" | "version" | "file_count" | "size_bytes" | "modified_at"
+  | "name"
+  | "version"
+  | "file_count"
+  | "size_bytes"
+  | "modified_at"
 
 /**
  * Secret field used to order results before pagination.
@@ -6663,6 +6707,18 @@ export type StreamBrowserData = {
   query?: {
     viewer?: string
     tabId?: string
+    /**
+     * Maximum outstanding preview frames. Values above one enable cursor hints.
+     */
+    frameWindow?: number
+    /**
+     * Initial preview width in display pixels.
+     */
+    captureWidth?: number
+    /**
+     * Initial preview height in display pixels.
+     */
+    captureHeight?: number
     artifact?: string
   }
   url: "/api/agent/{agentName}/browser/{sessionId}"

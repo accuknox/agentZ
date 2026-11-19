@@ -261,6 +261,7 @@ export type {
   BedrockInferenceProviderWriteWritable,
   BedrockProviderConfig,
   BrowserArtifact,
+  BrowserCursorHint,
   BrowserDevTarget,
   BrowserDiagnostic,
   BrowserDialog,

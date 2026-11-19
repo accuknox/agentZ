@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import dynamic from "next/dynamic"
 import { Globe, Files, Maximize2, Minimize2, PanelRightClose, type LucideIcon } from "lucide-react"
-import { queryOptions, useQuery } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { watchAgentsQueryOptions } from "@/components/agent-readiness"
 import { useFileWorkspace } from "./file-workspace-store"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { runBrowser, type BrowserTab } from "@/lib/gateway/client"
+import type { BrowserTab } from "@/lib/gateway/client"
 import { cn } from "@/lib/utils"
+import { browserQueryOptions } from "./browser-query"
 
 const Browser = dynamic(() => import("./browser").then((module) => module.Browser), { ssr: false })
 
@@ -118,25 +119,11 @@ export function Workspace({
         ]
       : []),
   ]
-  const browser = useQuery(
-    queryOptions({
-      queryKey: ["browser", workspaceId, agentName, sessionId],
-      queryFn: async ({ signal }) => {
-        if (!sessionId) throw new Error("Session is required")
-        const { data } = await runBrowser({
-          path: { agentName, sessionId },
-          body: { operation: "status" },
-          headers: { "X-AgentZ-Workspace-ID": workspaceId },
-          signal,
-          throwOnError: true,
-        })
-        return data
-      },
-      enabled: browserEnabled && !!sessionId,
-      refetchInterval: browserEnabled && sessionId ? 3000 : false,
-      retry: false,
-    })
-  )
+  const browser = useQuery({
+    ...browserQueryOptions(workspaceId, agentName, sessionId),
+    enabled: browserEnabled && !!sessionId,
+    refetchInterval: browserEnabled && sessionId ? 3000 : false,
+  })
   let latest: BrowserTab | undefined
   let reveal = 0
   for (const candidate of browser.data?.tabs ?? []) {

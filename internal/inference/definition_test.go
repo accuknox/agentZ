@@ -710,7 +710,8 @@ func TestDelegatedResponsesClientTools(t *testing.T) {
 			if err := input.ValidateProvider(agentzv1alpha1.InferenceProviderKindOpenAI); err != nil {
 				t.Fatal(err)
 			}
-			if err := input.ValidateProvider(agentzv1alpha1.InferenceProviderKindOpenAICompatible); err == nil {
+			err = input.ValidateProvider(agentzv1alpha1.InferenceProviderKindOpenAICompatible)
+			if err == nil {
 				t.Fatal("accepted tool search for Responses to Chat conversion")
 			}
 		})

@@ -4,29 +4,24 @@ import { browserWindowLayout } from "./browser-window-layout"
 
 const area = { left: 200, top: 40, width: 1200, height: 800 }
 const preview = { left: 1068, top: 628, width: 320, height: 200 }
+const composer = { left: 360, top: 638, width: 640, height: 190 }
 
-test("dragging left shrinks the chat and stops before its minimum width", () => {
-  const moved = browserWindowLayout(area, { ...preview, left: 800 })
-  assert.equal(moved.insetRight, 612)
-  const clamped = browserWindowLayout(area, { ...preview, left: -100, top: -100 })
-  assert.equal(area.width - clamped.insetRight, 320)
-  assert.equal(clamped.left, area.left + 332)
-  assert.equal(clamped.top, area.top + 56)
+test("a floating preview fits beside the composer when there is room", () => {
+  const frame = browserWindowLayout(area, preview, composer)
+  assert.equal(frame.left, preview.left)
+  assert.equal(frame.top, preview.top)
 })
 
-test("an oversized preview stays inside the canvas and leaves room for chat", () => {
-  const frame = browserWindowLayout(area, { ...preview, width: 2000, height: 2000 })
-  assert.equal(frame.left + frame.width, area.left + area.width - 12)
-  assert.equal(frame.top + frame.height, area.top + area.height - 12)
-  assert.equal(area.width - frame.insetRight, 320)
+test("dragging into the composer moves the preview above it", () => {
+  const frame = browserWindowLayout(area, { ...preview, left: 800 }, composer)
+  assert.equal(frame.left, 800)
+  assert.equal(frame.top + frame.height, composer.top - 12)
 })
 
-test("narrow screens reserve space below the working area", () => {
+test("a growing composer limits the preview height on narrow screens", () => {
   const narrow = { left: 0, top: 0, width: 390, height: 700 }
-  const frame = browserWindowLayout(narrow, preview)
-  assert.equal(frame.insetRight, 0)
-  assert.equal(narrow.height - frame.insetBottom + 12, frame.top)
+  const expanded = { left: 12, top: 152, width: 366, height: 536 }
+  const frame = browserWindowLayout(narrow, preview, expanded)
+  assert.equal(frame.top + frame.height, expanded.top - 12)
   assert.ok(frame.left + frame.width <= narrow.width - 12)
-  assert.ok(frame.top + frame.height <= narrow.height - 12)
-  assert.ok(narrow.height - frame.insetBottom >= narrow.height / 2 - 12)
 })

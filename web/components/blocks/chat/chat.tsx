@@ -688,15 +688,12 @@ export default function Chat({
   const { browserContext, clearBrowserContext } = useFileWorkspace()
   useEffect(() => {
     if (!browserContext || browserContext.sessionId !== sessionId) return
-    const current = composerRef.current?.getMessage()
-    if (!current) return
+    const composer = composerRef.current
+    if (!composer) return
+    const current = composer.getMessage()
+    const file = browserContext.image
     const files = [...current.files]
-    if (browserContext.image) {
-      const bytes = Uint8Array.from(
-        atob(browserContext.image.slice("data:image/png;base64,".length)),
-        (character) => character.charCodeAt(0)
-      )
-      const file = new File([bytes], "browser.png", { type: "image/png" })
+    if (file) {
       files.push({
         source: "local",
         type: "file",
@@ -707,7 +704,7 @@ export default function Chat({
         url: URL.createObjectURL(file),
       })
     }
-    composerRef.current?.setMessage({
+    composer.setMessage({
       ...current,
       text: [current.text, browserContext.text].filter(Boolean).join("\n\n"),
       files,
@@ -2077,6 +2074,7 @@ export default function Chat({
         )}
       >
         <div
+          data-chat-composer
           className={cn(
             "pointer-events-auto mx-auto flex min-h-0 w-full max-w-3xl flex-col",
             showStarter ? "gap-8" : "min-w-0 bg-background"

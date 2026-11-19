@@ -1486,6 +1486,27 @@ paths:
         schema:
           type: string
           maxLength: 2048
+      - name: frameWindow
+        in: query
+        description: Maximum outstanding preview frames. Values above one enable cursor hints.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 6
+      - name: captureWidth
+        in: query
+        description: Initial preview width in display pixels.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 1440
+      - name: captureHeight
+        in: query
+        description: Initial preview height in display pixels.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 1440
       - name: artifact
         in: query
         schema:
@@ -8199,6 +8220,7 @@ components:
           - takeControl
           - releaseControl
           - resetInput
+          - captureSize
         x:
           type: number
         'y':
@@ -8225,6 +8247,14 @@ components:
           type: number
         deltaY:
           type: number
+        captureWidth:
+          type: integer
+          minimum: 1
+          maximum: 1440
+        captureHeight:
+          type: integer
+          minimum: 1
+          maximum: 1440
       required:
       - type
     BrowserViewerState:
@@ -8238,6 +8268,8 @@ components:
         state:
           $ref: '#/components/schemas/BrowserTab'
         canOperate:
+          type: boolean
+        supportsCaptureSize:
           type: boolean
       required:
       - type
@@ -8256,10 +8288,24 @@ components:
       required:
       - type
       - message
+    BrowserCursorHint:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+          - cursor
+        pointer:
+          type: boolean
+      required:
+      - type
+      - pointer
     BrowserStreamEvent:
       oneOf:
       - $ref: '#/components/schemas/BrowserViewerState'
       - $ref: '#/components/schemas/BrowserStreamError'
+      - $ref: '#/components/schemas/BrowserCursorHint'
     BrowserPreset:
       type: object
       additionalProperties: false

@@ -120,6 +120,8 @@ const blankModel: InferenceModel = {
 }
 
 const capabilities = zInferenceModelCapabilities.keyof().options
+const limitFields = zInferenceModelLimits.keyof().options
+const modalityFields = zInferenceModelModalities.keyof().options
 
 type SubscriptionOAuthState =
   | { status: "idle" | "starting" }
@@ -1025,24 +1027,36 @@ export function ProviderSheet({
           })
       if (result.error) {
         const details: string[] = []
-        let shouldFocus = true
+        const oauthErrors: string[] = []
+        const messages = new Map<FieldPath<InferenceProviderWriteDiscriminatorWritable>, string[]>()
         for (const error of result.error.errors ?? []) {
           const errorField = error.field.startsWith("provider.")
             ? error.field.slice("provider.".length)
             : error.field
           if (errorField === "oauth_ticket") {
-            setSubscriptionOAuth({ status: "error", message: error.message })
+            oauthErrors.push(error.message)
             continue
           }
           const field =
             providerServerErrorFields.get(errorField) ??
             providerServerErrorPathSchema.safeParse(errorField).data
           if (field) {
-            form.setError(field, { type: "server", message: error.message }, { shouldFocus })
-            shouldFocus = false
+            messages.set(field, [...(messages.get(field) ?? []), error.message])
             continue
           }
           details.push(error.message)
+        }
+        let shouldFocus = true
+        for (const [field, errors] of messages) {
+          form.setError(
+            field,
+            { type: "server", message: errors[0], types: { server: errors } },
+            { shouldFocus }
+          )
+          shouldFocus = false
+        }
+        if (oauthErrors.length) {
+          setSubscriptionOAuth({ status: "error", message: oauthErrors.join("\n") })
         }
         if (!result.error.errors?.length || details.length > 0) {
           setSubmitError(result.error.message)
@@ -2216,6 +2230,19 @@ export function ProviderSheet({
                         errors={[
                           getFieldState(`models.${index}.id`, formState).error,
                           getFieldState(`models.${index}.display_name`, formState).error,
+                          getFieldState(`models.${index}.api`, formState).error,
+                          getFieldState(`models.${index}.catalog_provider`, formState).error,
+                          ...limitFields.map(
+                            (key) => getFieldState(`models.${index}.limits.${key}`, formState).error
+                          ),
+                          ...capabilities.map(
+                            (key) =>
+                              getFieldState(`models.${index}.capabilities.${key}`, formState).error
+                          ),
+                          ...modalityFields.map(
+                            (key) =>
+                              getFieldState(`models.${index}.modalities.${key}`, formState).error
+                          ),
                         ]}
                       />
                     </div>

@@ -1551,6 +1551,19 @@ components:
       - sizeBytes
       - url
       type: object
+    BrowserCursorHint:
+      additionalProperties: false
+      properties:
+        pointer:
+          type: boolean
+        type:
+          enum:
+          - cursor
+          type: string
+      required:
+      - type
+      - pointer
+      type: object
     BrowserDevTarget:
       additionalProperties: false
       properties:
@@ -1620,6 +1633,14 @@ components:
           - right
           - middle
           type: string
+        captureHeight:
+          maximum: 1440
+          minimum: 1
+          type: integer
+        captureWidth:
+          maximum: 1440
+          minimum: 1
+          type: integer
         clickCount:
           maximum: 3
           minimum: 1
@@ -1644,6 +1665,7 @@ components:
           - takeControl
           - releaseControl
           - resetInput
+          - captureSize
           type: string
         x:
           type: number
@@ -1936,6 +1958,7 @@ components:
       oneOf:
       - $ref: '#/components/schemas/BrowserViewerState'
       - $ref: '#/components/schemas/BrowserStreamError'
+      - $ref: '#/components/schemas/BrowserCursorHint'
     BrowserTab:
       additionalProperties: false
       properties:
@@ -2029,6 +2052,8 @@ components:
           type: boolean
         state:
           $ref: '#/components/schemas/BrowserTab'
+        supportsCaptureSize:
+          type: boolean
         type:
           enum:
           - state
@@ -28979,6 +29004,27 @@ paths:
         schema:
           maxLength: 2048
           type: string
+      - description: Maximum outstanding preview frames. Values above one enable cursor hints.
+        in: query
+        name: frameWindow
+        schema:
+          maximum: 6
+          minimum: 1
+          type: integer
+      - description: Initial preview width in display pixels.
+        in: query
+        name: captureWidth
+        schema:
+          maximum: 1440
+          minimum: 1
+          type: integer
+      - description: Initial preview height in display pixels.
+        in: query
+        name: captureHeight
+        schema:
+          maximum: 1440
+          minimum: 1
+          type: integer
       - in: query
         name: artifact
         schema:

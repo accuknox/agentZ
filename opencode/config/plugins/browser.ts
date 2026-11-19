@@ -1,4 +1,4 @@
-import { request } from "node:http"
+import { request, type IncomingMessage, type RequestOptions } from "node:http"
 import { readFile, mkdir, writeFile, realpath, stat } from "node:fs/promises"
 import { basename, join, relative, resolve, sep } from "node:path"
 import { tool, type Plugin, type ToolContext, type ToolResult } from "@opencode-ai/plugin"
@@ -14,6 +14,8 @@ import type {
   BrowserResult,
 } from "../lib/gateway/client/types.gen"
 
+const workerURL = "http://127.0.0.1:4098/"
+const maxFileBytes = 50 * 1024 * 1024
 const fields = zBrowserRequest.omit({ operation: true })
 const definitions = {
   preview_status: [
@@ -93,7 +95,36 @@ export default (async (plugin) => {
   const tokenPath = process.env.AGENTZ_BROWSER_TOKEN_PATH
   if (!tokenPath) return { tool: {} }
   const token = await readFile(tokenPath, "utf8")
+  const authorization = `Bearer ${token}`
   const roots = new Map<string, string>()
+
+  async function requestWorker(
+    query: URLSearchParams,
+    options: RequestOptions,
+    body?: Buffer,
+    limit = Infinity
+  ) {
+    const response = await new Promise<IncomingMessage>((resolve, reject) => {
+      const req = request(
+        new URL(`?${query}`, workerURL),
+        {
+          ...options,
+          headers: { authorization, ...options.headers },
+        },
+        resolve
+      )
+      req.on("error", reject)
+      req.end(body)
+    })
+    let size = 0
+    const chunks: Buffer[] = []
+    for await (const chunk of response) {
+      size += chunk.length
+      if (size > limit) throw new Error("Browser artifact exceeds 50 MiB")
+      chunks.push(chunk)
+    }
+    return { status: response.statusCode ?? 500, bytes: Buffer.concat(chunks, size) }
+  }
 
   async function call(
     session: string,
@@ -124,84 +155,47 @@ export default (async (plugin) => {
       if (file.locator) query.set("locator", file.locator)
     }
     const data = file?.bytes ?? Buffer.from(JSON.stringify(input))
-    return new Promise<Buffer>((resolve, reject) => {
-      const req = request(
-        {
-          host: "127.0.0.1",
-          port: 4098,
-          path: `/?${query}`,
-          method: file ? "PUT" : "POST",
-          signal,
-          headers: {
-            authorization: `Bearer ${token}`,
-            "x-browser-caller": session,
-            "content-type": file ? file.contentType : "application/json",
-            "content-length": data.length,
-          },
+    const { status, bytes } = await requestWorker(
+      query,
+      {
+        method: file ? "PUT" : "POST",
+        signal,
+        headers: {
+          "x-browser-caller": session,
+          "content-type": file?.contentType ?? "application/json",
+          "content-length": data.length,
         },
-        (response) => {
-          const chunks: Buffer[] = []
-          response.on("data", (chunk: Buffer) => chunks.push(chunk))
-          response.on("error", reject)
-          response.on("end", () => {
-            const bytes = Buffer.concat(chunks)
-            if (response.statusCode && response.statusCode >= 400) {
-              let message = `Browser request failed (HTTP ${response.statusCode})`
-              try {
-                message = zError.parse(JSON.parse(bytes.toString())).message
-              } catch {
-                // Authentication and intermediary failures can have empty or non-JSON bodies.
-              }
-              reject(new Error(message))
-              return
-            }
-            resolve(bytes)
-          })
-        }
-      )
-      req.on("error", reject)
-      req.end(data)
-    })
+      },
+      data
+    )
+    if (status < 400) return bytes
+    let message = `Browser request failed (HTTP ${status})`
+    try {
+      message = zError.parse(JSON.parse(bytes.toString())).message
+    } catch {
+      // Failures before the worker can have an empty response.
+    }
+    throw new Error(message)
   }
 
   const exported = new Map<string, string>()
   async function exportArtifact(artifact: BrowserArtifact, context: ToolContext) {
     const saved = exported.get(artifact.id)
     if (saved) return saved
-    if (artifact.sizeBytes > 50 * 1024 * 1024) throw new Error("Browser artifact exceeds 50 MiB")
+    if (artifact.sizeBytes > maxFileBytes) throw new Error("Browser artifact exceeds 50 MiB")
     const output = join(context.directory, ".agentz", "browser")
     await mkdir(output, { recursive: true })
-    const bytes = await new Promise<Buffer>((resolve, reject) => {
-      const req = request(
-        {
-          host: "127.0.0.1",
-          port: 4098,
-          path: `/?${new URLSearchParams({ session: roots.get(context.sessionID) ?? context.sessionID, artifact: artifact.id })}`,
-          signal: context.abort,
-          headers: { authorization: `Bearer ${token}` },
-        },
-        (response) => {
-          const chunks: Buffer[] = []
-          let length = 0
-          response.on("data", (chunk: Buffer) => {
-            length += chunk.length
-            if (length > 50 * 1024 * 1024) {
-              response.destroy(new Error("Browser artifact exceeds 50 MiB"))
-              return
-            }
-            chunks.push(chunk)
-          })
-          response.on("error", reject)
-          response.on("end", () =>
-            response.statusCode === 200
-              ? resolve(Buffer.concat(chunks))
-              : reject(new Error("Browser artifact unavailable"))
-          )
-        }
-      )
-      req.on("error", reject)
-      req.end()
+    const query = new URLSearchParams({
+      session: roots.get(context.sessionID) ?? context.sessionID,
+      artifact: artifact.id,
     })
+    const { status, bytes } = await requestWorker(
+      query,
+      { signal: context.abort },
+      undefined,
+      maxFileBytes
+    )
+    if (status !== 200) throw new Error("Browser artifact unavailable")
     const path = join(output, `${artifact.id}-${basename(artifact.fileName)}`)
     await writeFile(path, bytes)
     exported.set(artifact.id, path)
@@ -227,7 +221,7 @@ export default (async (plugin) => {
     try {
       if (result.artifact) artifactPath = await exportArtifact(result.artifact, context)
       for (const artifact of result.downloads ?? []) {
-        if (artifact.sizeBytes <= 50 * 1024 * 1024)
+        if (artifact.sizeBytes <= maxFileBytes)
           downloads.push({ id: artifact.id, path: await exportArtifact(artifact, context) })
       }
     } catch (cause) {
@@ -390,7 +384,7 @@ export default (async (plugin) => {
             throw new Error("Upload file must be under the agent home")
           const info = await stat(file)
           total += info.size
-          if (!info.isFile() || total > 50 * 1024 * 1024)
+          if (!info.isFile() || total > maxFileBytes)
             throw new Error("Uploads must be regular files totalling at most 50 MiB")
           form.append(
             "files",

@@ -108,6 +108,7 @@ import { cn } from "@/lib/utils"
 import {
   createExternalAgentAction,
   changeExternalAgentAction,
+  deleteCopilotStudioAction,
   listExternalAgentsAction,
   listCopilotStudioAgentsAction,
   loadExternalAgentAction,
@@ -171,6 +172,7 @@ export function ExternalAgents({
   const [selectedId, setSelectedId] = useState<string>()
   const [editor, setEditor] = useState<ExternalAgentEditorState>()
   const [expanded, setExpanded] = useState<ExpandedState>({})
+  const [deletingEnvironment, setDeletingEnvironment] = useState<CopilotStudioEnvironment>()
   const [confirmation, setConfirmation] = useState<{
     agent: ExternalAgent
     operation: "disconnect" | "reconnect" | "delete"
@@ -200,46 +202,43 @@ export function ExternalAgents({
   }[confirmation?.operation ?? "disconnect"]
   const queryClient = useQueryClient()
   const initialRows = { agents, integrations }
-  const query = useQuery(
-    queryOptions({
-      queryKey: ["watchExternalAgents", orgSlug, workspaceSlug, workspace.id],
-      placeholderData: initialRows,
-      queryFn: streamedQuery<typeof initialRows, typeof initialRows>({
-        initialValue: initialRows,
-        reducer: (_, rows) => rows,
-        refetchMode: "reset",
-        streamFn: async function* ({ signal }) {
-          const result = await watchExternalAgents({
-            baseUrl: await getGatewayBaseURL(),
-            headers: { "X-AgentZ-Workspace-ID": workspace.id },
-            signal,
+  const options = queryOptions({
+    queryKey: ["watchExternalAgents", orgSlug, workspaceSlug, workspace.id],
+    placeholderData: initialRows,
+    queryFn: streamedQuery<typeof initialRows, typeof initialRows>({
+      initialValue: initialRows,
+      reducer: (_, rows) => rows,
+      refetchMode: "reset",
+      streamFn: async function* ({ signal }) {
+        const result = await watchExternalAgents({
+          baseUrl: await getGatewayBaseURL(),
+          headers: { "X-AgentZ-Workspace-ID": workspace.id },
+          signal,
+        })
+        for await (const _ of result.stream) {
+          void queryClient.invalidateQueries({
+            predicate: (query) => query.meta?.externalAgentScope === `${orgSlug}/${workspaceSlug}`,
           })
-          for await (const _ of result.stream) {
-            void queryClient.invalidateQueries({
-              predicate: (query) =>
-                query.meta?.externalAgentScope === `${orgSlug}/${workspaceSlug}`,
-            })
-            yield await listExternalAgentsAction(orgSlug, workspaceSlug)
-          }
-          if (!signal.aborted) throw new Error("External agent updates disconnected.")
-        },
-      }),
-      refetchOnMount: "always",
-      refetchOnReconnect: "always",
-      refetchOnWindowFocus: false,
-      retry: true,
-      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
-      staleTime: Infinity,
-    })
-  )
+          yield await listExternalAgentsAction(orgSlug, workspaceSlug)
+        }
+        if (!signal.aborted) throw new Error("External agent updates disconnected.")
+      },
+    }),
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
+    refetchOnWindowFocus: false,
+    retry: true,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    staleTime: Infinity,
+  })
+  const query = useQuery(options)
   const data = query.data ?? initialRows
   const rows = useMemo<ExternalAgentRow[]>(
     () => [
       ...data.agents.map((agent): ExternalAgentRow => ({ kind: "agent", agent })),
-      ...data.integrations.map((environment): ExternalAgentRow => ({
-        kind: "copilot-studio",
-        environment,
-      })),
+      ...data.integrations.map(
+        (environment): ExternalAgentRow => ({ kind: "copilot-studio", environment })
+      ),
     ],
     [data]
   )
@@ -454,6 +453,13 @@ export function ExternalAgents({
                       {environment.enabled ? <Pause aria-hidden /> : <Play aria-hidden />}
                       {environment.enabled ? "Disable connection" : "Enable connection"}
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setDeletingEnvironment(environment)}
+                    >
+                      <Trash2 aria-hidden />
+                      Delete connection
+                    </DropdownMenuItem>
                   </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -586,6 +592,74 @@ export function ExternalAgents({
           onClose={() => setSelectedId(undefined)}
         />
       ) : null}
+      <Dialog
+        open={!!deletingEnvironment}
+        onOpenChange={(open) => {
+          if (!open && !pending) setDeletingEnvironment(undefined)
+        }}
+      >
+        <DialogContent className="[&_[data-slot=dialog-close]]:hidden">
+          <DialogHeader>
+            <DialogTitle>Delete Copilot Studio connection?</DialogTitle>
+            <DialogDescription>
+              Permanently delete {deletingEnvironment?.name} and all its discovered agents,
+              including their traces, conversations, and agent-specific settings. This cannot be
+              undone. Requests already running may finish.
+            </DialogDescription>
+          </DialogHeader>
+          <Alert variant="warning">
+            <TriangleAlert aria-hidden="true" />
+            <AlertDescription>
+              Remove the webhook in Microsoft Copilot Studio before deleting this connection. Calls
+              to this endpoint will fail after deletion. Depending on your configured error
+              behavior, agents may stop responding or continue without guardrail protection. Your
+              agents in Microsoft Copilot Studio will NOT be deleted.
+            </AlertDescription>
+          </Alert>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={pending}
+              onClick={() => setDeletingEnvironment(undefined)}
+            >
+              Cancel
+            </Button>
+            <HoldToConfirm
+              pending={pending}
+              variant="destructive"
+              onConfirm={() => {
+                if (!deletingEnvironment) return
+                const id = deletingEnvironment.id
+                startTransition(async () => {
+                  const result = await deleteCopilotStudioAction(orgSlug, workspaceSlug, id)
+                  if ("error" in result) {
+                    toast.error(result.error)
+                    return
+                  }
+                  queryClient.setQueryData<typeof initialRows>(
+                    options.queryKey,
+                    (current) =>
+                      current && {
+                        ...current,
+                        integrations: current.integrations.filter((item) => item.id !== id),
+                      }
+                  )
+                  queryClient.removeQueries({
+                    predicate: (query) =>
+                      query.meta?.externalAgentScope === `${orgSlug}/${workspaceSlug}` &&
+                      query.queryKey.includes(id),
+                  })
+                  setDeletingEnvironment(undefined)
+                  setSelectedId(undefined)
+                  toast.success("Copilot Studio connection deleted")
+                })
+              }}
+            >
+              Hold to delete connection
+            </HoldToConfirm>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={!!confirmation}
         onOpenChange={(open) => {

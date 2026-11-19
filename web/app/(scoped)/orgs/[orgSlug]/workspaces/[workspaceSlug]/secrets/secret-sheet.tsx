@@ -73,12 +73,14 @@ export function SecretSheet({
   })
 
   React.useEffect(() => {
-    if (state.error?.errors) {
-      for (const err of state.error.errors) {
-        if (err.field === "key" || err.field === "value" || err.field === "hosts") {
-          setError(err.field, { type: "server", message: err.message })
-        }
+    const messages = new Map<keyof SecretFormInput, string[]>()
+    for (const err of state.error?.errors ?? []) {
+      if (err.field === "key" || err.field === "value" || err.field === "hosts") {
+        messages.set(err.field, [...(messages.get(err.field) ?? []), err.message])
       }
+    }
+    for (const [field, errors] of messages) {
+      setError(field, { type: "server", message: errors[0], types: { server: errors } })
     }
   }, [setError, state.error])
 
@@ -104,13 +106,13 @@ export function SecretSheet({
       return undefined
     }
 
-    const fieldErrors =
-      state.error.errors?.filter(
-        (error) => error.field === "key" || error.field === "value" || error.field === "hosts"
-      ) ?? []
-    const hasGeneralError = !state.error.errors || state.error.errors.length > fieldErrors.length
-
-    return hasGeneralError ? state.error.message : undefined
+    const generalErrors =
+      state.error.errors?.filter((error) => !["key", "value", "hosts"].includes(error.field)) ?? []
+    if (state.error.errors?.length && !generalErrors.length) return undefined
+    return [
+      state.error.message,
+      ...generalErrors.map((error) => `${error.field}: ${error.message}`),
+    ].join("\n")
   })()
 
   return (
@@ -182,7 +184,9 @@ export function SecretSheet({
           {generalErrorMessage ? (
             <Alert className="shrink-0" variant="destructive">
               <CircleAlert aria-hidden="true" />
-              <AlertDescription>{generalErrorMessage}</AlertDescription>
+              <AlertDescription className="whitespace-pre-line">
+                {generalErrorMessage}
+              </AlertDescription>
             </Alert>
           ) : null}
           <div className="shrink-0">

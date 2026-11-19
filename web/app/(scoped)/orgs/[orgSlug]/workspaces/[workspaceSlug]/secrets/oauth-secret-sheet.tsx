@@ -590,14 +590,15 @@ export function OAuthSecretSheet({
       const result = await startOAuthAction(agentName, {}, formData)
       if (result.error) {
         setServerError(result.error)
+        const messages = new Map<keyof OAuthSecretFormInput, string[]>()
         for (const error of result.error.errors ?? []) {
           if (!isServerErrorField(error.field)) {
             continue
           }
-          setError(error.field, {
-            type: "server",
-            message: error.message,
-          })
+          messages.set(error.field, [...(messages.get(error.field) ?? []), error.message])
+        }
+        for (const [field, errors] of messages) {
+          setError(field, { type: "server", message: errors[0], types: { server: errors } })
         }
         return
       }

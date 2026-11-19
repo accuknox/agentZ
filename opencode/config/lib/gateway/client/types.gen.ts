@@ -901,7 +901,16 @@ export type BrowserDevTarget = {
 
 export type BrowserInput = {
   clickCount?: number
-  type: "mouse" | "key" | "text" | "wheel" | "ack" | "takeControl" | "releaseControl" | "resetInput"
+  type:
+    | "mouse"
+    | "key"
+    | "text"
+    | "wheel"
+    | "ack"
+    | "takeControl"
+    | "releaseControl"
+    | "resetInput"
+    | "captureSize"
   x?: number
   y?: number
   action?: "move" | "down" | "up"
@@ -910,12 +919,15 @@ export type BrowserInput = {
   text?: string
   deltaX?: number
   deltaY?: number
+  captureWidth?: number
+  captureHeight?: number
 }
 
 export type BrowserViewerState = {
   type: "state"
   state: BrowserTab
   canOperate: boolean
+  supportsCaptureSize?: boolean
 }
 
 export type BrowserStreamError = {
@@ -923,7 +935,12 @@ export type BrowserStreamError = {
   message: string
 }
 
-export type BrowserStreamEvent = BrowserViewerState | BrowserStreamError
+export type BrowserCursorHint = {
+  type: "cursor"
+  pointer: boolean
+}
+
+export type BrowserStreamEvent = BrowserViewerState | BrowserStreamError | BrowserCursorHint
 
 export type BrowserPreset = {
   id: string
@@ -6663,6 +6680,18 @@ export type StreamBrowserData = {
   query?: {
     viewer?: string
     tabId?: string
+    /**
+     * Maximum outstanding preview frames. Values above one enable cursor hints.
+     */
+    frameWindow?: number
+    /**
+     * Initial preview width in display pixels.
+     */
+    captureWidth?: number
+    /**
+     * Initial preview height in display pixels.
+     */
+    captureHeight?: number
     artifact?: string
   }
   url: "/api/agent/{agentName}/browser/{sessionId}"

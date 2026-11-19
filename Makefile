@@ -6,7 +6,6 @@ AGENT_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/agent:latest
 BROWSER_IMAGE ?= public.ecr.aws/k9v9d5v2/agentz/browser:latest
 # Matches install-browser-seccomp. Override for an externally managed node profile.
 BROWSER_SECCOMP_PROFILE ?= agentz/browser-$(shell sha256sum deploy/helm/charts/manager/files/browser-seccomp.json | cut -d' ' -f1).json
-AGENT_NAME ?=
 BETTER_AUTH_URL ?= http://localhost:3000
 GATEWAY_JWT_AUDIENCE ?= agentz-gateway
 CODING_GITHUB_CLIENT_ID ?=

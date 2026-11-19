@@ -956,6 +956,7 @@ export const zBrowserInput = z.object({
     "takeControl",
     "releaseControl",
     "resetInput",
+    "captureSize",
   ]),
   x: z.number().optional(),
   y: z.number().optional(),
@@ -965,11 +966,18 @@ export const zBrowserInput = z.object({
   text: z.string().max(64000).optional(),
   deltaX: z.number().optional(),
   deltaY: z.number().optional(),
+  captureWidth: z.int().gte(1).lte(1440).optional(),
+  captureHeight: z.int().gte(1).lte(1440).optional(),
 })
 
 export const zBrowserStreamError = z.object({
   type: z.enum(["error"]),
   message: z.string(),
+})
+
+export const zBrowserCursorHint = z.object({
+  type: z.enum(["cursor"]),
+  pointer: z.boolean(),
 })
 
 export const zBrowserPreset = z.object({
@@ -1109,9 +1117,14 @@ export const zBrowserViewerState = z.object({
   type: z.enum(["state"]),
   state: zBrowserTab,
   canOperate: z.boolean(),
+  supportsCaptureSize: z.boolean().optional(),
 })
 
-export const zBrowserStreamEvent = z.union([zBrowserViewerState, zBrowserStreamError])
+export const zBrowserStreamEvent = z.union([
+  zBrowserViewerState,
+  zBrowserStreamError,
+  zBrowserCursorHint,
+])
 
 export const zBrowserDiagnostic = z.object({
   kind: z.enum(["console", "network", "action"]),
@@ -5470,6 +5483,9 @@ export const zStreamBrowserPath = z.object({
 export const zStreamBrowserQuery = z.object({
   viewer: z.string().max(2048).optional(),
   tabId: z.string().max(2048).optional(),
+  frameWindow: z.int().gte(1).lte(6).optional(),
+  captureWidth: z.int().gte(1).lte(1440).optional(),
+  captureHeight: z.int().gte(1).lte(1440).optional(),
   artifact: z.string().max(2048).optional(),
 })
 

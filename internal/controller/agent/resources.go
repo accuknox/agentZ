@@ -624,7 +624,7 @@ func (r *Reconciler) buildDeployment(agt *agentzv1alpha1.Agent, hash string, env
 		},
 	}
 	if agt.Spec.Browser.Enabled {
-		r.addBrowser(agt, deployment)
+		r.addBrowser(agt, &deployment.Spec.Template.Spec)
 	}
 	return deployment
 }

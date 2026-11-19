@@ -15,6 +15,7 @@ import {
   useWatch,
   type Control,
   type FieldError as RHFFieldError,
+  type FieldPath,
   type UseFormReturn,
 } from "react-hook-form"
 import * as z from "zod"
@@ -318,19 +319,17 @@ function accordionReducer(state: string[], action: AccordionAction) {
 }
 
 function applyServerErrors(
-  form: UseFormReturn<McpFormInput, undefined, McpFormValues>,
+  setError: UseFormReturn<McpFormInput, undefined, McpFormValues>["setError"],
   state: McpFormState
 ) {
   if (!state.error?.errors) {
     return
   }
 
+  const messages = new Map<FieldPath<McpFormInput>, string[]>()
   for (const error of state.error.errors) {
     if (isServerErrorField(error.field)) {
-      form.setError(error.field, {
-        type: "server",
-        message: error.message,
-      })
+      messages.set(error.field, [...(messages.get(error.field) ?? []), error.message])
       continue
     }
 
@@ -353,25 +352,12 @@ function applyServerErrors(
       continue
     }
 
-    form.setError(`extra_headers.${index}.${key}` as const, {
-      type: "server",
-      message: error.message,
-    })
+    const field = `extra_headers.${index}.${key}` as const
+    messages.set(field, [...(messages.get(field) ?? []), error.message])
   }
-}
-
-function generalErrorMessage(error: McpFormState["error"]) {
-  if (!error) {
-    return undefined
+  for (const [field, errors] of messages) {
+    setError(field, { type: "server", message: errors[0], types: { server: errors } })
   }
-
-  const fieldErrors =
-    error.errors?.filter((item) => {
-      return isServerErrorField(item.field) || item.field.startsWith("extra_headers.")
-    }) ?? []
-  const hasGeneralError = !error.errors || error.errors.length > fieldErrors.length
-
-  return hasGeneralError ? error.message : undefined
 }
 
 function ServerURLField({
@@ -665,7 +651,14 @@ export function McpSheet({
     reValidateMode: "onChange",
     defaultValues: defaultFormValues,
   })
-  const { errors, isValid } = form.formState
+  const {
+    register,
+    reset,
+    setError,
+    setValue,
+    trigger,
+    formState: { errors, isValid },
+  } = form
   const headerFields = useFieldArray({
     control: form.control,
     name: "extra_headers",
@@ -806,15 +799,15 @@ export function McpSheet({
 
   React.useEffect(() => {
     if (open) {
-      form.reset(defaultFormValues)
+      reset(defaultFormValues)
     }
-  }, [form, open])
+  }, [open, reset])
 
   React.useEffect(() => {
     for (const fieldName of conditionalFormFields) {
-      form.register(fieldName)
+      register(fieldName)
     }
-  }, [form])
+  }, [register])
 
   React.useEffect(() => {
     const discoveredEndpointURL = oauthQuery.data?.endpointURL
@@ -844,13 +837,13 @@ export function McpSheet({
     } satisfies Record<OauthAdvancedFieldName, string>
 
     for (const fieldName of oauthAdvancedFields.map((field) => field.name)) {
-      form.setValue(fieldName, discoveredValues[fieldName], {
+      setValue(fieldName, discoveredValues[fieldName], {
         shouldValidate: true,
       })
     }
   }, [
     authMode,
-    form,
+    setValue,
     isCurrentDiscoveryTarget,
     discoveredDefaultScopes,
     oauthDiscoveryData,
@@ -863,17 +856,17 @@ export function McpSheet({
       return
     }
 
-    form.setValue("oauth_discovery_state", currentDiscoveryState, {
+    setValue("oauth_discovery_state", currentDiscoveryState, {
       shouldValidate: true,
     })
-  }, [currentDiscoveryState, form, oauthDiscoveryState])
+  }, [currentDiscoveryState, oauthDiscoveryState, setValue])
 
   React.useEffect(() => {
     if (!open) {
       return
     }
 
-    applyServerErrors(form, submitState)
+    applyServerErrors(setError, submitState)
 
     if (submitState.error) {
       shouldResetSubmitStateRef.current = true
@@ -887,7 +880,7 @@ export function McpSheet({
         onSuccess() {
           toast.success("MCP connection created")
           setClientSubmitError(undefined)
-          form.reset(defaultFormValues)
+          reset(defaultFormValues)
           setOpen(false)
           startTransition(() => {
             router.refresh()
@@ -905,13 +898,13 @@ export function McpSheet({
     shouldResetSubmitStateRef.current = true
     queueMicrotask(() => {
       setClientSubmitError(undefined)
-      form.reset(defaultFormValues)
+      reset(defaultFormValues)
       setOpen(false)
       startTransition(() => {
         router.refresh()
       })
     })
-  }, [form, open, openOAuthPopup, router, startTransition, submitState])
+  }, [open, openOAuthPopup, reset, router, setError, startTransition, submitState])
 
   const discoveryWarningVisible =
     authMode === "oauth" &&
@@ -925,11 +918,7 @@ export function McpSheet({
           message: discoveryWarningMessage,
         }
       : undefined
-  const submitError =
-    clientSubmitError ??
-    (submitState.error
-      ? (generalErrorMessage(submitState.error) ?? submitState.error.message)
-      : undefined)
+  const submitError = clientSubmitError ?? submitState.error?.message
   const oauthClientCredentialsRequired =
     Boolean(oauthClientID?.trim()) ||
     Boolean(oauthClientSecret?.trim()) ||
@@ -1018,8 +1007,8 @@ export function McpSheet({
       return
     }
 
-    void form.trigger(requiredConditionalFields)
-  }, [form, requiredConditionalFields])
+    void trigger(requiredConditionalFields)
+  }, [requiredConditionalFields, trigger])
   function onSheetOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
       shouldResetSubmitStateRef.current = true

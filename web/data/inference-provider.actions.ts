@@ -85,13 +85,16 @@ type InferenceOAuthPoll =
   | { status: "error"; message: string }
 
 type SaveInferenceProviderState =
-  { provider: InferenceProvider; error?: undefined } | { provider?: undefined; error: GatewayError }
+  | { provider: InferenceProvider; error?: undefined }
+  | { provider?: undefined; error: GatewayError }
 
 type SuggestInferenceModelsState =
-  { data: InferenceModelSuggestions; error?: undefined } | { data?: undefined; error: GatewayError }
+  | { data: InferenceModelSuggestions; error?: undefined }
+  | { data?: undefined; error: GatewayError }
 
 type ListInferenceProviderCatalogState =
-  { data: InferenceProviderCatalog; error?: undefined } | { data?: undefined; error: GatewayError }
+  | { data: InferenceProviderCatalog; error?: undefined }
+  | { data?: undefined; error: GatewayError }
 
 type SaveInferenceProviderInput =
   | { providerName: string; body: UpdateInferenceProviderRequestWritable }

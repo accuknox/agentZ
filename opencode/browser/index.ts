@@ -25,6 +25,7 @@ import type {
   BrowserDiagnostic,
   BrowserPreset,
   BrowserInput,
+  BrowserCursorHint,
 } from "../config/lib/gateway/client/types.gen"
 import { Control } from "./control"
 import { recordingEncoderScript } from "./recording"
@@ -97,7 +98,11 @@ const catalog = z
   .object({
     profiles: z
       .array(
-        z.object({ id: z.uuid(), name: z.string().min(1).max(48), incognito: z.literal(false) })
+        z.object({
+          id: z.uuid(),
+          name: z.string().min(1).max(48),
+          incognito: z.literal(false),
+        })
       )
       .max(22),
     defaultProfileId: z.string(),
@@ -127,6 +132,17 @@ interface Recording {
   busy: boolean
 }
 
+interface Viewer {
+  socket: WebSocket
+  frameWindow: number
+  captureWidth: number
+  captureHeight: number
+  inFlight: number[]
+  inFlightBytes: number
+  pending: Buffer | null
+  pointer?: boolean
+}
+
 interface Tab {
   id: string
   session: string
@@ -135,7 +151,7 @@ interface Tab {
   page: Page
   cdp: CDPSession
   control: Control
-  viewers: Map<string, { socket: WebSocket; inFlight: boolean; pending: Buffer | null }>
+  viewers: Map<string, Viewer>
   refs: Map<string, Locator>
   diagnostics: BrowserDiagnostic[]
   dialog: Dialog | null
@@ -144,7 +160,7 @@ interface Tab {
   width: number
   height: number
   zoom: number
-  colorScheme: "system" | "light" | "dark"
+  colorScheme: BrowserTab["colorScheme"]
   used: number
   error?: string
   opener?: string
@@ -156,12 +172,13 @@ interface Tab {
   metadataUpdated: number
   snapshot: number
   cast: Promise<void>
-  castQuality: number
+  castConfig: string
+  tracksPointer?: boolean
   frame: Buffer | null
   reveal: number
-  cursor?: { x: number; y: number; click: boolean }
+  cursor?: BrowserTab["cursor"]
   keys: Set<string>
-  buttons: Set<"left" | "right" | "middle">
+  buttons: Set<NonNullable<BrowserInput["button"]>>
   stop?: () => void
 }
 
@@ -178,60 +195,55 @@ function authorized(header = "", host = "") {
   return supplied.length === token.length && timingSafeEqual(supplied, token)
 }
 
-async function context(profile: string, session: string) {
+function context(profile: string, session: string) {
   const selected = profiles.get(profile)
   if (!selected) throw new Error("Browser profile not found")
   const key = selected.incognito ? `${profile}:${session}` : profile
-  let pending = contexts.get(key)
-  if (!pending) {
-    const directory = join(
-      selected.incognito ? scratch : root,
-      selected.incognito ? randomUUID() : profile
-    )
-    pending = chromium
-      .launchPersistentContext(directory, {
-        executablePath: process.env.CHROMIUM_PATH,
-        headless: true,
-        chromiumSandbox: true,
-        // The worker closes contexts before exiting so profile writes finish.
-        handleSIGINT: false,
-        handleSIGTERM: false,
-        viewport: { width: 1280, height: 800 },
-        deviceScaleFactor: 2,
-        acceptDownloads: true,
-        args: ["--disable-gpu", "--force-device-scale-factor=2"],
-        env: Object.fromEntries(
-          Object.entries(process.env).filter(
-            ([name, value]) => value !== undefined && !/proxy/i.test(name)
-          )
-        ),
-      })
-      .then(async (browser) => {
-        browser.on("close", () => {
-          if (contexts.get(key) === pending) contexts.delete(key)
-          if (selected.incognito)
-            void rm(directory, { recursive: true, force: true }).catch(() => {})
-        })
-        for (const page of browser.pages()) await page.close()
-        return browser
-      })
-    contexts.set(key, pending)
-    void pending.catch(() => {
-      if (contexts.get(key) === pending) contexts.delete(key)
-      if (selected.incognito) void rm(directory, { recursive: true, force: true }).catch(() => {})
-    })
+  const existing = contexts.get(key)
+  if (existing) return existing
+
+  const directory = selected.incognito ? join(scratch, randomUUID()) : join(root, profile)
+  const dispose = () => {
+    if (contexts.get(key) === pending) contexts.delete(key)
+    if (selected.incognito) void rm(directory, { recursive: true, force: true }).catch(() => {})
   }
+  const pending = chromium
+    .launchPersistentContext(directory, {
+      executablePath: process.env.CHROMIUM_PATH,
+      headless: true,
+      chromiumSandbox: true,
+      // The worker closes contexts before exiting so profile writes finish.
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      viewport: { width: 1280, height: 800 },
+      deviceScaleFactor: 2,
+      acceptDownloads: true,
+      args: ["--disable-gpu", "--force-device-scale-factor=2"],
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([name, value]) => value !== undefined && !/proxy/i.test(name)
+        )
+      ),
+    })
+    .then(async (browser) => {
+      browser.on("close", dispose)
+      for (const page of browser.pages()) await page.close()
+      return browser
+    })
+  contexts.set(key, pending)
+  void pending.catch(dispose)
   return pending
 }
 
-function state(tab: Tab): BrowserTab {
+function state(tab: Tab, showCursor = true): BrowserTab {
+  const url = tab.page.url()
   return {
     id: tab.id,
     reveal: tab.reveal,
-    cursor: tab.cursor,
+    cursor: showCursor ? tab.cursor : undefined,
     sessionId: tab.session,
     profileId: tab.profile,
-    url: tab.page.url().startsWith("data:") ? "data:" : tab.page.url(),
+    url: url.startsWith("data:") ? "data:" : url,
     title: tab.title,
     owner: tab.control.viewer ? "human" : "agent",
     generation: tab.control.generation,
@@ -259,8 +271,8 @@ function state(tab: Tab): BrowserTab {
 
 function result(
   session: string,
-  extra: Partial<BrowserResult> = {},
-  caller = session
+  caller: string,
+  extra: Partial<BrowserResult> = {}
 ): BrowserResult {
   return {
     available: true,
@@ -304,6 +316,57 @@ function report(tab: Tab, kind: BrowserDiagnostic["kind"], text: string) {
     timestamp: new Date().toISOString(),
   })
   if (tab.diagnostics.length > 200) tab.diagnostics.shift()
+}
+
+function sendFrame(viewer: Viewer, frame: Buffer) {
+  if (viewer.socket.readyState !== WebSocket.OPEN) return
+  if (viewer.socket.bufferedAmount > 8 * 1024 * 1024) {
+    viewer.socket.close(4408, "Viewer is too slow")
+    return
+  }
+  // Leave room for a large frame when the window is empty. Otherwise cap
+  // both the number and size of frames a slow viewer has yet to consume.
+  if (
+    viewer.inFlight.length >= viewer.frameWindow ||
+    (viewer.inFlight.length && viewer.inFlightBytes + frame.length > 512 * 1024)
+  ) {
+    viewer.pending = frame
+    return
+  }
+  viewer.pending = null
+  viewer.inFlight.push(frame.length)
+  viewer.inFlightBytes += frame.length
+  viewer.socket.send(frame)
+}
+
+async function trackPointer(tab: Tab) {
+  // The isolated world keeps the binding out of the page's JavaScript and
+  // reports link transitions without a CDP request for each mouse move.
+  const worldName = "agentz-pointer"
+  await tab.cdp.send("Runtime.enable")
+  await tab.cdp.send("Runtime.addBinding", {
+    name: "agentzPointer",
+    executionContextName: worldName,
+  })
+  await tab.cdp.send("Page.addScriptToEvaluateOnNewDocument", {
+    worldName,
+    runImmediately: true,
+    source: `(() => {
+      let active;
+      const hint = (pointer) => {
+        if (active === pointer) return;
+        active = pointer;
+        agentzPointer(pointer ? "1" : "0");
+      };
+      addEventListener("pointerover", (event) => {
+        if (!event.isTrusted) return;
+        hint(event.target instanceof Element && !!event.target.closest("a:any-link"));
+      }, true);
+      addEventListener("pointerout", (event) => {
+        if (event.isTrusted && !event.relatedTarget) hint(false);
+      }, true);
+    })()`,
+  })
 }
 
 async function artifact(tab: Tab, file: string, fileName: string, mimeType: string, bytes: number) {
@@ -364,17 +427,18 @@ async function attach(
     metadataUpdated: 0,
     snapshot: 0,
     cast: Promise.resolve(),
-    castQuality: 0,
+    castConfig: "",
     frame: null,
     reveal: Date.now(),
     keys: new Set(),
     buttons: new Set(),
   }
   tabs.set(tab.id, tab)
-  page.on("framenavigated", () => {
+  page.on("framenavigated", (frame) => {
     tab.refs.clear()
     tab.chooser = null
     tab.snapshot++
+    if (frame === page.mainFrame() && !tab.viewers.size) tab.frame = null
   })
   page.on("framedetached", () => {
     tab.refs.clear()
@@ -457,23 +521,13 @@ async function attach(
       )
     })().catch((error) => report(tab, "network", String(error)))
   })
-  tab.cdp.on("Page.screencastFrame", (frame: { data: string; sessionId: number }) => {
+  tab.cdp.on("Page.screencastFrame", (frame) => {
+    void tab.cdp.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {})
+    const recording = tab.recording
+    if (!tab.viewers.size && !recording) return
     const data = Buffer.from(frame.data, "base64")
     tab.frame = data
-    for (const viewer of tab.viewers.values()) {
-      if (viewer.socket.readyState !== WebSocket.OPEN) continue
-      if (viewer.socket.bufferedAmount > 8 * 1024 * 1024) {
-        viewer.socket.close(4408, "Viewer is too slow")
-        continue
-      }
-      if (viewer.inFlight) {
-        viewer.pending = data
-        continue
-      }
-      viewer.inFlight = true
-      viewer.socket.send(data)
-    }
-    const recording = tab.recording
+    for (const viewer of tab.viewers.values()) sendFrame(viewer, data)
     if (recording && !recording.busy) {
       recording.busy = true
       recording.pending = recording.page
@@ -486,7 +540,21 @@ async function attach(
           recording.busy = false
         })
     }
-    void tab.cdp.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {})
+  })
+  tab.cdp.on("Runtime.bindingCalled", ({ name, payload }) => {
+    if (name !== "agentzPointer" || !tab.control.viewer) return
+    const view = tab.viewers.get(tab.control.viewer)
+    const pointer = payload === "1"
+    if (
+      !view ||
+      view.frameWindow === 1 ||
+      view.pointer === pointer ||
+      view.socket.readyState !== WebSocket.OPEN
+    )
+      return
+    view.pointer = pointer
+    const hint: BrowserCursorHint = { type: "cursor", pointer }
+    view.socket.send(JSON.stringify(hint))
   })
   return tab
 }
@@ -518,33 +586,45 @@ async function zoom(tab: Tab, value: number) {
   }, value)
 }
 
-async function screencast(tab: Tab) {
+function screencast(tab: Tab) {
   tab.cast = tab.cast
     .catch(() => {})
     .then(async () => {
-      const quality = tab.recording ? 90 : tab.viewers.size ? 70 : 0
-      if (quality === tab.castQuality) return
-      if (tab.castQuality) await tab.cdp.send("Page.stopScreencast")
-      tab.castQuality = 0
-      if (!quality) return
+      let maxWidth = 0
+      let maxHeight = 0
+      for (const view of tab.viewers.values()) {
+        maxWidth = Math.max(maxWidth, view.captureWidth)
+        maxHeight = Math.max(maxHeight, view.captureHeight)
+      }
+      // All viewers share one encode. Size it for the largest display while
+      // leaving the page viewport and recording resolution independent.
+      const quality = tab.recording ? 90 : 70
+      if (tab.recording) {
+        maxWidth = 2560
+        maxHeight = 1600
+      }
+      const config = maxWidth ? `${quality}:${maxWidth}:${maxHeight}` : ""
+      if (config === tab.castConfig) return
+      if (tab.castConfig) await tab.cdp.send("Page.stopScreencast")
+      tab.castConfig = ""
+      if (!config) return
       await tab.cdp.send("Page.startScreencast", {
         format: "jpeg",
         quality,
-        maxWidth: 2560,
-        maxHeight: 1600,
+        maxWidth,
+        maxHeight,
       })
-      tab.castQuality = quality
+      tab.castConfig = config
     })
-  await tab.cast
+  return tab.cast
 }
 
-function target(tab: Tab, input: BrowserRequest) {
-  const selector = input.locator ?? input.selector
+function target(tab: Tab, selector?: string) {
   if (!selector) return null
   const reference = tab.refs.get(selector)
   if (reference) return reference
-  if (input.locator?.startsWith("aria-ref=")) {
-    const locator = tab.refs.get(input.locator.slice(9))
+  if (selector.startsWith("aria-ref=")) {
+    const locator = tab.refs.get(selector.slice("aria-ref=".length))
     if (!locator) throw new Error("Element reference is stale. Take a fresh snapshot.")
     return locator
   }
@@ -562,13 +642,13 @@ async function operate(
     for (const tab of tabs.values())
       if (tab.session === session && (caller === session || tab.caller === caller))
         await tab.page.close()
-    return result(session, {}, caller)
+    return result(session, caller)
   }
   if (input.operation === "status" || input.operation === "profiles") {
     await Promise.all(
       [...tabs.values()].filter((tab) => tab.session === session).map(refreshMetadata)
     )
-    return result(session, {}, caller)
+    return result(session, caller)
   }
   if (
     [
@@ -609,11 +689,11 @@ async function operate(
             await cdp.detach()
             if (!existing) await page.close()
           }
-          return result(session, {}, caller)
+          return result(session, caller)
         }
         case "clearCookies":
           await (await context(id, session)).clearCookies()
-          return result(session, {}, caller)
+          return result(session, caller)
         case "clearProfile":
         case "deleteProfile": {
           if (input.operation === "deleteProfile" && ["default", "incognito"].includes(id))
@@ -623,7 +703,7 @@ async function operate(
           const key = profiles.get(id)?.incognito ? `${id}:${session}` : id
           await (await contexts.get(key))?.close()
           if (id !== "incognito") await rm(join(root, id), { recursive: true, force: true })
-          if (input.operation === "clearProfile") return result(session, {}, caller)
+          if (input.operation === "clearProfile") return result(session, caller)
           profiles.delete(id)
           if (defaultProfileId === id) defaultProfileId = "default"
           break
@@ -640,7 +720,7 @@ async function operate(
         { mode: 0o600 }
       )
       await rename(profileFile + ".tmp", profileFile)
-      return result(session, {}, caller)
+      return result(session, caller)
     })
   }
   let tab = input.tabId
@@ -658,7 +738,10 @@ async function operate(
       caller
     )
     if (input.width && input.height) {
-      await tab.page.setViewportSize({ width: input.width, height: input.height })
+      await tab.page.setViewportSize({
+        width: input.width,
+        height: input.height,
+      })
       tab.width = input.width
       tab.height = input.height
     }
@@ -672,7 +755,7 @@ async function operate(
   if (input.operation === "takeControl" || input.operation === "releaseControl") {
     if (!viewer) throw new Error("A human viewer is required")
     await handoff(selected, viewer, input.operation)
-    return result(session, { tabId: selected.id }, caller)
+    return result(session, caller, { tabId: selected.id })
   }
   const read = ["snapshot", "waitFor"].includes(input.operation)
   if (!read && !viewer && selected.caller !== caller)
@@ -684,7 +767,7 @@ async function operate(
     await selected.cdp.send("Page.stopLoading")
     selected.loading = false
     selected.stop?.()
-    return result(session, { tabId: selected.id }, caller)
+    return result(session, caller, { tabId: selected.id })
   }
   let running = false
   const run = async (): Promise<BrowserResult> => {
@@ -693,10 +776,10 @@ async function operate(
     const page = selected.page
     const timeout = input.timeoutMs ?? 15000
     const deadline = Date.now() + timeout
-    const locator = target(selected, input)
+    const locator = target(selected, input.locator ?? input.selector)
     page.setDefaultTimeout(timeout)
     if (input.operation === "snapshot" && selected.dialog)
-      return result(session, { tabId: selected.id }, caller)
+      return result(session, caller, { tabId: selected.id })
     report(selected, "action", input.operation)
     if (locator && ["click", "hover", "type"].includes(input.operation)) {
       const box = await locator.boundingBox()
@@ -712,7 +795,11 @@ async function operate(
       input.y !== undefined &&
       ["click", "hover"].includes(input.operation)
     ) {
-      selected.cursor = { x: input.x, y: input.y, click: input.operation === "click" }
+      selected.cursor = {
+        x: input.x,
+        y: input.y,
+        click: input.operation === "click",
+      }
       if (selected.recording)
         await selected.recording.page.evaluate(
           (cursor) => window.__agentzRecorder.cursor(cursor.x, cursor.y, cursor.click),
@@ -878,8 +965,8 @@ async function operate(
         extra.selected = await locator.selectOption(input.values)
         break
       case "drag": {
-        const source = target(selected, { operation: "drag", locator: input.source })
-        const destination = target(selected, { operation: "drag", locator: input.target })
+        const source = target(selected, input.source)
+        const destination = target(selected, input.target)
         if (!source || !destination) throw new Error("Source and target locators are required")
         await source.dragTo(destination, { timeout })
         break
@@ -892,12 +979,13 @@ async function operate(
         break
       case "evaluate": {
         if (!input.expression) throw new Error("Expression is required")
-        let evaluated = await selected.cdp.send("Runtime.evaluate", {
+        const params = {
           expression: input.expression,
           awaitPromise: input.awaitPromise ?? true,
           returnByValue: input.returnByValue ?? true,
           timeout,
-        })
+        }
+        let evaluated = await selected.cdp.send("Runtime.evaluate", params)
         if (
           evaluated.exceptionDetails?.exception?.className === "SyntaxError" &&
           evaluated.exceptionDetails.scriptId !== undefined &&
@@ -905,17 +993,17 @@ async function operate(
           input.expression.includes("await")
         ) {
           evaluated = await selected.cdp.send("Runtime.evaluate", {
-            expression: input.expression,
-            awaitPromise: input.awaitPromise ?? true,
-            returnByValue: input.returnByValue ?? true,
+            ...params,
             replMode: true,
-            timeout,
           })
         }
         if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text)
         const value: unknown =
           input.returnByValue === false
-            ? { objectId: evaluated.result.objectId, description: evaluated.result.description }
+            ? {
+                objectId: evaluated.result.objectId,
+                description: evaluated.result.description,
+              }
             : evaluated.result.value
         if (Buffer.byteLength(JSON.stringify(value ?? null)) > 64000)
           throw new Error("Evaluation result exceeds 64 KB")
@@ -968,9 +1056,12 @@ async function operate(
             [width, height] = [height, width]
         }
         if (width * height > 3840 * 2160) throw new Error("Viewport area is too large")
-        await page.setViewportSize({ width, height })
-        selected.width = width
-        selected.height = height
+        if (width !== selected.width || height !== selected.height) {
+          if (!selected.viewers.size) selected.frame = null
+          await page.setViewportSize({ width, height })
+          selected.width = width
+          selected.height = height
+        }
         if (input.zoom !== undefined) {
           await zoom(selected, input.zoom)
           selected.zoom = input.zoom
@@ -989,12 +1080,16 @@ async function operate(
         break
       case "reload":
         if (input.ignoreCache)
-          await selected.cdp.send("Network.setCacheDisabled", { cacheDisabled: true })
+          await selected.cdp.send("Network.setCacheDisabled", {
+            cacheDisabled: true,
+          })
         try {
           await page.reload({ timeout, waitUntil: "domcontentloaded" })
         } finally {
           if (input.ignoreCache)
-            await selected.cdp.send("Network.setCacheDisabled", { cacheDisabled: false })
+            await selected.cdp.send("Network.setCacheDisabled", {
+              cacheDisabled: false,
+            })
         }
         break
       case "recordingStart": {
@@ -1065,7 +1160,7 @@ async function operate(
       default:
         throw new Error("Unsupported browser operation")
     }
-    return result(session, extra, caller)
+    return result(session, caller, extra)
   }
   const interrupt = () => {
     if (!running) return
@@ -1080,36 +1175,28 @@ async function operate(
   const execute = async (): Promise<BrowserResult> => {
     if (selected.dialog && !["dialog", "snapshot", "close"].includes(input.operation))
       throw new Error("Answer the pending browser dialog first")
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let onDialog: (() => void) | undefined
-    let onAbort: (() => void) | undefined
-    let stop: (() => void) | undefined
-    const interrupted = new Promise<BrowserResult>((resolve, reject) => {
-      if (["open", "navigate", "history", "reload"].includes(input.operation)) {
-        stop = () => resolve(result(session, { tabId: selected.id }, caller))
-        selected.stop = stop
-      }
-      timer = setTimeout(() => {
-        interrupt()
-        reject(new Error(`Browser operation timed out after ${budget}ms`))
-      }, budget)
-      onAbort = () => {
-        interrupt()
-        reject(new Error("Browser operation interrupted"))
-      }
-      signal?.addEventListener("abort", onAbort, { once: true })
-      if (["click", "press", "type", "evaluate"].includes(input.operation)) {
-        onDialog = () => resolve(result(session, { tabId: selected.id }, caller))
-        selected.page.once("dialog", onDialog)
-      }
-    })
+    const interrupted = Promise.withResolvers<BrowserResult>()
+    const finish = () => interrupted.resolve(result(session, caller, { tabId: selected.id }))
+    const navigation = ["open", "navigate", "history", "reload"].includes(input.operation)
+    const mayOpenDialog = ["click", "press", "type", "evaluate"].includes(input.operation)
+    if (navigation) selected.stop = finish
+    if (mayOpenDialog) selected.page.once("dialog", finish)
+    const onAbort = () => {
+      interrupt()
+      interrupted.reject(new Error("Browser operation interrupted"))
+    }
+    signal?.addEventListener("abort", onAbort, { once: true })
+    const timer = setTimeout(() => {
+      interrupt()
+      interrupted.reject(new Error(`Browser operation timed out after ${budget}ms`))
+    }, budget)
     try {
-      return await Promise.race([run(), interrupted])
+      return await Promise.race([run(), interrupted.promise])
     } finally {
       clearTimeout(timer)
-      if (stop && selected.stop === stop) selected.stop = undefined
-      if (onDialog) selected.page.off("dialog", onDialog)
-      if (onAbort) signal?.removeEventListener("abort", onAbort)
+      if (selected.stop === finish) selected.stop = undefined
+      if (mayOpenDialog) selected.page.off("dialog", finish)
+      signal?.removeEventListener("abort", onAbort)
     }
   }
   if (read) return execute()
@@ -1162,6 +1249,7 @@ const server = createServer(async (req, res) => {
       if (bytes > 50 * 1024 * 1024) throw new Error("Request exceeds 50 MiB")
       chunks.push(chunk)
     }
+    const body = Buffer.concat(chunks, bytes)
     if (req.method === "PUT") {
       const tab = tabs.get(url.searchParams.get("tabId") ?? "")
       if (!tab || tab.session !== session) throw new Error("Tab not found")
@@ -1172,7 +1260,7 @@ const server = createServer(async (req, res) => {
         const files: Array<{ name: string; mimeType: string; buffer: Buffer }> = []
         const contentType = req.headers["content-type"] ?? "application/octet-stream"
         if (contentType.startsWith("multipart/form-data")) {
-          const form = await new Response(Buffer.concat(chunks), {
+          const form = await new Response(body, {
             headers: { "content-type": contentType },
           }).formData()
           for (const entry of form.values()) {
@@ -1187,12 +1275,12 @@ const server = createServer(async (req, res) => {
           files.push({
             name: basename(url.searchParams.get("name") ?? "upload"),
             mimeType: contentType,
-            buffer: Buffer.concat(chunks),
+            buffer: body,
           })
         if (files.length > 20) throw new Error("At most 20 upload files are allowed")
         const locator = url.searchParams.get("locator")
         if (locator) {
-          const input = target(tab, { operation: "upload", locator })
+          const input = target(tab, locator)
           if (!input) throw new Error("Upload target not found")
           await input.setInputFiles(files, { timeout: 15000 })
         } else if (tab.chooser) await tab.chooser.setFiles(files, { timeout: 15000 })
@@ -1204,10 +1292,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method !== "POST") {
       res.setHeader("Content-Type", "application/json")
-      res.end(JSON.stringify(result(session, {}, caller ?? session)))
+      res.end(JSON.stringify(result(session, caller ?? session)))
       return
     }
-    const input = zBrowserRequest.parse(JSON.parse(Buffer.concat(chunks).toString()))
+    const input = zBrowserRequest.parse(JSON.parse(body.toString()))
     const response = await operate(session, input, viewer ?? null, abort.signal, caller ?? session)
     res.setHeader("Content-Type", "application/json")
     res.end(JSON.stringify(response))
@@ -1236,18 +1324,42 @@ server.on("upgrade", (req, socket, head) => {
   }
   sockets.handleUpgrade(req, socket, head, (ws) => {
     tab.viewers.get(viewer)?.socket.close(4409, "Viewer reconnected")
-    tab.viewers.set(viewer, { socket: ws, inFlight: tab.frame !== null, pending: null })
-    if (tab.frame) ws.send(tab.frame)
+    // Legacy viewers receive one frame at a time. The current UI opts in to
+    // a small window so a network round trip doesn't block every frame.
+    const view: Viewer = {
+      socket: ws,
+      frameWindow: Math.max(
+        1,
+        Math.min(6, Math.trunc(Number(url.searchParams.get("frameWindow"))) || 1)
+      ),
+      captureWidth:
+        zBrowserInput.shape.captureWidth.safeParse(Number(url.searchParams.get("captureWidth")))
+          .data ?? 2560,
+      captureHeight:
+        zBrowserInput.shape.captureHeight.safeParse(Number(url.searchParams.get("captureHeight")))
+          .data ?? 1600,
+      inFlight: [],
+      inFlightBytes: 0,
+      pending: null,
+    }
+    tab.viewers.set(viewer, view)
     let previous = ""
     let published = 0
     let dragging = false
-    let pendingMove: { input: BrowserInput; generation: number } | undefined
+    let pendingMotion: { input: BrowserInput; generation: number } | undefined
     const publish = () => {
       if (ws.readyState !== WebSocket.OPEN) return
+      const canOperate = tab.control.viewer === viewer
+      if (!canOperate) view.pointer = undefined
+      if (canOperate && view.frameWindow > 1 && !tab.tracksPointer) {
+        tab.tracksPointer = true
+        void trackPointer(tab).catch(() => {})
+      }
       const message = JSON.stringify({
         type: "state",
-        state: state(tab),
-        canOperate: tab.control.viewer === viewer,
+        state: state(tab, !canOperate),
+        canOperate,
+        supportsCaptureSize: true,
       })
       // Static pages still need traffic so viewers can detect a broken link.
       if (message === previous && Date.now() - published < 5000) return
@@ -1256,30 +1368,35 @@ server.on("upgrade", (req, socket, head) => {
       ws.send(message)
     }
     const status = setInterval(() => {
+      publish()
       void refreshMetadata(tab).then(publish)
     }, 500)
     publish()
+    if (tab.frame) sendFrame(view, tab.frame)
     void screencast(tab).catch(() => ws.close())
     ws.on("message", (data) => {
       void (async () => {
+        if (tab.viewers.get(viewer) !== view) return
         let input = zBrowserInput.parse(JSON.parse(data.toString()))
         if (input.type === "ack") {
-          const current = tab.viewers.get(viewer)
-          if (!current) return
-          current.inFlight = false
-          if (current.pending) {
-            const frame = current.pending
-            current.pending = null
-            current.inFlight = true
-            ws.send(frame)
-          }
+          const bytes = view.inFlight.shift()
+          if (bytes === undefined) return
+          view.inFlightBytes -= bytes
+          if (view.pending) sendFrame(view, view.pending)
           return
         }
-        if (input.type !== "mouse" || input.action !== "move") pendingMove = undefined
+        if (input.type === "captureSize") {
+          if (!input.captureWidth || !input.captureHeight) return
+          view.captureWidth = input.captureWidth
+          view.captureHeight = input.captureHeight
+          await screencast(tab)
+          return
+        }
         if (["takeControl", "releaseControl", "resetInput"].includes(input.type)) dragging = false
         if (input.type === "mouse" && input.action === "down") dragging = true
         if (input.type === "mouse" && input.action === "up") dragging = false
         if (input.type === "takeControl" || input.type === "releaseControl") {
+          pendingMotion = undefined
           await handoff(tab, viewer, input.type)
           publish()
           return
@@ -1292,18 +1409,36 @@ server.on("upgrade", (req, socket, head) => {
           input.y !== undefined &&
           !dragging &&
           !tab.buttons.size
-        if (moving && pendingMove?.generation === tab.control.generation) {
-          pendingMove.input = input
-          return
+        const wheel = input.type === "wheel"
+        if (pendingMotion?.generation === tab.control.generation) {
+          const previous = pendingMotion.input
+          if (moving && previous.type === "mouse") {
+            pendingMotion.input = input
+            return
+          }
+          // Only merge queued wheel input at the same target and direction.
+          // Other input fences the batch, including modifier key changes.
+          if (
+            wheel &&
+            previous.type === "wheel" &&
+            previous.x === input.x &&
+            previous.y === input.y &&
+            Math.sign(previous.deltaX ?? 0) === Math.sign(input.deltaX ?? 0) &&
+            Math.sign(previous.deltaY ?? 0) === Math.sign(input.deltaY ?? 0)
+          ) {
+            previous.deltaX = (previous.deltaX ?? 0) + (input.deltaX ?? 0)
+            previous.deltaY = (previous.deltaY ?? 0) + (input.deltaY ?? 0)
+            return
+          }
         }
-        const move = moving ? { input, generation: tab.control.generation } : undefined
-        pendingMove = move
+        const motion = moving || wheel ? { input, generation: tab.control.generation } : undefined
+        pendingMotion = motion
         await tab.control.run(viewer, async () => {
-          // Keep the latest queued hover position. Buttons and keys fence the
-          // batch, and dragging keeps every move so page gestures retain their path.
-          if (move) {
-            input = move.input
-            if (pendingMove === move) pendingMove = undefined
+          if (tab.viewers.get(viewer) !== view) return
+          // While dragging, keep every move so gestures retain their path.
+          if (motion) {
+            input = motion.input
+            if (pendingMotion === motion) pendingMotion = undefined
           }
           if (tab.dialog) return
           const dialog = Promise.withResolvers<void>()
@@ -1330,13 +1465,35 @@ server.on("upgrade", (req, socket, head) => {
               return
             }
             if (input.type === "wheel") {
-              if (input.x !== undefined && input.y !== undefined)
-                await tab.page.mouse.move(input.x, input.y)
-              await tab.page.mouse.wheel(input.deltaX ?? 0, input.deltaY ?? 0)
+              const deltaX = input.deltaX ?? 0
+              const deltaY = input.deltaY ?? 0
+              if (input.x === undefined || input.y === undefined) {
+                await tab.page.mouse.wheel(deltaX, deltaY)
+                return
+              }
+              // A wheel event already carries a target position. Sending a
+              // synthetic mouse move first adds latency and triggers hover.
+              const modifiers =
+                (tab.keys.has("Alt") ? 1 : 0) |
+                (tab.keys.has("Control") ? 2 : 0) |
+                (tab.keys.has("Meta") ? 4 : 0) |
+                (tab.keys.has("Shift") ? 8 : 0)
+              await tab.cdp.send("Input.dispatchMouseEvent", {
+                type: "mouseWheel",
+                x: input.x,
+                y: input.y,
+                deltaX,
+                deltaY,
+                modifiers,
+              })
               return
             }
             if (input.type === "mouse" && input.x !== undefined && input.y !== undefined) {
-              tab.cursor = { x: input.x, y: input.y, click: input.action === "down" }
+              tab.cursor = {
+                x: input.x,
+                y: input.y,
+                click: input.action === "down",
+              }
               if (tab.recording)
                 void tab.recording.page
                   .evaluate(
@@ -1346,11 +1503,17 @@ server.on("upgrade", (req, socket, head) => {
                   .catch(() => {})
               await tab.page.mouse.move(input.x, input.y)
               if (input.action === "down") {
-                await tab.page.mouse.down({ button: input.button, clickCount: input.clickCount })
+                await tab.page.mouse.down({
+                  button: input.button,
+                  clickCount: input.clickCount,
+                })
                 tab.buttons.add(input.button ?? "left")
               }
               if (input.action === "up") {
-                await tab.page.mouse.up({ button: input.button, clickCount: input.clickCount })
+                await tab.page.mouse.up({
+                  button: input.button,
+                  clickCount: input.clickCount,
+                })
                 tab.buttons.delete(input.button ?? "left")
               }
             }

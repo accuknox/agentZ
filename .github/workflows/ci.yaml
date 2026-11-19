@@ -78,10 +78,6 @@ jobs:
     - name: Generate route types
       if: matrix.directory == 'web'
       run: bun run next typegen
-    - uses: actions/setup-node@v6.0.0
-      if: matrix.directory == 'opencode/browser'
-      with:
-        node-version: '24'
     - name: Browser control tests
       if: matrix.directory == 'opencode/browser'
       run: bun run test

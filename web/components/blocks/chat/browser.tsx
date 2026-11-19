@@ -81,6 +81,7 @@ import {
 } from "@/lib/gateway/browser-runtime"
 import { useFileWorkspace } from "./file-workspace-store"
 import { BrowserWindow } from "./browser-window"
+import { browserQueryOptions } from "./browser-query"
 
 export function Browser({
   agentName,
@@ -105,7 +106,7 @@ export function Browser({
 }) {
   const queryClient = useQueryClient()
   const { addBrowserContext } = useFileWorkspace()
-  const key = ["browser", workspaceId, agentName, sessionId]
+  const { queryKey: key } = browserQueryOptions(workspaceId, agentName, sessionId)
   const [viewer] = useState(() => crypto.randomUUID())
   const [selected, setSelected] = useState<string | undefined>(reveal?.id)
   const [lastReveal, setLastReveal] = useState(reveal)
@@ -145,9 +146,8 @@ export function Browser({
   const profile = query.data?.defaultProfileId ?? "default"
   const tab = query.data?.tabs.find((tab) => tab.id === selected) ?? query.data?.tabs[0]
   const tabId = tab?.id
-  let url = tab?.url ?? address
-  if (tab?.url === "about:blank") url = ""
-  if (editingAddress) url = address
+  let url = address
+  if (tab && !editingAddress) url = tab.url === "about:blank" ? "" : tab.url
   const canNavigate = !!url.trim() && !busy && (!tabId || control)
   const [downloadShelf, setDownloadShelf] = useState<{
     source: BrowserArtifact[] | undefined
@@ -187,8 +187,9 @@ export function Browser({
     }
   }
   useEffect(() => {
-    if (control && tab?.url === "about:blank") addressInput.current?.focus()
-  }, [tabId, control, tab?.url])
+    if (visible && !floating && (!tabId || (control && tab?.url === "about:blank")))
+      addressInput.current?.focus({ preventScroll: true })
+  }, [visible, floating, tabId, control, tab?.url])
   const endpoint = `/api/agent/${encodeURIComponent(agentName)}/browser/${encodeURIComponent(sessionId)}`
 
   async function download(file: BrowserArtifact) {
@@ -249,59 +250,40 @@ export function Browser({
     }
   }
 
-  const receive = useEffectEvent(
-    async (connection: WebSocket, event: MessageEvent<string | ArrayBuffer>) => {
-      if (connection !== socket.current) return false
-      try {
-        if (typeof event.data === "string") {
-          const message = zBrowserStreamEvent.parse(JSON.parse(event.data))
-          if (message.type === "error") {
-            toast.error(message.message)
-            return false
-          }
-          queryClient.setQueryData<BrowserResult>(key, (previous) => {
-            if (!previous) return previous
-            return {
-              ...previous,
-              tabs: previous.tabs.map((tab) => (tab.id === message.state.id ? message.state : tab)),
-            }
-          })
-          setControl(message.canOperate)
-          return false
-        }
-        const image = await createImageBitmap(new Blob([event.data], { type: "image/jpeg" }))
-        try {
-          if (connection !== socket.current) return false
-          const target = canvas.current
-          if (!target) return false
-          if (target.width !== image.width) target.width = image.width
-          if (target.height !== image.height) target.height = image.height
-          target.getContext("2d")?.drawImage(image, 0, 0)
-          setHasFrame(true)
-          setStreamError(undefined)
-          return true
-        } finally {
-          image.close()
-        }
-      } catch {
-        // A static page may never send another frame after a failed decode.
-        // Reconnecting requests its cached frame instead of waiting forever.
-        if (connection === socket.current) connection.close()
-      } finally {
-        // A failed decode must also release the server's frame backpressure.
-        if (typeof event.data !== "string" && connection.readyState === WebSocket.OPEN)
-          connection.send(JSON.stringify({ type: "ack" }))
-      }
-      return false
+  const receiveEvent = useEffectEvent((data: string) => {
+    const message = zBrowserStreamEvent.parse(JSON.parse(data))
+    if (message.type === "error") {
+      toast.error(message.message)
+      return
     }
-  )
+    if (message.type === "cursor") {
+      canvas.current?.toggleAttribute("data-page-pointer", message.pointer)
+      return
+    }
+    if (!message.canOperate) canvas.current?.removeAttribute("data-page-pointer")
+    queryClient.setQueryData<BrowserResult>(key, (previous) => {
+      if (!previous) return previous
+      return {
+        ...previous,
+        tabs: previous.tabs.map((item) =>
+          item.id === message.state.id
+            ? { ...message.state, ownedByCaller: item.ownedByCaller }
+            : item
+        ),
+      }
+    })
+    setControl(message.canOperate)
+    return message
+  })
 
   useEffect(() => {
     if (!visible || !tabId) return
+    const pageCanvas = canvas.current
     const abort = new AbortController()
     let ws: WebSocket | undefined
     let retry: ReturnType<typeof setTimeout> | undefined
     let watchdog: ReturnType<typeof setInterval> | undefined
+    let stopSizing: (() => void) | undefined
     let attempts = 0
     function scheduleRetry() {
       if (abort.signal.aborted) return
@@ -314,14 +296,69 @@ export function Browser({
         if (abort.signal.aborted) return
         const url = new URL(endpoint, base)
         url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
-        url.search = new URLSearchParams({ tabId: tabId ?? "", viewer }).toString()
+        const params = new URLSearchParams({ tabId: tabId ?? "", viewer, frameWindow: "6" })
+        let size = captureSize(canvas.current)
+        if (size) {
+          params.set("captureWidth", String(size.captureWidth))
+          params.set("captureHeight", String(size.captureHeight))
+        }
+        url.search = params.toString()
         const connection = new WebSocket(url, ["agentz.pty", `agentz.bearer.${token}`])
         ws = connection
-        ws.binaryType = "arraybuffer"
         socket.current = ws
         const started = Date.now()
         let lastMessage = started
+        let lastState = ""
         let rendered = false
+        let decoding = false
+        let pending: Blob | undefined
+        let discarded = 0
+        const ack = JSON.stringify({ type: "ack" })
+        const isCurrent = () =>
+          socket.current === connection && connection.readyState === WebSocket.OPEN
+
+        async function drawFrames() {
+          decoding = true
+          try {
+            while (isCurrent() && pending) {
+              const frame = pending
+              pending = undefined
+              const image = await createImageBitmap(frame)
+              try {
+                if (!isCurrent()) return
+                const target = canvas.current
+                if (!target) return
+                if (target.width !== image.width) target.width = image.width
+                if (target.height !== image.height) target.height = image.height
+                const renderer = target.getContext("bitmaprenderer")
+                if (renderer) renderer.transferFromImageBitmap(image)
+                else {
+                  const context = target.getContext("2d")
+                  if (!context) throw new Error("Browser canvas is unavailable")
+                  context.drawImage(image, 0, 0)
+                }
+              } finally {
+                image.close()
+              }
+              if (!rendered) {
+                rendered = true
+                attempts = 0
+                setHasFrame(true)
+                setStreamError(undefined)
+              }
+              // Ack in delivery order. The worker uses the credits to bound
+              // bytes in flight, including frames we skipped during decode.
+              const consumed = 1 + discarded
+              discarded = 0
+              for (let i = 0; i < consumed; i++) connection.send(ack)
+            }
+          } catch {
+            // Reconnect to request a fresh frame even if the page is static.
+            if (isCurrent()) connection.close()
+          } finally {
+            decoding = false
+          }
+        }
         // State heartbeats distinguish a static page from a silent connection.
         // Receiving bytes alone does not mean the first frame was displayed.
         watchdog = setInterval(() => {
@@ -333,17 +370,55 @@ export function Browser({
         ws.onopen = () => {
           if (connection === socket.current) setConnected(true)
         }
-        ws.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
+        ws.onmessage = (event: MessageEvent<string | Blob>) => {
+          if (!isCurrent()) return
           lastMessage = Date.now()
-          void receive(connection, event).then((displayed) => {
-            if (!displayed || connection !== socket.current) return
-            rendered = true
-            attempts = 0
-          })
+          if (typeof event.data === "string") {
+            if (event.data === lastState) return
+            try {
+              const message = receiveEvent(event.data)
+              if (!message) return
+              lastState = event.data
+              if (message.supportsCaptureSize && canvas.current && !stopSizing) {
+                let settle: ReturnType<typeof setTimeout>
+                const observer = new ResizeObserver(() => {
+                  clearTimeout(settle)
+                  // Keep the same stream and control while docking or resizing.
+                  settle = setTimeout(() => {
+                    const next = captureSize(canvas.current)
+                    if (
+                      !isCurrent() ||
+                      !next ||
+                      (next.captureWidth === size?.captureWidth &&
+                        next.captureHeight === size.captureHeight)
+                    )
+                      return
+                    size = next
+                    const input: BrowserInput = { type: "captureSize", ...next }
+                    connection.send(JSON.stringify(input))
+                  }, 150)
+                })
+                observer.observe(canvas.current)
+                stopSizing = () => {
+                  observer.disconnect()
+                  clearTimeout(settle)
+                }
+              }
+            } catch {
+              connection.close()
+            }
+            return
+          }
+          if (pending) discarded++
+          pending = event.data
+          if (!decoding) void drawFrames()
         }
         ws.onclose = () => {
           if (abort.signal.aborted || connection !== socket.current) return
           clearInterval(watchdog)
+          stopSizing?.()
+          stopSizing = undefined
+          pageCanvas?.removeAttribute("data-page-pointer")
           setConnected(false)
           setControl(false)
           setStreamError("Connection lost. Reconnecting…")
@@ -361,6 +436,8 @@ export function Browser({
       abort.abort()
       clearTimeout(retry)
       clearInterval(watchdog)
+      stopSizing?.()
+      pageCanvas?.removeAttribute("data-page-pointer")
       socket.current = null
       ws?.close()
     }
@@ -420,6 +497,14 @@ export function Browser({
     return () => node.removeEventListener("wheel", listener)
   }, [tabId])
 
+  async function addContext(text: string, message: string) {
+    const page = hasFrame ? canvas.current : null
+    const blob = page && (await new Promise<Blob | null>((resolve) => page.toBlob(resolve)))
+    const image = blob ? new File([blob], "browser.png", { type: blob.type }) : undefined
+    addBrowserContext({ sessionId, text, image })
+    toast.success(message)
+  }
+
   async function inspectElement(x: number, y: number) {
     const result = await action({
       operation: "evaluate",
@@ -438,13 +523,11 @@ export function Browser({
     })()`,
     })
     if (!result?.value) return
-    addBrowserContext(
-      sessionId,
+    await addContext(
       `Browser element on ${tab?.url}\n${JSON.stringify(result.value, null, 2)}`,
-      hasFrame ? canvas.current?.toDataURL("image/png") : undefined
+      "Element added to chat"
     )
     setPicking(false)
-    toast.success("Element added to chat")
   }
 
   async function clipboard(cut: boolean) {
@@ -459,13 +542,12 @@ export function Browser({
         return window.getSelection()?.toString() ?? "";
       })()`,
     })
-    if (typeof data?.value === "string") {
-      try {
-        await navigator.clipboard.writeText(data.value)
-        if (cut && data.value) await action({ operation: "press", key: "ControlOrMeta+X" })
-      } catch {
-        toast.error("Clipboard access was denied")
-      }
+    if (typeof data?.value !== "string") return
+    try {
+      await navigator.clipboard.writeText(data.value)
+      if (cut && data.value) await action({ operation: "press", key: "ControlOrMeta+X" })
+    } catch {
+      toast.error("Clipboard access was denied")
     }
   }
 
@@ -473,8 +555,6 @@ export function Browser({
   let status = "Agent in control"
   if (tab?.owner === "human") status = "Another viewer is in control"
   if (control) status = "You are in control"
-  if (!connected) status = "Connecting…"
-  if (!tabId) status = "Browser"
 
   return (
     <BrowserWindow
@@ -498,8 +578,8 @@ export function Browser({
     >
       <div
         className={cn(
-          "flex shrink-0 items-center gap-1 overflow-x-auto border-b bg-muted/30 px-2 pt-2 pb-1.5",
-          floating && "hidden"
+          "flex shrink-0 items-center gap-1 overflow-x-auto border-b bg-muted/20 px-1.5 py-1",
+          (floating || !tab) && "hidden"
         )}
       >
         {query.data?.tabs.map((item) => (
@@ -507,14 +587,12 @@ export function Browser({
             key={item.id}
             className={cn(
               "flex max-w-48 min-w-24 items-center rounded-md transition-colors",
-              item.id === tabId
-                ? "bg-background shadow-xs ring-1 ring-border/70"
-                : "text-muted-foreground hover:bg-muted/60"
+              item.id === tabId ? "bg-muted" : "text-muted-foreground hover:bg-muted/60"
             )}
           >
             <Button
-              variant={item.id === tabId ? "secondary" : "ghost"}
-              size="sm"
+              variant="ghost"
+              size="xs"
               className="min-w-0 flex-1 truncate text-foreground"
               aria-pressed={item.id === tabId}
               title={item.url}
@@ -532,7 +610,7 @@ export function Browser({
             </Button>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon-xs"
               aria-label={`Close ${item.title || "new tab"}`}
               disabled={busy || item.id !== tabId || !control}
               onClick={() => void action({ operation: "close", tabId: item.id })}
@@ -543,7 +621,7 @@ export function Browser({
         ))}
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon-xs"
           aria-label="New tab"
           title="New tab"
           disabled={busy}
@@ -555,7 +633,10 @@ export function Browser({
         </Button>
       </div>
       <form
-        className={cn("flex shrink-0 items-center gap-1 border-b p-2", floating && "hidden")}
+        className={cn(
+          "flex shrink-0 items-center gap-0.5 border-b px-1.5 py-1",
+          floating && "hidden"
+        )}
         onSubmit={(event) => {
           event.preventDefault()
           if (composing.current || !canNavigate) return
@@ -624,7 +705,7 @@ export function Browser({
           ref={addressInput}
           aria-label="Website address"
           disabled={!!tabId && !control}
-          className="h-8 rounded-full border-transparent bg-muted/50 text-xs shadow-none focus-visible:bg-background"
+          className="mx-0.5 h-7 rounded-md border-transparent bg-muted/50 text-xs shadow-none focus-visible:bg-background"
           value={url}
           placeholder="Search or enter address"
           autoComplete="off"
@@ -645,6 +726,7 @@ export function Browser({
             setEditingAddress(true)
             setAddress(event.target.value)
           }}
+          onBlur={() => setEditingAddress(false)}
           onKeyDown={(event) => {
             if (event.key !== "Escape") return
             setEditingAddress(false)
@@ -976,45 +1058,34 @@ export function Browser({
         }
       >
         {!tab ? (
-          <div className="m-auto flex max-w-64 flex-col items-center gap-4 py-8 text-center">
-            <div className="flex size-14 items-center justify-center rounded-2xl border bg-background shadow-xs">
-              <Globe className="size-6 text-muted-foreground" />
-            </div>
-            <div>
-              <h3 className="mb-1.5 text-sm font-medium">Browse together</h3>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Open a website or ask your agent to browse.
-              </p>
-            </div>
-            {query.isPending ? (
-              <Spinner />
-            ) : (
-              <Button
-                disabled={busy || query.isError}
-                onClick={() => void action({ operation: "open", profileId: profile })}
-              >
-                Open browser
-              </Button>
-            )}
-          </div>
+          query.isPending ? (
+            <Spinner className="m-auto" />
+          ) : null
         ) : (
           <div className={cn("relative inline-flex max-w-full", !floating && "self-start")}>
             {!hasFrame || !connected || streamError ? (
               <div
-                className="absolute inset-0 z-10 flex min-h-40 flex-col items-center justify-center gap-3 bg-background/95 p-4 text-center"
+                className={cn(
+                  "absolute inset-x-0 z-10 flex justify-center px-2",
+                  hasFrame ? "bottom-10" : "inset-y-0 items-center"
+                )}
                 role="status"
               >
-                <Spinner />
-                <p className="text-xs text-muted-foreground">
-                  {streamError ?? (connected ? "Waiting for the page…" : "Connecting to browser…")}
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setReconnect((value) => value + 1)}
-                >
-                  Reconnect
-                </Button>
+                <div className="flex items-center gap-2 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground">
+                  <Spinner className="size-3 shrink-0" />
+                  <span>
+                    {streamError ?? (connected ? "Waiting for the page…" : "Connecting…")}
+                  </span>
+                  {streamError ? (
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => setReconnect((value) => value + 1)}
+                    >
+                      Retry
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
             <canvas
@@ -1022,19 +1093,17 @@ export function Browser({
               tabIndex={0}
               aria-label="Live browser page"
               aria-busy={!hasFrame}
-              width={tab.width}
-              height={tab.height}
-              style={
-                floating
-                  ? {
-                      width: `min(100cqw, calc(100cqh * ${tab.width / tab.height}))`,
-                    }
-                  : { width: tab.width }
-              }
+              style={{
+                aspectRatio: `${tab.width} / ${tab.height}`,
+                width: floating
+                  ? `min(100cqw, calc(100cqh * ${tab.width / tab.height}))`
+                  : tab.width,
+              }}
               className={cn(
                 "h-auto max-w-full touch-none bg-white outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                floating ? "max-h-full w-auto" : "self-start border shadow-sm",
-                picking && control && "cursor-crosshair"
+                !floating && "self-start rounded-sm ring-1 ring-border",
+                !hasFrame && "invisible",
+                control && (picking ? "cursor-crosshair" : "data-[page-pointer]:cursor-pointer")
               )}
               onPointerDown={(event) => {
                 if (!control) return
@@ -1131,7 +1200,7 @@ export function Browser({
               }}
               onContextMenu={(event) => event.preventDefault()}
             />
-            {tab.cursor && !control ? (
+            {tab.cursor && hasFrame && !control ? (
               <MousePointer2
                 aria-hidden
                 className="pointer-events-none absolute size-5 text-primary drop-shadow"
@@ -1310,98 +1379,91 @@ export function Browser({
           </BrowserAction>
         </div>
       ) : null}
-      <footer
-        className={
-          floating
-            ? "absolute inset-x-2 bottom-2 z-10 flex items-center gap-1 rounded-lg border bg-background/95 p-1 text-xs text-muted-foreground opacity-0 shadow-sm group-focus-within/browser:opacity-100 group-hover/browser:opacity-100 pointer-coarse:opacity-100"
-            : "flex shrink-0 items-center gap-1 border-t p-2 text-xs text-muted-foreground"
-        }
-      >
-        <span className="mr-auto flex min-w-0 items-center gap-1.5" role="status">
-          <span
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              connected ? "bg-emerald-500" : "bg-muted-foreground/50"
-            )}
-          />
-          <span className="truncate">
-            {picking && control ? "Click an element to add it to chat" : status}
+      {tab ? (
+        <footer
+          className={
+            floating
+              ? "absolute inset-x-2 bottom-2 z-10 flex items-center gap-1 rounded-lg border bg-background/95 p-1 text-xs text-muted-foreground opacity-0 shadow-sm group-focus-within/browser:opacity-100 group-hover/browser:opacity-100 pointer-coarse:opacity-100"
+              : "flex shrink-0 items-center gap-0.5 border-t px-2 py-1 text-xs text-muted-foreground"
+          }
+        >
+          <span className="mr-auto flex min-w-0 items-center gap-1.5" role="status">
+            {connected ? (
+              <span className="truncate">
+                {picking && control ? "Click an element to add it to chat" : status}
+              </span>
+            ) : null}
+            {!floating && activeProfile && connected && !picking ? (
+              <span
+                className="truncate border-l pl-1.5"
+                title="Browser profile shared with this agent"
+              >
+                {activeProfile.name}
+              </span>
+            ) : null}
+            {tab?.recording ? (
+              <span className="flex items-center gap-1 text-destructive">
+                <Circle className="size-2 fill-current" /> Recording
+              </span>
+            ) : null}
           </span>
-          {!floating && activeProfile ? (
-            <span className="truncate border-l pl-2" title="Browser profile shared with this agent">
-              {activeProfile.name}
-            </span>
-          ) : null}
-          {tab?.recording ? (
-            <span className="flex items-center gap-1 text-destructive">
-              <Circle className="size-2 fill-current" /> Recording
-            </span>
-          ) : null}
-        </span>
-        <div className={floating ? "hidden" : "contents"}>
-          <BrowserAction
-            label={picking ? "Cancel element selection" : "Select element for chat"}
-            size="icon-sm"
-            variant={picking ? "secondary" : "ghost"}
-            disabled={!control || !hasFrame || busy}
-            onClick={() => setPicking(!picking)}
-          >
-            <MousePointerClick />
-          </BrowserAction>
-          <BrowserAction
-            label="Add screenshot to chat"
-            size="icon-sm"
-            variant="ghost"
-            disabled={!tabId || !connected || !hasFrame}
-            onClick={() => {
-              const page = canvas.current
-              if (page) {
-                addBrowserContext(
-                  sessionId,
-                  `Browser screenshot: ${tab?.url}`,
-                  page.toDataURL("image/png")
-                )
-                toast.success("Screenshot added to chat")
+          <div className={floating ? "hidden" : "contents"}>
+            <BrowserAction
+              label={picking ? "Cancel element selection" : "Select element for chat"}
+              size="icon-sm"
+              variant={picking ? "secondary" : "ghost"}
+              disabled={!control || !hasFrame || busy}
+              onClick={() => setPicking(!picking)}
+            >
+              <MousePointerClick />
+            </BrowserAction>
+            <BrowserAction
+              label="Add screenshot to chat"
+              size="icon-sm"
+              variant="ghost"
+              disabled={!tabId || !connected || !hasFrame}
+              onClick={() =>
+                void addContext(`Browser screenshot: ${tab.url}`, "Screenshot added to chat")
               }
+            >
+              <ScanLine />
+            </BrowserAction>
+            <BrowserAction
+              label="Save screenshot"
+              size="icon-sm"
+              variant="ghost"
+              disabled={!tabId || busy || !hasFrame || !connected}
+              onClick={() => void action({ operation: "snapshot", save: true })}
+            >
+              <Camera />
+            </BrowserAction>
+            <BrowserAction
+              label={tab?.recording ? "Stop recording" : "Start recording"}
+              size="icon-sm"
+              variant="ghost"
+              disabled={!tabId || !control || busy}
+              onClick={() =>
+                void action({ operation: tab?.recording ? "recordingStop" : "recordingStart" })
+              }
+            >
+              {tab?.recording ? <Square className="text-destructive" /> : <Circle />}
+            </BrowserAction>
+          </div>
+          <BrowserAction
+            label={control ? "Return control" : "Take control"}
+            size="xs"
+            variant={control ? "ghost" : "outline"}
+            disabled={!connected || (!control && tab?.owner === "human")}
+            onClick={() => {
+              send({ type: control ? "releaseControl" : "takeControl" })
+              canvas.current?.focus()
             }}
           >
-            <ScanLine />
+            <Hand />
+            {control ? "Return control" : "Take control"}
           </BrowserAction>
-          <BrowserAction
-            label="Save screenshot"
-            size="icon-sm"
-            variant="ghost"
-            disabled={!tabId || busy || !hasFrame || !connected}
-            onClick={() => void action({ operation: "snapshot", save: true })}
-          >
-            <Camera />
-          </BrowserAction>
-          <BrowserAction
-            label={tab?.recording ? "Stop recording" : "Start recording"}
-            size="icon-sm"
-            variant="ghost"
-            disabled={!tabId || !control || busy}
-            onClick={() =>
-              void action({ operation: tab?.recording ? "recordingStop" : "recordingStart" })
-            }
-          >
-            {tab?.recording ? <Square className="text-destructive" /> : <Circle />}
-          </BrowserAction>
-        </div>
-        <BrowserAction
-          label={control ? "Return control" : "Take control"}
-          size="sm"
-          variant={control ? "secondary" : "default"}
-          disabled={!connected || (!control && tab?.owner === "human")}
-          onClick={() => {
-            send({ type: control ? "releaseControl" : "takeControl" })
-            canvas.current?.focus()
-          }}
-        >
-          <Hand />
-          {control ? "Return control" : "Take control"}
-        </BrowserAction>
-      </footer>
+        </footer>
+      ) : null}
       <Dialog open={viewportDialog} onOpenChange={setViewportDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1547,5 +1609,15 @@ function pageCoordinates(
   return {
     x: ((event.clientX - rect.left) * tab.width) / rect.width,
     y: ((event.clientY - rect.top) * tab.height) / rect.height,
+  }
+}
+
+function captureSize(canvas: HTMLCanvasElement | null) {
+  if (!canvas?.clientWidth || !canvas.clientHeight) return
+  // Quantize in display pixels so small layout changes don't restart capture.
+  const scale = window.devicePixelRatio
+  return {
+    captureWidth: Math.min(1440, Math.ceil((canvas.clientWidth * scale) / 128) * 128),
+    captureHeight: Math.min(1440, Math.ceil((canvas.clientHeight * scale) / 128) * 128),
   }
 }

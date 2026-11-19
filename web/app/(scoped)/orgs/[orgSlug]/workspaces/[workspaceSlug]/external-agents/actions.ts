@@ -18,6 +18,7 @@ import { zCopilotStudioIntegrationInput } from "@/lib/gateway/client/zod.gen"
 import {
   createExternalAgent,
   changeExternalAgent,
+  deleteCopilotStudio,
   listExternalAgents,
 } from "@/data/external-agents"
 import type { externalAgentInput } from "@/data/schema"
@@ -68,6 +69,23 @@ export async function loadExternalAgentAction(
   const agent = result?.agents[0]
   if (!agent) throw new Error("Agent unavailable.")
   return agent
+}
+
+export async function deleteCopilotStudioAction(
+  orgSlug: string,
+  workspaceSlug: string,
+  integrationId: string
+) {
+  try {
+    await deleteCopilotStudio(orgSlug, workspaceSlug, integrationId)
+    revalidatePath("/orgs", "layout")
+    revalidatePath("/settings/applications")
+    return { deleted: true }
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "The connection could not be deleted.",
+    }
+  }
 }
 
 export async function setCopilotStudioEnabledAction(

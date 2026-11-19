@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,11 +30,14 @@ func (r *Reconciler) reconcileBrowser(ctx context.Context, agt *agentzv1alpha1.A
 	}
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, secret, func() error {
 		if len(secret.Data["token"]) == 0 {
-			token := make([]byte, 32)
-			if _, err := rand.Read(token); err != nil {
+			var token [32]byte
+			if _, err := rand.Read(token[:]); err != nil {
 				return err
 			}
-			secret.Data = map[string][]byte{"token": []byte(hex.EncodeToString(token))}
+			if secret.Data == nil {
+				secret.Data = make(map[string][]byte)
+			}
+			secret.Data["token"] = hex.AppendEncode(nil, token[:])
 		}
 		return ctrl.SetControllerReference(agt, secret, r.Scheme)
 	})
@@ -45,11 +47,13 @@ func (r *Reconciler) reconcileBrowser(ctx context.Context, agt *agentzv1alpha1.A
 	return nil
 }
 
-func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.Deployment) {
-	pod := &deployment.Spec.Template.Spec
+func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, pod *corev1.PodSpec) {
+	const authVolume = "browser-auth"
+	const tokenDir = "/var/run/agentz/browser"
+	const tokenPath = tokenDir + "/token"
 	pod.Volumes = append(pod.Volumes,
 		corev1.Volume{
-			Name: "browser-auth",
+			Name: authVolume,
 			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
 				SecretName:  agt.Name + agentzv1alpha1.BrowserSecretSuffix,
 				DefaultMode: new(int32(0o440)),
@@ -86,11 +90,11 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.De
 	agent := &pod.Containers[0]
 	agent.Env = append(agent.Env, corev1.EnvVar{
 		Name:  "AGENTZ_BROWSER_TOKEN_PATH",
-		Value: "/var/run/agentz/browser/token",
+		Value: tokenPath,
 	})
 	agent.VolumeMounts = append(agent.VolumeMounts, corev1.VolumeMount{
-		Name:      "browser-auth",
-		MountPath: "/var/run/agentz/browser",
+		Name:      authVolume,
+		MountPath: tokenDir,
 		ReadOnly:  true,
 	})
 	health := corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{
@@ -108,7 +112,7 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.De
 		Image:           r.Config.BrowserImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Env: []corev1.EnvVar{
-			{Name: "BROWSER_TOKEN_PATH", Value: "/var/run/agentz/browser/token"},
+			{Name: "BROWSER_TOKEN_PATH", Value: tokenPath},
 			{Name: "BROWSER_DATA", Value: "/var/lib/browser"},
 			{
 				Name:  "BROWSER_HOST",
@@ -126,7 +130,7 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, deployment *appsv1.De
 			Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 		},
 		VolumeMounts: []corev1.VolumeMount{
-			{Name: "browser-auth", MountPath: "/var/run/agentz/browser", ReadOnly: true},
+			{Name: authVolume, MountPath: tokenDir, ReadOnly: true},
 			{Name: nixAgentVolume, MountPath: "/var/lib/browser", SubPath: "browser"},
 			{Name: "browser-tmp", MountPath: "/tmp"},
 			{Name: "browser-shm", MountPath: "/dev/shm"},

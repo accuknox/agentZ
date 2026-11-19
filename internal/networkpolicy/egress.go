@@ -35,7 +35,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
+
+// AgentRuntimePolicyName identifies the policy separating Agent pod ingress
+// from the rest of its namespace.
+const AgentRuntimePolicyName = "agent-runtime"
 
 // Target is one admitted TCP destination.
 type Target struct {
@@ -275,7 +281,7 @@ func AgentIngress(infrastructure *ciliumapi.Rule, gatewayNamespace, gatewayAccou
 			FromEndpoints: []ciliumapi.EndpointSelector{gateway},
 		},
 		ToPorts: ciliumapi.PortRules{{Ports: []ciliumapi.PortProtocol{
-			{Port: "4098", Protocol: ciliumapi.ProtoTCP},
+			{Port: strconv.Itoa(int(agentzv1alpha1.BrowserPort)), Protocol: ciliumapi.ProtoTCP},
 		}}},
 	})
 	return agent

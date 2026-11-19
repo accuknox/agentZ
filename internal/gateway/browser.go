@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -35,17 +36,18 @@ func (s *Service) UploadBrowserFile(w http.ResponseWriter, r *http.Request, agen
 }
 
 func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, session string) {
+	ctx := r.Context()
 	origin := r.Header.Get("Origin")
 	if origin != "" && !slices.Contains(s.cfg.AllowedWebOrigins, origin) {
 		apiutil.WriteError(w, r, resourceForbidden(errors.New("browser origin is not allowed")))
 		return
 	}
-	access, _, _, err := s.chatInputAccess(r.Context(), agent, session)
+	access, _, _, err := s.chatInputAccess(ctx, agent, session)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get browser session", err))
 		return
 	}
-	resolved, err := s.resolver.resolveAgent(r.Context(), access.namespace, agent)
+	resolved, err := s.resolver.resolveAgent(ctx, access.namespace, agent)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get browser agent", err))
 		return
@@ -56,7 +58,7 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 	}
 	secret := &corev1.Secret{}
 	key := types.NamespacedName{Namespace: resolved.Agent.Namespace, Name: agent + agentzv1alpha1.BrowserSecretSuffix}
-	err = s.k8sClient.Get(r.Context(), key, secret)
+	err = s.k8sClient.Get(ctx, key, secret)
 	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusServiceUnavailable, "browser_unavailable", "Browser is starting", err))
 		return
@@ -66,11 +68,20 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusServiceUnavailable, "browser_unavailable", "Browser credential is starting", nil))
 		return
 	}
-	if len(secret.Data["token"]) == 0 {
+	token := string(secret.Data["token"])
+	if token == "" {
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusServiceUnavailable, "browser_unavailable", "Browser credential is unavailable", nil))
 		return
 	}
-	target := &url.URL{Scheme: "http", Host: fmt.Sprintf("%s.%s.svc.cluster.local:%d", agent, access.namespace, agentzv1alpha1.BrowserPort)}
+	viewer := r.URL.Query().Get("viewer")
+	if len(viewer) > 128 {
+		apiutil.WriteError(w, r, resourceForbidden(errors.New("invalid browser viewer")))
+		return
+	}
+	target := &url.URL{
+		Scheme: "http",
+		Host:   fmt.Sprintf("%s.%s.svc.cluster.local:%d", agent, access.namespace, agentzv1alpha1.BrowserPort),
+	}
 	if s.cfg.BrowserTargetOverride != "" {
 		override, err := url.Parse("http://" + s.cfg.BrowserTargetOverride)
 		if err != nil {
@@ -79,13 +90,13 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 		}
 		target = override
 	}
-	ctx, cancel, apiErr := s.authorizeStream(r.Context())
+	ctx, cancel, apiErr := s.authorizeStream(ctx)
 	if apiErr != nil {
 		apiutil.WriteError(w, r, apiErr)
 		return
 	}
 	defer cancel()
-	if r.Header.Get("Upgrade") == "websocket" {
+	if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 		agentEvents, stopAgents := s.resolver.watchAgents()
 		defer stopAgents()
 		chatEvents, stopChats := s.chatSessionEvents.subscribe(access.workspaceID + "/" + access.userID)
@@ -118,12 +129,12 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 				}
 				check, done := context.WithTimeout(ctx, 5*time.Second)
 				current, err := s.resolver.resolveAgent(check, access.namespace, agent)
-				if err == nil && (!current.Agent.Spec.Browser.Enabled || current.Agent.UID != resolved.Agent.UID) {
-					err = errors.New("browser capability changed")
+				if err != nil || !current.Agent.Spec.Browser.Enabled || current.Agent.UID != resolved.Agent.UID {
+					done()
+					cancel()
+					return
 				}
-				if err == nil {
-					_, _, _, err = s.chatInputAccess(check, agent, session)
-				}
+				_, _, _, err = s.chatInputAccess(check, agent, session)
 				done()
 				if err != nil {
 					cancel()
@@ -132,14 +143,7 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 			}
 		}()
 	}
-	viewer := r.URL.Query().Get("viewer")
-	if len(viewer) > 128 {
-		apiutil.WriteError(w, r, resourceForbidden(errors.New("invalid browser viewer")))
-		return
-	}
-	viewer = access.userID + ":" + viewer
-	r = r.WithContext(ctx)
-	proxy := &httputil.ReverseProxy{
+	proxy := httputil.ReverseProxy{
 		Rewrite: func(req *httputil.ProxyRequest) {
 			req.SetURL(target)
 			req.Out.URL.Path = "/"
@@ -147,8 +151,8 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 			query := req.Out.URL.Query()
 			query.Set("session", session)
 			req.Out.URL.RawQuery = query.Encode()
-			req.Out.Header.Set("Authorization", "Bearer "+string(secret.Data["token"]))
-			req.Out.Header.Set("X-Browser-Viewer", viewer)
+			req.Out.Header.Set("Authorization", "Bearer "+token)
+			req.Out.Header.Set("X-Browser-Viewer", access.userID+":"+viewer)
 			req.Out.Header.Set("X-Browser-Caller", session)
 			req.Out.Header.Del("Origin")
 			req.Out.Header.Del("Cookie")
@@ -156,10 +160,9 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 		ModifyResponse: func(response *http.Response) error {
 			if response.StatusCode == http.StatusSwitchingProtocols {
 				body := response.Body
-				go func() {
-					<-ctx.Done()
+				context.AfterFunc(ctx, func() {
 					_ = body.Close()
-				}()
+				})
 			}
 			response.Header.Set("Cache-Control", "no-store")
 			response.Header.Set("X-Content-Type-Options", "nosniff")
@@ -169,5 +172,5 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 			apiutil.WriteError(w, r, apiutil.NewError(http.StatusBadGateway, "browser_unavailable", "Browser is unavailable", err))
 		},
 	}
-	proxy.ServeHTTP(w, r)
+	proxy.ServeHTTP(w, r.WithContext(ctx))
 }

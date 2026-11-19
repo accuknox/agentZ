@@ -74,7 +74,8 @@ spec:
             {{- toYaml .Values.waitContainerSecurityContext | nindent 12 }}
       containers:
         - name: gateway
-          {{- $tag := default (printf "v%s" .Chart.AppVersion) .Values.image.tag }}
+          {{- $releaseTag := printf "v%s" .Chart.AppVersion }}
+          {{- $tag := default $releaseTag .Values.image.tag }}
           image: "{{ .Values.image.repository }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ else }}:{{ $tag }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/agentz"]
@@ -122,9 +123,7 @@ spec:
             {{- if .Values.config.filesystemTargetOverride }}
             - --filesystem-target-override={{ .Values.config.filesystemTargetOverride }}
             {{- end }}
-            {{- if .Values.config.agentImage }}
-            - --agent-image={{ .Values.config.agentImage }}
-            {{- end }}
+            - --agent-image={{ default (printf "public.ecr.aws/k9v9d5v2/agentz/agent:%s" $releaseTag) .Values.config.agentImage }}
             {{- range .Values.extraArgs }}
             - {{ . | quote }}
             {{- end }}

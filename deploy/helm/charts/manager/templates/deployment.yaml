@@ -71,7 +71,8 @@ spec:
       {{- end }}
       containers:
         - name: manager
-          {{- $tag := default (printf "v%s" .Chart.AppVersion) .Values.image.tag }}
+          {{- $releaseTag := printf "v%s" .Chart.AppVersion }}
+          {{- $tag := default $releaseTag .Values.image.tag }}
           {{- $image := printf "%s:%s" .Values.image.repository $tag }}
           {{- if .Values.image.digest }}
           {{- $image = printf "%s@%s" .Values.image.repository .Values.image.digest }}
@@ -165,12 +166,8 @@ spec:
             {{- end }}
             - --browser-seccomp-profile={{ include "manager.browserSeccompProfile" . }}
             - --browser-image={{ include "manager.browserImage" . }}
-            {{- if .Values.config.agentImage }}
-            - --agent-image={{ .Values.config.agentImage }}
-            {{- end }}
-            {{- if .Values.config.agentInitImage }}
-            - --agent-init-image={{ .Values.config.agentInitImage }}
-            {{- end }}
+            - --agent-image={{ default (printf "public.ecr.aws/k9v9d5v2/agentz/agent:%s" $releaseTag) .Values.config.agentImage }}
+            - --agent-init-image={{ default (printf "public.ecr.aws/k9v9d5v2/agentz/init:%s" $releaseTag) .Values.config.agentInitImage }}
             {{- if .Values.config.managerOpenBaoAddr }}
             - --manager-openbao-addr={{ .Values.config.managerOpenBaoAddr }}
             {{- end }}

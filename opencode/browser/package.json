@@ -5,7 +5,7 @@
   "scripts": {
     "build": "bun build index.ts --target=node --packages=external --outdir dist",
     "typecheck": "tsc",
-    "test": "node --experimental-strip-types --test control.test.ts"
+    "test": "bun test"
   },
   "dependencies": {
     "playwright-core": "1.65.1",

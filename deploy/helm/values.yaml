@@ -243,10 +243,10 @@ manager:
     controllerImage: ""
 
     # Default image used for Agent resources created by the system.
-    agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:v0.36.0
+    agentImage: ""
 
     # Optional image used for agent init containers.
-    agentInitImage: public.ecr.aws/k9v9d5v2/agentz/init:v0.36.0
+    agentInitImage: ""
 
     # Base URL exposed to agents for gateway-backed workflow tools.
     gatewayURL: ""
@@ -547,7 +547,7 @@ gateway:
     filesystemTargetOverride: ""
 
     # Default agent image used by the gateway when creating Agent resources.
-    agentImage: public.ecr.aws/k9v9d5v2/agentz/agent:v0.36.0
+    agentImage: ""
 
     # OTLP/gRPC endpoint exposed to agents for OpenCode trace export. Defaults
     # to the bundled observer Service when it is enabled.

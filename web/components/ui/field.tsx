@@ -1,9 +1,8 @@
 "use client"
 
-import { useMemo } from "react"
 import { motion, useReducedMotion } from "motion/react"
 import { cva, type VariantProps } from "class-variance-authority"
-import type { MultipleFieldErrors } from "react-hook-form"
+import type { FieldError as FormFieldError } from "react-hook-form"
 import { CircleAlert } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -181,53 +180,29 @@ function FieldError({
   errors,
   ...props
 }: React.ComponentProps<"div"> & {
-  errors?: Array<{ message?: string; types?: MultipleFieldErrors } | undefined>
+  errors?: Array<Pick<FormFieldError, "message" | "types" | "root"> | undefined>
 }) {
   const reduced = useReducedMotion()
-  const content = useMemo(() => {
-    if (children) {
-      return children
-    }
-
-    if (!errors?.length) {
-      return null
-    }
-
-    const messages = errors.flatMap((error) => {
-      if (!error) {
-        return []
-      }
-
-      if (!error.types) {
-        return error.message ? [error.message] : []
-      }
-
-      return Object.values(error.types).flatMap((value) =>
-        Array.isArray(value)
-          ? value
-          : value === true || value === false || value === undefined
-            ? []
-            : [value]
-      )
-    })
+  let content = children
+  if (!content) {
+    // React Hook Form stores collection rules under root.
+    const messages = (errors ?? [])
+      .flatMap((error) => [error, error?.root])
+      .flatMap((error) => [error?.message, ...Object.values(error?.types ?? {}).flat()])
+      .filter((message): message is string => typeof message === "string" && message.trim() !== "")
     const uniqueErrors = [...new Set(messages)]
 
-    if (uniqueErrors.length === 0) {
-      return null
+    content = uniqueErrors[0]
+    if (uniqueErrors.length > 1) {
+      content = (
+        <ul className="ml-4 flex list-disc flex-col gap-1">
+          {uniqueErrors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      )
     }
-
-    if (uniqueErrors.length === 1) {
-      return uniqueErrors[0]
-    }
-
-    return (
-      <ul className="ml-4 flex list-disc flex-col gap-1">
-        {uniqueErrors.map((error) => (
-          <li key={error}>{error}</li>
-        ))}
-      </ul>
-    )
-  }, [children, errors])
+  }
 
   if (!content) {
     return null

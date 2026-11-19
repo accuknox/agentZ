@@ -430,14 +430,16 @@ function sandboxRequestBody(values: SandboxFormValues) {
     guardrails: values.guardrails,
     allowed_hosts: values.allowedHosts,
     inference: values.inference,
-    mcp_connection_refs: values.mcpConnectionRefs.map((ref): McpConnectionRef => ({
-      name: ref.name,
-      scope: ref.scope,
-      tools: ref.tools.map((tool) => ({
-        name: tool.name,
-        require_consent: tool.requireConsent,
-      })),
-    })),
+    mcp_connection_refs: values.mcpConnectionRefs.map(
+      (ref): McpConnectionRef => ({
+        name: ref.name,
+        scope: ref.scope,
+        tools: ref.tools.map((tool) => ({
+          name: tool.name,
+          require_consent: tool.requireConsent,
+        })),
+      })
+    ),
     packages: values.packages,
     skills: values.skills,
   }

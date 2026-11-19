@@ -33,7 +33,12 @@ import { recordingEncoderScript } from "./recording"
 const root = process.env.BROWSER_DATA ?? "/var/lib/browser"
 const scratch = process.env.BROWSER_TEMP ?? "/tmp/browser"
 const port = Number(process.env.BROWSER_PORT ?? "4098")
-const token = await readFile(process.env.BROWSER_TOKEN_PATH ?? "/var/run/agentz/browser/token")
+const agentToken = await readFile(process.env.BROWSER_TOKEN_PATH ?? "/var/run/agentz/browser/token")
+const gatewayToken = await readFile(
+  process.env.BROWSER_GATEWAY_TOKEN_PATH ?? "/var/run/agentz/browser/gateway-token"
+)
+if (!agentToken.length || !gatewayToken.length || agentToken.equals(gatewayToken))
+  throw new Error("Browser credentials are missing or invalid")
 const epoch = randomUUID()
 const profileControl = new Control()
 const tabs = new Map<string, Tab>()
@@ -182,7 +187,7 @@ interface Tab {
   stop?: () => void
 }
 
-function authorized(header = "", host = "") {
+function authorized(header = "", host = "", token: Buffer) {
   let hostname: string
   try {
     hostname = new URL(`http://${host}`).hostname
@@ -191,7 +196,8 @@ function authorized(header = "", host = "") {
   }
   if (!["127.0.0.1", "localhost", "[::1]", process.env.BROWSER_HOST].includes(hostname))
     return false
-  const supplied = Buffer.from(header.replace(/^Bearer /, ""))
+  if (!header.startsWith("Bearer ")) return false
+  const supplied = Buffer.from(header.slice("Bearer ".length))
   return supplied.length === token.length && timingSafeEqual(supplied, token)
 }
 
@@ -1210,12 +1216,17 @@ const server = createServer(async (req, res) => {
     if (!res.writableEnded) abort.abort()
   })
   try {
-    if (req.url === "/health" && req.socket.remoteAddress?.includes("127.0.0.1")) {
+    const loopback = req.socket.remoteAddress === "127.0.0.1"
+    if (req.url === "/health" && loopback) {
       await context("default", "health")
       res.end("ok")
       return
     }
-    if (req.headers.origin || !authorized(req.headers.authorization, req.headers.host)) {
+    const { authorization, host, origin } = req.headers
+    const viewer = req.headers["x-browser-viewer"]
+    const gateway = authorized(authorization, host, gatewayToken)
+    const agent = loopback && viewer === undefined && authorized(authorization, host, agentToken)
+    if (origin || !(gateway || agent)) {
       res.writeHead(401).end()
       return
     }
@@ -1224,7 +1235,6 @@ const server = createServer(async (req, res) => {
     if (!session || session.length > 128) throw new Error("Session is required")
     const caller = req.headers["x-browser-caller"]
     if (Array.isArray(caller)) throw new Error("Invalid caller")
-    const viewer = req.headers["x-browser-viewer"]
     if (Array.isArray(viewer)) throw new Error("Invalid viewer")
     const id = url.searchParams.get("artifact")
     if (req.method === "GET" && id) {
@@ -1311,7 +1321,8 @@ const server = createServer(async (req, res) => {
   }
 })
 server.on("upgrade", (req, socket, head) => {
-  if (req.headers.origin || !authorized(req.headers.authorization, req.headers.host)) {
+  const { authorization, host, origin } = req.headers
+  if (origin || !authorized(authorization, host, gatewayToken)) {
     socket.destroy()
     return
   }

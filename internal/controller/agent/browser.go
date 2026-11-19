@@ -15,6 +15,8 @@ import (
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
+const browserAgentTokenKey = "token"
+
 func (r *Reconciler) reconcileBrowser(ctx context.Context, agt *agentzv1alpha1.Agent) error {
 	if !agt.Spec.Browser.Enabled {
 		return nil
@@ -29,15 +31,19 @@ func (r *Reconciler) reconcileBrowser(ctx context.Context, agt *agentzv1alpha1.A
 		},
 	}
 	_, err := ctrlutil.CreateOrPatch(ctx, r.Client, secret, func() error {
-		if len(secret.Data["token"]) == 0 {
+		if secret.Data == nil {
+			secret.Data = make(map[string][]byte, 2)
+		}
+		keys := []string{browserAgentTokenKey, agentzv1alpha1.BrowserGatewayTokenKey}
+		for _, key := range keys {
+			if len(secret.Data[key]) != 0 {
+				continue
+			}
 			var token [32]byte
 			if _, err := rand.Read(token[:]); err != nil {
 				return err
 			}
-			if secret.Data == nil {
-				secret.Data = make(map[string][]byte)
-			}
-			secret.Data["token"] = hex.AppendEncode(nil, token[:])
+			secret.Data[key] = hex.AppendEncode(nil, token[:])
 		}
 		return ctrl.SetControllerReference(agt, secret, r.Scheme)
 	})
@@ -49,14 +55,29 @@ func (r *Reconciler) reconcileBrowser(ctx context.Context, agt *agentzv1alpha1.A
 
 func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, pod *corev1.PodSpec) {
 	const authVolume = "browser-auth"
+	const agentAuthVolume = "browser-agent-auth"
 	const tokenDir = "/var/run/agentz/browser"
-	const tokenPath = tokenDir + "/token"
+	const tokenPath = tokenDir + "/" + browserAgentTokenKey
+	secretName := agt.Name + agentzv1alpha1.BrowserSecretSuffix
 	pod.Volumes = append(pod.Volumes,
 		corev1.Volume{
 			Name: authVolume,
 			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
-				SecretName:  agt.Name + agentzv1alpha1.BrowserSecretSuffix,
+				SecretName:  secretName,
 				DefaultMode: new(int32(0o440)),
+			}},
+		},
+		// The agent executes user commands. Only the worker can read the
+		// credential that authorizes human viewer and control headers.
+		corev1.Volume{
+			Name: agentAuthVolume,
+			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
+				SecretName:  secretName,
+				DefaultMode: new(int32(0o440)),
+				Items: []corev1.KeyToPath{{
+					Key:  browserAgentTokenKey,
+					Path: browserAgentTokenKey,
+				}},
 			}},
 		},
 		corev1.Volume{
@@ -93,7 +114,7 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, pod *corev1.PodSpec) 
 		Value: tokenPath,
 	})
 	agent.VolumeMounts = append(agent.VolumeMounts, corev1.VolumeMount{
-		Name:      authVolume,
+		Name:      agentAuthVolume,
 		MountPath: tokenDir,
 		ReadOnly:  true,
 	})
@@ -113,6 +134,10 @@ func (r *Reconciler) addBrowser(agt *agentzv1alpha1.Agent, pod *corev1.PodSpec) 
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Env: []corev1.EnvVar{
 			{Name: "BROWSER_TOKEN_PATH", Value: tokenPath},
+			{
+				Name:  "BROWSER_GATEWAY_TOKEN_PATH",
+				Value: tokenDir + "/" + agentzv1alpha1.BrowserGatewayTokenKey,
+			},
 			{Name: "BROWSER_DATA", Value: "/var/lib/browser"},
 			{
 				Name:  "BROWSER_HOST",

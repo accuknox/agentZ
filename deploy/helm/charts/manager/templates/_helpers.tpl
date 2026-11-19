@@ -58,6 +58,10 @@ control-plane: controller-manager
 {{- end -}}
 {{- end -}}
 
+{{- define "manager.gatewayServiceAccountName" -}}
+{{- default (printf "%s-gateway" .Release.Name | trunc 63 | trimSuffix "-") .Values.config.gatewayServiceAccountName -}}
+{{- end -}}
+
 {{- define "manager.webhookSecretName" -}}
 {{- default (printf "%s-webhook-server-cert" (include "manager.fullname" .)) .Values.certManager.webhookSecretName -}}
 {{- end -}}

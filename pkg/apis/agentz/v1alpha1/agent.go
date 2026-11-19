@@ -72,6 +72,9 @@ const BrowserPort = int32(4098)
 // BrowserSecretSuffix identifies the Agent-owned browser control credential.
 const BrowserSecretSuffix = "-browser"
 
+// BrowserGatewayTokenKey identifies the credential for human browser requests.
+const BrowserGatewayTokenKey = "gateway-token"
+
 // BrowserConfig enables the Agent's shared browser runtime.
 type BrowserConfig struct {
 	// Enabled starts a browser sidecar with persistent Agent-wide profiles.

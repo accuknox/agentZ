@@ -71,8 +71,8 @@
             # Optional native packages differ by platform; sharing a hash
             # would let an Arm build reuse x64 node_modules from the cache.
             outputHash = {
-              x86_64-linux = "sha256-+EvARH/vqMA3kqfBuVKK+xBsrg6PwwQRp0kY/4X3fRU=";
-              aarch64-linux = "sha256-JHBgrFdu3vOritogW2kGSLERizokOaM0Glt/QGFZo7A=";
+              x86_64-linux = "sha256-tF4ol4BZm8X+hVKZcgMMCYa4dvkozWlmaEo0BKedAIs=";
+              aarch64-linux = "sha256-0lYrEDS9S8aFto1Wodu+fTP7tUeTo4eUc3t8ShkCK+4=";
             }.${system};
           };
           cfg = pkgs.runCommand "opencode-config" { } ''

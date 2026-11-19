@@ -323,6 +323,8 @@ manager:
     # Audience bound onto the projected ServiceAccount token used for gateway
     # auth.
     managerGatewayTokenAudience: agentz-gateway
+    # Identity granted namespace RBAC and network access to Agent browsers.
+    # When the bundled gateway is enabled, use its ServiceAccount and namespace.
     gatewayServiceAccountName: ""
     gatewayServiceAccountNamespace: ""
 

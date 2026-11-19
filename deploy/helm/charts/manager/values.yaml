@@ -182,6 +182,8 @@ config:
   managerOpenBaoK8sAuthTokenPath: /var/run/secrets/kubernetes.io/serviceaccount/token
   managerGatewayTokenPath: /var/run/secrets/agentz/gateway/token
   managerGatewayTokenAudience: agentz-gateway
+  # Identity granted namespace RBAC and network access to Agent browsers.
+  # Standalone installs can set these to the gateway's ServiceAccount and namespace.
   gatewayServiceAccountName: ""
   gatewayServiceAccountNamespace: ""
   sinjectorCASecretName: sinjector

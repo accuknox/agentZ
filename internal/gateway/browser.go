@@ -37,11 +37,25 @@ func (s *Service) UploadBrowserFile(w http.ResponseWriter, r *http.Request, agen
 
 func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, session string) {
 	ctx := r.Context()
+	auth, _ := requestAuthState(ctx)
+	if auth.actorType != requestActorUser || auth.claims == nil ||
+		auth.claims.BrowserSessionID == "" {
+		err := errors.New("browser control requires a signed-in user")
+		apiutil.WriteError(w, r, resourceForbidden(err))
+		return
+	}
 	origin := r.Header.Get("Origin")
 	if origin != "" && !slices.Contains(s.cfg.AllowedWebOrigins, origin) {
 		apiutil.WriteError(w, r, resourceForbidden(errors.New("browser origin is not allowed")))
 		return
 	}
+	ctx, cancel, apiErr := s.authorizeStream(ctx)
+	if apiErr != nil {
+		apiutil.WriteError(w, r, apiErr)
+		return
+	}
+	defer cancel()
+
 	access, _, _, err := s.chatInputAccess(ctx, agent, session)
 	if err != nil {
 		apiutil.WriteError(w, r, mapGatewayStoreError("get browser session", err))
@@ -68,7 +82,7 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusServiceUnavailable, "browser_unavailable", "Browser credential is starting", nil))
 		return
 	}
-	token := string(secret.Data["token"])
+	token := string(secret.Data[agentzv1alpha1.BrowserGatewayTokenKey])
 	if token == "" {
 		apiutil.WriteError(w, r, apiutil.NewError(http.StatusServiceUnavailable, "browser_unavailable", "Browser credential is unavailable", nil))
 		return
@@ -90,12 +104,6 @@ func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, se
 		}
 		target = override
 	}
-	ctx, cancel, apiErr := s.authorizeStream(ctx)
-	if apiErr != nil {
-		apiutil.WriteError(w, r, apiErr)
-		return
-	}
-	defer cancel()
 	if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 		agentEvents, stopAgents := s.resolver.watchAgents()
 		defer stopAgents()

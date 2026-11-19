@@ -871,12 +871,17 @@ func (s *Service) routes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(requestLog)
 	r.Use(func(next http.Handler) http.Handler {
+		browser := s.ptyWebsocketAuth(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.HasPrefix(r.URL.Path, "/api/coding/") {
 				r.Body = http.MaxBytesReader(w, r.Body, 90<<20)
 			}
-			if strings.HasPrefix(r.URL.Path, "/api/agent/") && strings.Contains(r.URL.Path, "/browser/") {
+			agentPath, isAgent := strings.CutPrefix(r.URL.Path, "/api/agent/")
+			_, route, _ := strings.Cut(agentPath, "/")
+			if isAgent && strings.HasPrefix(route, "browser/") {
 				r.Body = http.MaxBytesReader(w, r.Body, 50<<20)
+				browser.ServeHTTP(w, r)
+				return
 			}
 			next.ServeHTTP(w, r)
 		})
@@ -896,13 +901,6 @@ func (s *Service) routes() http.Handler {
 	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).HandleFunc(
 		opencodePrefix+"/{agentName}/*",
 		s.handleOpenCodeProxy,
-	)
-
-	r.With(managementCORS, s.ptyWebsocketAuth, requireTenantRequest(s)).Get(
-		"/api/agent/{agentName}/browser/{sessionId}",
-		func(w http.ResponseWriter, r *http.Request) {
-			s.StreamBrowser(w, r, chi.URLParam(r, "agentName"), chi.URLParam(r, "sessionId"), gatewayapi.StreamBrowserParams{})
-		},
 	)
 
 	if s.cfg.DelegationNamespace != "" {

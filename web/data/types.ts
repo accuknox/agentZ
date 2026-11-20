@@ -158,16 +158,13 @@ export type NetworkTelemetryActionData = {
 }
 
 export type ProcessTelemetryActionResponse =
-  | { data: ProcessTelemetryActionData; error: undefined }
-  | { data: undefined; error: Error }
+  { data: ProcessTelemetryActionData; error: undefined } | { data: undefined; error: Error }
 
 export type FileTelemetryActionResponse =
-  | { data: FileTelemetryActionData; error: undefined }
-  | { data: undefined; error: Error }
+  { data: FileTelemetryActionData; error: undefined } | { data: undefined; error: Error }
 
 export type NetworkTelemetryActionResponse =
-  | { data: NetworkTelemetryActionData; error: undefined }
-  | { data: undefined; error: Error }
+  { data: NetworkTelemetryActionData; error: undefined } | { data: undefined; error: Error }
 
 export type EventsChartPoint = {
   label: string

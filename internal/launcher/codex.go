@@ -56,7 +56,7 @@ type codexTruncation struct {
 	Limit int    `json:"limit"`
 }
 
-// Unknown models follow Codex 0.162.1's model_info_from_slug fallback.
+// Unknown models follow Codex's model_info_from_slug fallback.
 // Codex fills in omitted fields. Apps usage must be false to match its
 // fallback, since deserialization otherwise enables it.
 type codexModel struct {

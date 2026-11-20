@@ -22,6 +22,9 @@ type GatewayOAuthChangedNotification struct {
 	// Error corresponds to the JSON schema field "error".
 	Error GatewayOAuthChangedNotificationError `json:"error,omitempty,omitzero"`
 
+	// Identifies the completed device login attempt.
+	LoginId GatewayOAuthChangedNotificationLoginId `json:"loginId,omitempty,omitzero"`
+
 	// ProviderId corresponds to the JSON schema field "providerId".
 	ProviderId string `json:"providerId"`
 
@@ -33,6 +36,9 @@ type GatewayOAuthChangedNotification struct {
 type GatewayOAuthChangedNotificationAuthUrl *string
 
 type GatewayOAuthChangedNotificationError *string
+
+// Identifies the completed device login attempt.
+type GatewayOAuthChangedNotificationLoginId *string
 
 // Current effective gateway policy and credential readiness; never contains
 // credentials.
@@ -51,6 +57,9 @@ type GatewayOAuthReadResponse struct {
 
 	// Null when the effective provider does not use gateway OAuth.
 	Status interface{} `json:"status,omitempty,omitzero"`
+
+	// Whether the administrator configured a device authorization endpoint.
+	SupportsDeviceAuth bool `json:"supportsDeviceAuth,omitempty,omitzero"`
 }
 
 type GatewayOAuthReadResponseError *string
@@ -103,6 +112,11 @@ type InitializeParamsCapabilities struct {
 
 	// Opt into `attestation/generate` requests for upstream `x-oai-attestation`.
 	RequestAttestation bool `json:"requestAttestation,omitempty,omitzero"`
+
+	// Present `humanCommand` approvals to a person and return only a one-time
+	// decision. Requires `experimentalApi`. Pending requests can be replayed to
+	// compatible clients.
+	RequiredHumanApproval *bool `json:"requiredHumanApproval,omitempty,omitzero"`
 }
 
 type InitializeParamsCapabilities_0 = InitializeCapabilities
@@ -130,6 +144,11 @@ type InitializeCapabilities struct {
 
 	// Opt into `attestation/generate` requests for upstream `x-oai-attestation`.
 	RequestAttestation bool `json:"requestAttestation,omitempty,omitzero"`
+
+	// Present `humanCommand` approvals to a person and return only a one-time
+	// decision. Requires `experimentalApi`. Pending requests can be replayed to
+	// compatible clients.
+	RequiredHumanApproval *bool `json:"requiredHumanApproval,omitempty,omitzero"`
 }
 
 // MCP extension settings declared by the app-server client.

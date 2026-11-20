@@ -39,8 +39,7 @@ type TelemetryPageData =
   | NonNullable<NetworkTelemetryActionResponse["data"]>
 
 type TelemetryPageResponse<TData extends TelemetryPageData> =
-  | { data: TData; error: undefined }
-  | { data: undefined; error: Error }
+  { data: TData; error: undefined } | { data: undefined; error: Error }
 
 export type TelemetryPageConfig<TData extends TelemetryPageData> = {
   headers: string[]

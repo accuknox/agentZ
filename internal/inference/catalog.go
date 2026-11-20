@@ -22,7 +22,7 @@ const (
 	catalogLifetime   = 24 * time.Hour
 
 	// OpenAI gates model availability by the advertised Codex client version.
-	openAICodexVersion = "0.163.0"
+	openAICodexVersion = "0.171.0"
 )
 
 // CatalogProvenance identifies the source of model suggestions.

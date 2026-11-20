@@ -236,9 +236,10 @@ export function ExternalAgents({
   const rows = useMemo<ExternalAgentRow[]>(
     () => [
       ...data.agents.map((agent): ExternalAgentRow => ({ kind: "agent", agent })),
-      ...data.integrations.map(
-        (environment): ExternalAgentRow => ({ kind: "copilot-studio", environment })
-      ),
+      ...data.integrations.map((environment): ExternalAgentRow => ({
+        kind: "copilot-studio",
+        environment,
+      })),
     ],
     [data]
   )

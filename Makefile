@@ -41,8 +41,8 @@ OAPI_CODEGEN := $(NIX) run .\#oapi-codegen --
 SQLC := $(NIX) run .\#sqlc --
 YAMLFMT := $(NIX) run .\#yamlfmt --
 
-# Codex 0.162.1 protocol schemas, including experimental gateway OAuth.
-CODEX_SOURCE_URL := https://raw.githubusercontent.com/openai/codex/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs
+# Codex 0.171.0 protocol schemas, including experimental gateway OAuth.
+CODEX_SOURCE_URL := https://raw.githubusercontent.com/openai/codex/ccf9be8cc458bd6b8336fe84d68d8893f2691a5e/codex-rs
 CODEX_SCHEMA_URL := $(CODEX_SOURCE_URL)/app-server-protocol/schema/json
 
 GO_PKGS := ./cmd/... ./hack/... ./internal/... ./pkg/...

@@ -654,6 +654,9 @@ function WorkingShimmer({ text }: { text?: string }) {
   return <Shimmer className="min-w-0 truncate text-sm">{text ?? fallback}</Shimmer>
 }
 
+const chatColumn = "mr-auto ml-auto max-w-3xl"
+const transcriptColumn = cn(chatColumn, "w-[calc(100%-2rem)] in-data-browser-beside:mr-4")
+
 export default function Chat({
   revertDisabled = false,
   createSession,
@@ -1861,7 +1864,8 @@ export default function Chat({
               <div
                 className={cn(
                   styles.historyLoading,
-                  "absolute inset-0 mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 pt-4"
+                  chatColumn,
+                  "absolute inset-y-0 right-[var(--browser-preview-right,0px)] left-0 flex w-[calc(100%-var(--browser-preview-right,0px))] flex-col gap-3 px-4 pt-4 in-data-browser-beside:mr-0"
                 )}
               >
                 <Skeleton className="h-16 w-full rounded-md" />
@@ -1876,8 +1880,9 @@ export default function Chat({
                 tabIndex={0}
                 className={cn(
                   styles.historyReady,
-                  "h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]"
+                  "h-full min-h-0 [scrollbar-gutter:stable] overflow-x-hidden overscroll-y-contain [overflow-anchor:none]"
                 )}
+                contentContainerClassName="w-[calc(100%-var(--browser-preview-right,0px))]"
                 data={timelineRows}
                 // Leave capacity for short rows when earlier turns are loaded.
                 estimatedItemSize={Math.min(initialScroll?.estimatedItemSize ?? 48, 48)}
@@ -1896,7 +1901,7 @@ export default function Chat({
                 recycleItems={false}
                 ListHeaderComponent={
                   hasEarlierMessages ? (
-                    <div className="mx-auto w-[calc(100%-2rem)] max-w-3xl pt-4 pb-2">
+                    <div className={cn(transcriptColumn, "pt-4 pb-2")}>
                       <button
                         className="w-full py-1.5 text-xs text-muted-foreground/70 hover:text-foreground disabled:cursor-default"
                         disabled={isLoadingEarlier}
@@ -1912,7 +1917,7 @@ export default function Chat({
                 }
                 ListFooterComponent={
                   <div
-                    className="mx-auto flex w-[calc(100%-2rem)] max-w-3xl flex-col gap-4 pt-2"
+                    className={cn(transcriptColumn, "flex flex-col gap-4 pt-2")}
                     style={{ paddingBottom: "calc(var(--chat-composer-height, 0px) + 16px)" }}
                   >
                     <ChatQueue
@@ -2022,10 +2027,7 @@ export default function Chat({
                 ref={timelineRef}
                 renderItem={({ item }) => (
                   <div
-                    className={cn(
-                      "mx-auto w-[calc(100%-2rem)] max-w-3xl",
-                      item.type === "checkpoint" ? "pb-1.5" : "pb-4"
-                    )}
+                    className={cn(transcriptColumn, item.type === "checkpoint" ? "pb-1.5" : "pb-4")}
                   >
                     <TimelineRowView
                       workActive={
@@ -2044,39 +2046,41 @@ export default function Chat({
             ) : null}
           </div>
         ) : null}
-        <NewItemsPill
-          visible={!timelineFollowing && !showStarter}
-          latestId={rows.findLast((row) => row.type === "user" || row.type === "assistant")?.key}
-          scope={sessionId ?? "new"}
-          className="absolute left-1/2 z-20 -translate-x-1/2"
-          style={{ bottom: "calc(var(--chat-composer-height, 0px) + 8px)" }}
-          onClick={() => {
-            following.current = true
-            setTimelineFollowing(true)
-            scrollFrame.current = requestAnimationFrame(() => {
-              void timelineRef.current?.scrollToEnd({
-                animated: !reducedMotion,
+        <div className="pointer-events-none absolute inset-y-0 right-[var(--browser-preview-right,0px)] left-0">
+          <NewItemsPill
+            visible={!timelineFollowing && !showStarter}
+            latestId={rows.findLast((row) => row.type === "user" || row.type === "assistant")?.key}
+            scope={sessionId ?? "new"}
+            className="pointer-events-auto absolute left-1/2 z-20 -translate-x-1/2"
+            style={{ bottom: "calc(var(--chat-composer-height, 0px) + 8px)" }}
+            onClick={() => {
+              following.current = true
+              setTimelineFollowing(true)
+              scrollFrame.current = requestAnimationFrame(() => {
+                void timelineRef.current?.scrollToEnd({
+                  animated: !reducedMotion,
+                })
               })
-            })
-          }}
-          size="icon"
-          variant="outline"
-        />
-        {!showStarter ? (
-          <QuickTurnNav listRef={timelineRef} rows={rows} onNavigate={releaseFollow} />
-        ) : null}
+            }}
+            size="icon"
+            variant="outline"
+          />
+          {!showStarter ? (
+            <QuickTurnNav listRef={timelineRef} rows={rows} onNavigate={releaseFollow} />
+          ) : null}
+        </div>
       </div>
       <div
         ref={composerDock}
         className={cn(
-          "pointer-events-none absolute inset-x-0 z-30 flex max-h-full min-h-0 flex-col gap-4 px-3 sm:px-5",
+          "@container/chat pointer-events-none absolute right-[var(--browser-preview-right,0px)] left-0 z-30 flex max-h-full min-h-0 flex-col",
           showStarter ? "top-1/2 -translate-y-1/2" : "bottom-0 bg-background pb-4"
         )}
       >
         <div
-          data-chat-composer
           className={cn(
-            "pointer-events-auto mx-auto flex min-h-0 w-full max-w-3xl flex-col",
+            chatColumn,
+            "pointer-events-auto flex min-h-0 w-[calc(100%-1.5rem)] flex-col in-data-browser-beside:mr-3 sm:w-[calc(100%-2.5rem)] sm:in-data-browser-beside:mr-5",
             showStarter ? "gap-8" : "min-w-0 bg-background"
           )}
         >
@@ -2918,7 +2922,12 @@ function TimelineRowView({
               )
             if (entry.type === "text")
               return (
-                <MessageResponse key={entry.key} onAgentFileOpen={openAgentFile}>
+                <MessageResponse
+                  key={entry.key}
+                  agentName={agentName}
+                  onAgentFileOpen={openAgentFile}
+                  workspaceId={workspaceId}
+                >
                   {entry.content}
                 </MessageResponse>
               )

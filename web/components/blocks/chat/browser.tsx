@@ -91,7 +91,8 @@ export function Browser({
   query,
   floating,
   reveal,
-  onFloatingChange: setFloating,
+  onFloat,
+  onDock,
   onClosePreview,
 }: {
   agentName: string
@@ -101,7 +102,8 @@ export function Browser({
   query: UseQueryResult<BrowserResult>
   floating: boolean
   reveal?: Pick<BrowserTab, "id" | "reveal">
-  onFloatingChange: (floating: boolean, tabId?: string) => void
+  onFloat: (tabId: string) => void
+  onDock: () => void
   onClosePreview: () => void
 }) {
   const queryClient = useQueryClient()
@@ -562,7 +564,7 @@ export function Browser({
       title={tab?.title || "Browser"}
       width={tab?.width ?? 1280}
       height={tab?.height ?? 800}
-      onDock={() => setFloating(false)}
+      onDock={onDock}
       onClose={onClosePreview}
       onKeyDownCapture={(event) => {
         if (!(event.ctrlKey || event.metaKey)) return
@@ -851,7 +853,12 @@ export function Browser({
                 <RefreshCw className="text-muted-foreground" />
                 Hard reload
               </DropdownMenuItem>
-              <DropdownMenuItem disabled={!tabId} onSelect={() => setFloating(true, tabId)}>
+              <DropdownMenuItem
+                disabled={!tabId}
+                onSelect={() => {
+                  if (tabId) onFloat(tabId)
+                }}
+              >
                 <ExternalLink className="text-muted-foreground" />
                 Float browser
               </DropdownMenuItem>

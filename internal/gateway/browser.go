@@ -40,8 +40,8 @@ func (s *Service) UploadBrowserFile(w http.ResponseWriter, r *http.Request, agen
 func (s *Service) proxyBrowser(w http.ResponseWriter, r *http.Request, agent, session string) {
 	ctx := r.Context()
 	auth, _ := requestAuthState(ctx)
-	if auth.actorType != requestActorUser || auth.claims == nil ||
-		auth.claims.BrowserSessionID == "" {
+	signedIn := auth.actorType == requestActorUser && auth.claims != nil
+	if !signedIn || auth.claims.BrowserSessionID == "" {
 		err := errors.New("browser control requires a signed-in user")
 		apiutil.WriteError(w, r, resourceForbidden(err))
 		return

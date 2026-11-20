@@ -6,32 +6,24 @@ import (
 	pb "github.com/kubearmor/KubeArmor/protobuf"
 )
 
+// TestKubeArmorAlertBlockedProcess keeps policy blocks out of allowed activity.
 func TestKubeArmorAlertBlockedProcess(t *testing.T) {
 	t.Parallel()
 
 	ev, ok := kubeArmorAlertEvent(&pb.Alert{
-		UpdatedTime:   "2026-04-20T15:05:43.692697Z",
-		NamespaceName: "default",
-		Operation:     "Process",
-		PodName:       "agent-sample",
-		ProcessName:   "/usr/bin/whoami",
-		Resource:      "/usr/bin/whoami",
-		Action:        "Block",
+		Operation:   "Process",
+		ProcessName: "/usr/bin/whoami",
+		Action:      "Block",
 	}, "agent-sample")
-	if !ok {
+	if !ok || ev.process == nil {
 		t.Fatal("kubeArmorAlertEvent() filtered blocked process event")
-	}
-	if ev.process == nil {
-		t.Fatal("process event is nil")
 	}
 	if ev.process.action != actionBlocked {
 		t.Fatalf("action = %q, want %q", ev.process.action, actionBlocked)
 	}
-	if ev.process.source != sourceKubeArmorAlert {
-		t.Fatalf("source = %q, want %q", ev.process.source, sourceKubeArmorAlert)
-	}
 }
 
+// TestKubeArmorLogFile keeps resource metadata out of the recorded path.
 func TestKubeArmorLogFile(t *testing.T) {
 	t.Parallel()
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import type { AssistantMessage, UserMessage, TextPart } from "@opencode-ai/sdk/v2"
+import type { AssistantMessage, UserMessage, TextPart, ToolPart } from "@opencode-ai/sdk/v2"
 import { projectTimeline } from "./timeline"
 import { describeMessageError } from "./errors"
 import type { GuardrailContext } from "@/lib/gateway/client"
@@ -56,6 +56,54 @@ const parts: Record<string, TextPart[]> = {
     },
   ],
 }
+
+test("browser snapshots stay in tool history without rendering their images in chat", () => {
+  const snapshot: ToolPart = {
+    id: "snapshot",
+    callID: "snapshot-call",
+    messageID: assistant.id,
+    sessionID: assistant.sessionID,
+    type: "tool",
+    tool: "preview_snapshot",
+    state: {
+      status: "completed",
+      title: "preview_snapshot",
+      input: { includeImage: true },
+      metadata: {},
+      output: "{}",
+      time: { start: 2, end: 3 },
+      attachments: [
+        {
+          id: "capture",
+          messageID: assistant.id,
+          sessionID: assistant.sessionID,
+          type: "file",
+          filename: "browser.png",
+          mime: "image/png",
+          url: "data:image/png;base64,AA==",
+        },
+      ],
+    },
+  }
+  const read: ToolPart = { ...snapshot, id: "read", callID: "read-call", tool: "read" }
+  const { rows } = projectTimeline({
+    messages: [user, { ...assistant, time: { created: 2, completed: 4 } }],
+    partsByMessage: { ...parts, [assistant.id]: [snapshot, read] },
+    textByPart: {},
+    isBusy: false,
+    isRetrying: false,
+    showWork: true,
+  })
+  const response = rows.find((row) => row.type === "assistant")
+  assert.deepEqual(
+    response?.entries.filter((entry) => entry.type === "attachments").map((entry) => entry.key),
+    ["attachments:read"]
+  )
+  assert.ok(
+    response?.entries.some((entry) => entry.type === "work" && entry.parts.includes(snapshot))
+  )
+})
+
 test("a steering message does not finish the assistant that is still streaming", () => {
   const { rows } = projectTimeline({
     messages: [user, assistant, steer],

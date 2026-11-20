@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import dynamic from "next/dynamic"
 import { Globe, Files, Maximize2, Minimize2, PanelRightClose, type LucideIcon } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
@@ -28,6 +28,9 @@ const FilesWorkspace = dynamic(
     ),
   }
 )
+
+type WorkspacePanel =
+  { tab: string; mode: "closed" | "docked" } | { tab: string; mode: "floating"; tabId: string }
 
 type WorkspaceTool = {
   id: string
@@ -61,20 +64,53 @@ export function Workspace({
 }): React.JSX.Element {
   const { pendingPreview } = useFileWorkspace()
   const { data: agents = [] } = useQuery(watchAgentsQueryOptions(workspaceId))
-  const browserEnabled = agents.find((agent) => agent.name === agentName)?.browser.enabled ?? false
-  const [{ tab, open }, setPanel] = useState({ tab: initialTool, open: false })
-  const [visited, setVisited] = useState<Set<string>>(new Set())
+  const browserAvailable =
+    !!sessionId && (agents.find((agent) => agent.name === agentName)?.browser.enabled ?? false)
+  const [panel, setPanel] = useState<WorkspacePanel>({ tab: initialTool, mode: "closed" })
+  const { tab } = panel
+  const docked = panel.mode === "docked"
+  const browserFloating = panel.mode === "floating"
+  const visibleTool = browserFloating ? "browser" : docked ? tab : undefined
+  const [visited, setVisited] = useState(() => new Set<string>())
   const [width, setWidth] = useState(480)
   const [expanded, setExpanded] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
-  const [floatingTab, setFloatingTab] = useState<string>()
-  const browserFloating = floatingTab !== undefined
   const [revealed, setRevealed] = useState<{
     epoch: string
     time: number
     tab?: Pick<BrowserTab, "id" | "reveal">
   }>()
-  const panelOpen = open && !(tab === "browser" && browserFloating)
+  const browser = useQuery({
+    ...browserQueryOptions(workspaceId, agentName, sessionId),
+    enabled: browserAvailable,
+    refetchInterval: browserAvailable ? 3000 : false,
+  })
+  let latest: BrowserTab | undefined
+  let reveal = 0
+  for (const candidate of browser.data?.tabs ?? []) {
+    const time = candidate.reveal ?? 0
+    if (time <= reveal) continue
+    latest = candidate
+    reveal = time
+  }
+  if (browser.data && browser.data.epoch !== revealed?.epoch) {
+    // The first list is a baseline, not a new agent action. Reloading must
+    // not resurrect previews the viewer already dismissed.
+    setRevealed({ epoch: browser.data.epoch, time: reveal })
+    if (browserFloating) setPanel({ tab, mode: "closed" })
+  } else if (latest && revealed && reveal > revealed.time) {
+    setRevealed({ epoch: revealed.epoch, time: reveal, tab: latest })
+    // Keep the agent's selection for when Browser opens, even if a panel is docked.
+    if (!docked) {
+      setPanel({ tab, mode: "floating", tabId: latest.id })
+    }
+  } else if (
+    browserFloating &&
+    browser.data &&
+    !browser.data.tabs.some(({ id }) => id === panel.tabId)
+  ) {
+    setPanel({ tab, mode: "closed" })
+  }
   const views: WorkspaceTool[] = [
     {
       id: "files",
@@ -90,92 +126,61 @@ export function Workspace({
       ),
     },
     ...tools,
-    ...(browserEnabled && sessionId
-      ? [
-          {
-            id: "browser",
-            label: "Browser",
-            icon: Globe,
-            render: ({ visible }: { visible: boolean }) => (
-              <Browser
-                agentName={agentName}
-                sessionId={sessionId}
-                workspaceId={workspaceId}
-                visible={visible || browserFloating}
-                query={browser}
-                floating={browserFloating}
-                reveal={revealed?.tab}
-                onFloatingChange={(floating, id) => {
-                  setFloatingTab(floating ? id : undefined)
-                  if (!floating || tab === "browser") setPanel({ tab: "browser", open: !floating })
-                }}
-                onClosePreview={() => {
-                  setFloatingTab(undefined)
-                  if (tab === "browser") setPanel({ tab: "browser", open: false })
-                }}
-              />
-            ),
-          },
-        ]
-      : []),
   ]
-  const browser = useQuery({
-    ...browserQueryOptions(workspaceId, agentName, sessionId),
-    enabled: browserEnabled && !!sessionId,
-    refetchInterval: browserEnabled && sessionId ? 3000 : false,
-  })
-  let latest: BrowserTab | undefined
-  let reveal = 0
-  for (const candidate of browser.data?.tabs ?? []) {
-    if ((candidate.reveal ?? 0) <= reveal) continue
-    latest = candidate
-    reveal = candidate.reveal ?? 0
+  if (browserAvailable) {
+    views.push({
+      id: "browser",
+      label: "Browser",
+      icon: Globe,
+      render: ({ visible }) => (
+        <Browser
+          agentName={agentName}
+          sessionId={sessionId}
+          workspaceId={workspaceId}
+          visible={visible}
+          query={browser}
+          floating={browserFloating}
+          reveal={revealed?.tab}
+          onFloat={(tabId) => setPanel({ tab: "browser", mode: "floating", tabId })}
+          onDock={() => setPanel({ tab: "browser", mode: "docked" })}
+          onClosePreview={() => setPanel({ tab, mode: "closed" })}
+        />
+      ),
+    })
   }
-  if (browser.data && browser.data.epoch !== revealed?.epoch) {
-    // The first list is a baseline, not a new agent action. Reloading must
-    // not resurrect previews the viewer already dismissed.
-    setRevealed({ epoch: browser.data.epoch, time: reveal })
-    setFloatingTab(undefined)
-  } else if (latest && revealed && reveal > revealed.time) {
-    setRevealed({ epoch: revealed.epoch, time: reveal, tab: latest })
-    if (!(open && tab === "browser" && !browserFloating)) setFloatingTab(latest.id)
-    setVisited((current) => new Set(current).add("browser"))
-  } else if (
-    floatingTab &&
-    browser.data &&
-    !browser.data.tabs.some((tab) => tab.id === floatingTab)
-  )
-    setFloatingTab(undefined)
   const active = views.find((view) => view.id === tab)
 
   useEffect(() => {
-    onPreviewerOpenChange(open && tab === "files" && editorOpen)
+    onPreviewerOpenChange(docked && tab === "files" && editorOpen)
     return () => onPreviewerOpenChange(false)
-  }, [open, tab, editorOpen, onPreviewerOpenChange])
+  }, [docked, tab, editorOpen, onPreviewerOpenChange])
 
   const [handledPreview, setHandledPreview] = useState<typeof pendingPreview>()
   if (pendingPreview?.agent === agentName && pendingPreview !== handledPreview) {
     setHandledPreview(pendingPreview)
-    setPanel({ tab: "files", open: true })
-    setVisited((current) => new Set(current).add("files"))
+    setPanel({ tab: "files", mode: "docked" })
   }
+  if (visibleTool && !visited.has(visibleTool)) {
+    setVisited(new Set(visited).add(visibleTool))
+  }
+
+  const togglePanel = useCallback((id: string) => {
+    setPanel((current) => ({
+      tab: id,
+      mode: current.tab === id && current.mode === "docked" ? "closed" : "docked",
+    }))
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.code !== "KeyB") return
       event.preventDefault()
       event.stopPropagation()
-      if (browserFloating && tab === "browser") {
-        setFloatingTab(undefined)
-        setPanel({ tab: "browser", open: true })
-        return
-      }
-      setVisited((current) => new Set(current).add(tab))
-      setPanel((current) => ({ ...current, open: !current.open }))
+      togglePanel(tab)
     }
     window.addEventListener("keydown", onKeyDown, true)
     return () => window.removeEventListener("keydown", onKeyDown, true)
-  }, [tab, browserFloating])
+  }, [tab, togglePanel])
 
   return (
     <>
@@ -183,16 +188,16 @@ export function Workspace({
         aria-label="Workspace panel"
         className={cn(
           "min-h-0 min-w-0 shrink-0 flex-col bg-background",
-          panelOpen
+          docked
             ? "absolute inset-y-0 right-12 left-0 z-30 flex border-l lg:relative lg:inset-auto lg:z-auto lg:w-auto lg:max-w-[calc(100%-22rem)]"
             : "contents",
-          panelOpen &&
+          docked &&
             expanded &&
             "lg:absolute lg:inset-y-0 lg:right-12 lg:left-0 lg:z-30 lg:w-auto lg:max-w-none"
         )}
-        style={panelOpen ? { flexBasis: width } : undefined}
+        style={docked ? { flexBasis: width } : undefined}
       >
-        {panelOpen && !expanded ? (
+        {docked && !expanded ? (
           <WorkspaceResizeHandle
             label="Resize workspace panel"
             width={width}
@@ -204,7 +209,7 @@ export function Workspace({
         <header
           className={cn(
             "flex h-(--workspace-topbar-height) shrink-0 items-center gap-2 border-b px-3",
-            !panelOpen && "hidden"
+            !docked && "hidden"
           )}
         >
           <span className="flex-1 text-sm font-semibold">{active?.label}</span>
@@ -228,7 +233,7 @@ export function Workspace({
             title="Close workspace panel"
             size="icon-sm"
             variant="ghost"
-            onClick={() => setPanel((current) => ({ ...current, open: false }))}
+            onClick={() => setPanel((current) => ({ tab: current.tab, mode: "closed" }))}
           >
             <PanelRightClose />
           </Button>
@@ -240,68 +245,54 @@ export function Workspace({
               className={
                 view.id === "browser" && browserFloating
                   ? "contents"
-                  : cn("flex min-h-0 flex-1 flex-col", (tab !== view.id || !panelOpen) && "hidden")
+                  : cn("flex min-h-0 flex-1 flex-col", visibleTool !== view.id && "hidden")
               }
             >
               {view.render({
-                visible: panelOpen && tab === view.id,
+                visible: visibleTool === view.id,
                 expanded,
                 onExpand: () => setExpanded(true),
                 onClose: () =>
                   setPanel((current) =>
-                    current.tab === view.id ? { ...current, open: false } : current
+                    current.mode === "docked" && current.tab === view.id
+                      ? { tab: current.tab, mode: "closed" }
+                      : current
                   ),
               })}
             </div>
           ) : null
         )}
-        {panelOpen ? footer : null}
+        {docked ? footer : null}
       </aside>
       <nav
         aria-label="Workspace tools"
         className="flex w-12 shrink-0 flex-col items-center gap-1 border-l bg-sidebar py-2"
       >
-        {views.map(({ id, label, icon: Icon, count }) => (
-          <Tooltip key={id}>
-            <TooltipTrigger asChild>
-              <Button
-                aria-label={label}
-                aria-pressed={(panelOpen && tab === id) || (id === "browser" && browserFloating)}
-                variant={
-                  (panelOpen && tab === id) || (id === "browser" && browserFloating)
-                    ? "secondary"
-                    : "ghost"
-                }
-                size="icon"
-                className={cn(
-                  "relative",
-                  ((panelOpen && tab === id) || (id === "browser" && browserFloating)) &&
-                    "text-primary"
-                )}
-                onClick={() => {
-                  if (id === "browser" && browserFloating) {
-                    setFloatingTab(undefined)
-                    setPanel({ tab: id, open: true })
-                    return
-                  }
-                  setPanel((current) => ({
-                    tab: id,
-                    open: current.tab === id ? !current.open : true,
-                  }))
-                  setVisited((current) => new Set(current).add(id))
-                }}
-              >
-                <Icon />
-                {count !== undefined && count > 0 ? (
-                  <span className="absolute top-0 right-0 min-w-3.5 rounded-full bg-primary px-0.5 text-[9px] leading-3.5 text-primary-foreground tabular-nums">
-                    {count}
-                  </span>
-                ) : null}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">{label}</TooltipContent>
-          </Tooltip>
-        ))}
+        {views.map(({ id, label, icon: Icon, count }) => {
+          const pressed = visibleTool === id
+          return (
+            <Tooltip key={id}>
+              <TooltipTrigger asChild>
+                <Button
+                  aria-label={label}
+                  aria-pressed={pressed}
+                  variant={pressed ? "secondary" : "ghost"}
+                  size="icon"
+                  className={cn("relative", pressed && "text-primary")}
+                  onClick={() => togglePanel(id)}
+                >
+                  <Icon />
+                  {count !== undefined && count > 0 ? (
+                    <span className="absolute top-0 right-0 min-w-3.5 rounded-full bg-primary px-0.5 text-[9px] leading-3.5 text-primary-foreground tabular-nums">
+                      {count}
+                    </span>
+                  ) : null}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">{label}</TooltipContent>
+            </Tooltip>
+          )
+        })}
       </nav>
     </>
   )

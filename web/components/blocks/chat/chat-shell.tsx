@@ -233,78 +233,80 @@ export function ChatShell({
               ) : null}
             </div>
           </header>
-          <div data-chat-content className="@container/chat relative min-h-0 min-w-0 flex-1">
-            {degraded ? (
-              <div className="absolute inset-0 z-10 grid place-items-center overflow-y-auto bg-background">
-                <AgentUnavailable agent={agent} />
-              </div>
-            ) : null}
-            <div className="contents" inert={degraded} aria-hidden={degraded || undefined}>
-              <Chat
-                key={chatKey}
-                coding={coding}
-                draftId={activeDraftId}
-                draftMode={draftMode}
-                onDraftModeChange={activeSessionId ? undefined : onDraftModeChange}
-                createSession={createSession}
-                initialMessage={activeSessionId ? undefined : initialMessage}
-                draftModel={activeSessionId ? undefined : draftModel}
-                onDraftModelChange={activeSessionId ? undefined : onDraftModelChange}
-                composerContext={
-                  codingThread
-                    ? () => (
-                        <span
-                          className="flex h-7 max-w-60 min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
-                          title={`${branch || "Detached HEAD"}\n${codingThread.worktree.directory}`}
-                        >
-                          <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
-                          <span className="truncate">
-                            {branch || codingThread.worktree.directory.split("/").at(-1)}
+          <div data-chat-canvas className="relative min-h-0 min-w-0 flex-1">
+            <div className="absolute inset-x-0 top-0 bottom-[var(--browser-preview-bottom,0px)]">
+              {degraded ? (
+                <div className="absolute inset-y-0 right-[var(--browser-preview-right,0px)] left-0 z-10 grid place-items-center overflow-y-auto bg-background">
+                  <AgentUnavailable agent={agent} />
+                </div>
+              ) : null}
+              <div className="contents" inert={degraded} aria-hidden={degraded || undefined}>
+                <Chat
+                  key={chatKey}
+                  coding={coding}
+                  draftId={activeDraftId}
+                  draftMode={draftMode}
+                  onDraftModeChange={activeSessionId ? undefined : onDraftModeChange}
+                  createSession={createSession}
+                  initialMessage={activeSessionId ? undefined : initialMessage}
+                  draftModel={activeSessionId ? undefined : draftModel}
+                  onDraftModelChange={activeSessionId ? undefined : onDraftModelChange}
+                  composerContext={
+                    codingThread
+                      ? () => (
+                          <span
+                            className="flex h-7 max-w-60 min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
+                            title={`${branch || "Detached HEAD"}\n${codingThread.worktree.directory}`}
+                          >
+                            <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                            <span className="truncate">
+                              {branch || codingThread.worktree.directory.split("/").at(-1)}
+                            </span>
                           </span>
-                        </span>
-                      )
-                    : composerContext
-                }
-                revertDisabled={codingThread?.worktree.shared}
-                agentName={agentName}
-                agentNames={agentNames}
-                chatPreferences={chatPreferences}
-                projectName={projectName}
-                firstName={firstName ?? actor?.user.name.trim().split(/\s+/, 1)[0]}
-                greetingIndex={greetingIndex}
-                onSessionCreated={(id) => {
-                  setPromotedSession({ chatKey: routeChatKey, sessionId: id })
-                  onDraftPromoted?.(id)
-
-                  const url = new URL(window.location.href)
-                  if (
-                    url.pathname !== draftPath ||
-                    url.searchParams.toString() !== search.toString()
-                  ) {
-                    return
+                        )
+                      : composerContext
                   }
+                  revertDisabled={codingThread?.worktree.shared}
+                  agentName={agentName}
+                  agentNames={agentNames}
+                  chatPreferences={chatPreferences}
+                  projectName={projectName}
+                  firstName={firstName ?? actor?.user.name.trim().split(/\s+/, 1)[0]}
+                  greetingIndex={greetingIndex}
+                  onSessionCreated={(id) => {
+                    setPromotedSession({ chatKey: routeChatKey, sessionId: id })
+                    onDraftPromoted?.(id)
 
-                  const sessionPath =
-                    `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/` +
-                    encodeURIComponent(id)
-                  window.history.replaceState(null, "", sessionPath)
-                }}
-                promptMobile={previewerOpen}
-                navigationPending={
-                  activePromotion !== undefined && routeSessionId !== activePromotion.sessionId
-                }
-                sessionId={activeSessionId}
-                workspaceId={workspaceId}
-                onAgentChange={(name) => {
-                  if (onDraftAgentChange) {
-                    onDraftAgentChange(name)
-                    return
+                    const url = new URL(window.location.href)
+                    if (
+                      url.pathname !== draftPath ||
+                      url.searchParams.toString() !== search.toString()
+                    ) {
+                      return
+                    }
+
+                    const sessionPath =
+                      `${workspacePath}/agents/${encodeURIComponent(agentName)}/sessions/` +
+                      encodeURIComponent(id)
+                    window.history.replaceState(null, "", sessionPath)
+                  }}
+                  promptMobile={previewerOpen}
+                  navigationPending={
+                    activePromotion !== undefined && routeSessionId !== activePromotion.sessionId
                   }
-                  const url = new URL(window.location.href)
-                  url.searchParams.set("agent", name)
-                  router.replace(`${url.pathname}${url.search}` as Route, { showProgress: false })
-                }}
-              />
+                  sessionId={activeSessionId}
+                  workspaceId={workspaceId}
+                  onAgentChange={(name) => {
+                    if (onDraftAgentChange) {
+                      onDraftAgentChange(name)
+                      return
+                    }
+                    const url = new URL(window.location.href)
+                    url.searchParams.set("agent", name)
+                    router.replace(`${url.pathname}${url.search}` as Route, { showProgress: false })
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>

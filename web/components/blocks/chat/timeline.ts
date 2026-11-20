@@ -136,16 +136,16 @@ function renderParts(
         }
       }
     }
-    if (
-      part.type === "tool" &&
-      part.state.status === "completed" &&
-      part.state.attachments?.length
-    ) {
-      entries.push({
-        key: `attachments:${part.id}`,
-        files: part.state.attachments,
-        type: "attachments",
-      })
+    if (part.type !== "tool" || part.state.status !== "completed") continue
+    const files = part.state.attachments
+    if (!files?.length) continue
+
+    // Keep automatic browser captures in the agent's tool context.
+    const visibleFiles = part.tool.startsWith("preview_")
+      ? files.filter((file) => file.mime !== "image/png" || file.filename !== "browser.png")
+      : files
+    if (visibleFiles.length) {
+      entries.push({ key: `attachments:${part.id}`, files: visibleFiles, type: "attachments" })
     }
   }
   flushText()

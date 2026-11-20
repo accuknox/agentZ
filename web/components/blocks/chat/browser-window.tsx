@@ -1,11 +1,39 @@
 "use client"
 
-import { useLayoutEffect, useRef, type ReactNode, type KeyboardEventHandler } from "react"
+import {
+  useLayoutEffect,
+  useRef,
+  type ReactNode,
+  type KeyboardEventHandler,
+  type PointerEvent,
+} from "react"
 import { PanelRight, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { BrowserTab } from "@/lib/gateway/client"
-import { browserWindowLayout } from "./browser-window-layout"
+import {
+  browserWindowLayout,
+  resizeBrowserWindow,
+  type BrowserWindowRequest,
+} from "./browser-window-layout"
+
+const resizeHandles = [
+  { x: -1, y: 0, className: "inset-y-3 left-0 w-1.5 cursor-ew-resize" },
+  { x: 1, y: 0, className: "inset-y-3 right-0 w-1.5 cursor-ew-resize" },
+  { x: 0, y: -1, className: "inset-x-3 top-0 h-1.5 cursor-ns-resize" },
+  { x: 0, y: 1, className: "inset-x-3 bottom-0 h-1.5 cursor-ns-resize" },
+  { x: -1, y: -1, className: "top-0 left-0 size-3 cursor-nwse-resize" },
+  { x: 1, y: -1, className: "top-0 right-0 size-3 cursor-nesw-resize" },
+  { x: -1, y: 1, className: "bottom-0 left-0 size-3 cursor-nesw-resize" },
+  { x: 1, y: 1, className: "right-0 bottom-0 size-3 cursor-nwse-resize" },
+]
+
+const arrowKeys = new Map<string, readonly [number, number]>([
+  ["ArrowLeft", [-1, 0]],
+  ["ArrowRight", [1, 0]],
+  ["ArrowUp", [0, -1]],
+  ["ArrowDown", [0, 1]],
+])
 
 export function BrowserWindow({
   floating,
@@ -24,35 +52,38 @@ export function BrowserWindow({
   children: ReactNode
 } & Pick<BrowserTab, "title" | "width" | "height">) {
   const windowRef = useRef<HTMLElement>(null)
-  const saved = useRef<DOMRect>(null)
-  const drag = useRef<{ x: number; y: number; width: number; height: number }>(null)
-  const moveWindow = useRef<((requested: DOMRect) => void) | null>(null)
+  const saved = useRef<BrowserWindowRequest | undefined>(undefined)
+  const drag = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    frame: DOMRect
+    x: number
+    y: number
+  }>(null)
+  const moveWindow = useRef<((requested: BrowserWindowRequest) => void) | null>(null)
 
   useLayoutEffect(() => {
     const node = windowRef.current
     if (!floating || !node) return
     const chat = node.closest("[data-chat-workspace]")
-    const content = chat?.querySelector<HTMLElement>("[data-chat-content]")
-    const composer = content?.querySelector<HTMLElement>("[data-chat-composer]")
-    let applied: ReturnType<typeof browserWindowLayout> | undefined
-    let animation: number | undefined
+    const canvas = chat?.querySelector<HTMLElement>("[data-chat-canvas]")
+    if (!canvas) return
+    let area = canvas.getBoundingClientRect()
     const fit = () => {
-      const area = content?.getBoundingClientRect() ?? new DOMRect(0, 0, innerWidth, innerHeight)
-      const w = 320
-      const h = Math.min(320, (w * height) / width)
-      const requested =
-        saved.current ?? new DOMRect(area.right - w - 12, area.bottom - h - 12, w, h)
-      const frame = browserWindowLayout(area, requested, composer?.getBoundingClientRect())
-      applied = frame
+      const frame = browserWindowLayout(area, { width, height }, saved.current)
+      canvas.style.setProperty("--browser-preview-right", `${frame.insetRight}px`)
+      canvas.style.setProperty("--browser-preview-bottom", `${frame.insetBottom}px`)
+      canvas.toggleAttribute("data-browser-beside", frame.insetRight > 0)
       Object.assign(node.style, {
         width: `${frame.width}px`,
         height: `${frame.height}px`,
-        minWidth: `${frame.minWidth}px`,
-        minHeight: `${frame.minHeight}px`,
         left: `${frame.left}px`,
         top: `${frame.top}px`,
       })
     }
+    fit()
+    let animation: number | undefined
     const scheduleFit = () => {
       if (animation !== undefined) return
       animation = requestAnimationFrame(() => {
@@ -64,32 +95,65 @@ export function BrowserWindow({
       saved.current = requested
       scheduleFit()
     }
-    fit()
-    const observer = new ResizeObserver((entries) => {
-      if (applied && entries.some((entry) => entry.target === node)) {
-        const rect = node.getBoundingClientRect()
-        // A native resize changes the node before the observer runs. Fit
-        // changes only the displayed bounds so an obstacle can move away.
-        if (Math.abs(rect.width - applied.width) > 1 || Math.abs(rect.height - applied.height) > 1)
-          saved.current = rect
-      }
-      scheduleFit()
-    })
-    observer.observe(node)
-    if (content) observer.observe(content)
-    if (composer) observer.observe(composer)
-    window.addEventListener("resize", scheduleFit)
+    const measure = () => {
+      area = canvas.getBoundingClientRect()
+      fit()
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(canvas, { box: "border-box" })
+    window.addEventListener("resize", measure)
     return () => {
       observer.disconnect()
-      window.removeEventListener("resize", scheduleFit)
+      window.removeEventListener("resize", measure)
       if (animation !== undefined) cancelAnimationFrame(animation)
-      // One mounted surface retains its socket/control when it docks. Clear
-      // imperative geometry so the inline panel can fill its own container.
+      // The same window docks without losing its live connection.
       node.removeAttribute("style")
+      canvas.style.removeProperty("--browser-preview-right")
+      canvas.style.removeProperty("--browser-preview-bottom")
+      canvas.removeAttribute("data-browser-beside")
       drag.current = null
       moveWindow.current = null
     }
   }, [floating, width, height])
+
+  function startDrag(event: PointerEvent<HTMLDivElement>, x = 0, y = 0) {
+    if (event.button !== 0 || drag.current) return
+    if (event.target instanceof Element && event.target.closest("button")) return
+    const node = windowRef.current
+    if (!node) return
+    drag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      frame: node.getBoundingClientRect(),
+      x,
+      y,
+    }
+    if (!x && !y) event.currentTarget.focus({ preventScroll: true })
+    event.currentTarget.setPointerCapture(event.pointerId)
+    event.preventDefault()
+  }
+
+  function dragWindow(event: PointerEvent<HTMLDivElement>) {
+    const held = drag.current
+    if (!held || held.pointerId !== event.pointerId) return
+    const { frame, x, y } = held
+    const dx = event.clientX - held.startX
+    const dy = event.clientY - held.startY
+    changeFrame(frame, dx, dy, x, y)
+  }
+
+  function changeFrame(frame: DOMRect, dx: number, dy: number, x = 0, y = 0) {
+    moveWindow.current?.(
+      x || y
+        ? resizeBrowserWindow(frame, x, y, dx, dy)
+        : { left: frame.left + dx, top: frame.top + dy, width: frame.width }
+    )
+  }
+
+  function endDrag(event: PointerEvent<HTMLDivElement>) {
+    if (drag.current?.pointerId === event.pointerId) drag.current = null
+  }
 
   return (
     <section
@@ -98,59 +162,33 @@ export function BrowserWindow({
       aria-label={floating ? "Floating browser preview" : "Browser"}
       className={
         floating
-          ? "group/browser fixed z-40 flex resize flex-col overflow-hidden rounded-xl border bg-background shadow-lg"
+          ? "group/browser fixed z-40 flex flex-col overflow-hidden rounded-xl border bg-background shadow-lg"
           : "flex h-full min-h-0 flex-col bg-background"
       }
     >
       {floating ? (
         <div
           role="toolbar"
-          aria-label="Move browser preview"
-          title="Use arrow keys to move. Hold Shift to resize."
+          aria-label="Move or resize browser preview"
+          aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Shift+ArrowLeft Shift+ArrowRight Shift+ArrowUp Shift+ArrowDown"
           tabIndex={0}
           className="absolute inset-x-2 top-2 z-10 flex h-8 cursor-grab touch-none items-center gap-1 rounded-lg border bg-background/95 pl-2 opacity-0 shadow-sm group-focus-within/browser:opacity-100 group-hover/browser:opacity-100 active:cursor-grabbing pointer-coarse:opacity-100"
-          onPointerDown={(event) => {
-            if (
-              event.button !== 0 ||
-              (event.target instanceof Element && event.target.closest("button"))
-            )
-              return
-            const node = windowRef.current
-            if (!node) return
-            const box = node.getBoundingClientRect()
-            drag.current = {
-              x: event.clientX - box.left,
-              y: event.clientY - box.top,
-              width: box.width,
-              height: box.height,
-            }
-            event.currentTarget.setPointerCapture(event.pointerId)
-            event.preventDefault()
-          }}
-          onPointerMove={(event) => {
-            const held = drag.current
-            if (!held) return
-            moveWindow.current?.(
-              new DOMRect(event.clientX - held.x, event.clientY - held.y, held.width, held.height)
-            )
-          }}
-          onLostPointerCapture={() => {
-            drag.current = null
-          }}
+          onPointerDown={(event) => startDrag(event)}
+          onPointerMove={dragWindow}
+          onLostPointerCapture={endDrag}
           onKeyDown={(event) => {
-            if (event.target !== event.currentTarget || !event.key.startsWith("Arrow")) return
-            event.preventDefault()
+            if (event.target !== event.currentTarget) return
+            const direction = arrowKeys.get(event.key)
             const node = windowRef.current
-            if (!node) return
-            const delta = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -16 : 16
-            const horizontal = event.key === "ArrowLeft" || event.key === "ArrowRight"
-            const next = node.getBoundingClientRect()
+            if (!direction || !node) return
+            event.preventDefault()
+            const [x, y] = direction
+            const frame = node.getBoundingClientRect()
             if (event.shiftKey) {
-              if (horizontal) next.width += delta
-              else next.height += delta
-            } else if (horizontal) next.x += delta
-            else next.y += delta
-            moveWindow.current?.(next)
+              changeFrame(frame, -16 * x, -16 * y, -Math.abs(x), -Math.abs(y))
+              return
+            }
+            changeFrame(frame, 16 * x, 16 * y)
           }}
         >
           <span className="min-w-0 flex-1 truncate text-xs font-medium">{title}</span>
@@ -170,6 +208,18 @@ export function BrowserWindow({
         </div>
       ) : null}
       {children}
+      {floating
+        ? resizeHandles.map(({ x, y, className }) => (
+            <div
+              key={`${x}:${y}`}
+              aria-hidden="true"
+              className={`absolute z-20 touch-none ${className}`}
+              onPointerDown={(event) => startDrag(event, x, y)}
+              onPointerMove={dragWindow}
+              onLostPointerCapture={endDrag}
+            />
+          ))
+        : null}
     </section>
   )
 }

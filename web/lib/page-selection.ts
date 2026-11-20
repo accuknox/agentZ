@@ -179,7 +179,7 @@ export function selectionURL(
   next.delete("__remembered")
   for (const field of selectionFields) next.delete(field)
   for (const [field, value] of Object.entries(selection)) {
-    if (value) next.set(field, value)
+    if (value !== undefined) next.set(field, value)
   }
   if (explicit) {
     const remembered = selectionFields.filter(

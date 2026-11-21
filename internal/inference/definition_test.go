@@ -34,6 +34,11 @@ func TestValidateProvider(t *testing.T) {
 			valid: true,
 		},
 		{
+			name:  "valid claude subscription",
+			spec:  providerSpec(agentzv1alpha1.InferenceProviderKindClaudeSubscription),
+			valid: true,
+		},
+		{
 			name: "valid custom authorization header",
 			spec: func() agentzv1alpha1.InferenceProviderSpec {
 				spec := providerSpec(agentzv1alpha1.InferenceProviderKindOpenAICompatible)
@@ -332,6 +337,9 @@ func providerSpec(providerKind agentzv1alpha1.InferenceProviderKind) agentzv1alp
 	case agentzv1alpha1.InferenceProviderKindAnthropic:
 		spec.CatalogProvider = "anthropic"
 		spec.Anthropic = &agentzv1alpha1.AnthropicProviderConfig{}
+	case agentzv1alpha1.InferenceProviderKindClaudeSubscription:
+		spec.CatalogProvider = "anthropic"
+		spec.Models[0].API = new(agentzv1alpha1.InferenceModelAPIMessages)
 	case agentzv1alpha1.InferenceProviderKindGemini:
 		spec.CatalogProvider = "google"
 		spec.Gemini = &agentzv1alpha1.GeminiProviderConfig{}

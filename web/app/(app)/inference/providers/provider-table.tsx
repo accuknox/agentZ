@@ -158,7 +158,11 @@ export function InferenceProviderTable({
         header: "Name",
         cell: ({ row }) => (
           <div className="flex min-w-0 items-center gap-2">
-            <ProviderIcon provider={row.original.catalog_provider} className="size-4 shrink-0" />
+            <ProviderIcon
+              provider={row.original.catalog_provider}
+              kind={row.original.kind}
+              className="size-4 shrink-0"
+            />
             <span className="min-w-0 truncate font-medium">{row.original.display_name}</span>
             {scope.workspaceId !== undefined && row.original.scope === "Organisation" ? (
               <Badge variant="secondary">Organization</Badge>

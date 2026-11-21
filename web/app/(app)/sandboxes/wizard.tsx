@@ -1600,6 +1600,7 @@ function ModelsStep({
                       <div className="flex min-w-0 items-center gap-2.5">
                         <ProviderIcon
                           provider={provider.catalog_provider}
+                          kind={provider.kind}
                           className="size-4 shrink-0"
                         />
                         <span className="truncate font-medium">{provider.display_name}</span>
@@ -1707,6 +1708,7 @@ function ModelsStep({
                           ) : provider ? (
                             <ProviderIcon
                               provider={provider.catalog_provider}
+                              kind={provider.kind}
                               className="size-4 shrink-0"
                             />
                           ) : (

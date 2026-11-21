@@ -549,11 +549,7 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
-	var accessToken string
-	if req.Credentials.AccessToken != nil {
-		accessToken = strings.TrimSpace(*req.Credentials.AccessToken)
-	}
-	if accessToken == "" {
+	if req.Credentials.AccessToken == nil || strings.TrimSpace(*req.Credentials.AccessToken) == "" {
 		writeProviderInputError(
 			w,
 			r,
@@ -564,11 +560,7 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 		)
 		return
 	}
-	var refreshToken string
-	if req.Credentials.RefreshToken != nil {
-		refreshToken = strings.TrimSpace(*req.Credentials.RefreshToken)
-	}
-	if refreshToken == "" {
+	if req.Credentials.RefreshToken == nil || strings.TrimSpace(*req.Credentials.RefreshToken) == "" {
 		writeProviderInputError(
 			w,
 			r,
@@ -579,9 +571,10 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 		)
 		return
 	}
+	accessToken := strings.TrimSpace(*req.Credentials.AccessToken)
 	token := &oauth2.Token{
 		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		RefreshToken: strings.TrimSpace(*req.Credentials.RefreshToken),
 		TokenType:    "Bearer",
 	}
 	if req.Credentials.ExpiresAt != nil {
@@ -1483,8 +1476,13 @@ func (s *Service) ListInferenceProviderCatalog(w http.ResponseWriter, r *http.Re
 		query = *params.Q
 	}
 	commit, entries := s.catalog.Entries(query)
+	tenant, err := tenantObject(r.Context())
+	allowClaudeSubscription := err == nil && tenant.Spec.AllowClaudeSubscription
 	providers := make([]gatewayapi.InferenceProviderCatalogEntry, 0, len(entries))
 	for _, entry := range entries {
+		if entry.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription && !allowClaudeSubscription {
+			continue
+		}
 		provider := gatewayapi.InferenceProviderCatalogEntry{
 			Name:         entry.Name,
 			ProviderId:   entry.ProviderID,

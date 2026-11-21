@@ -8,32 +8,34 @@ import (
 	"compress/zlib"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
-	"errors"
-
-	"github.com/accuknox/agentz/internal/scope"
-	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 	"github.com/andybalholm/brotli"
 	"golang.org/x/oauth2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/accuknox/agentz/internal/scope"
+	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
 const (
-	// ClaudeClientID is the public Claude Code OAuth client from CLIProxyAPI.
-	ClaudeClientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+	claudeClientID      = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+	claudeResponseLimit = 1 << 20
 	// ClaudeTokenEndpoint exchanges and refreshes Claude subscription credentials.
 	ClaudeTokenEndpoint = "https://platform.claude.com/v1/oauth/token"
 )
 
 type claudeProfile struct {
-	Account struct {
-		UUID string `json:"uuid"`
-	} `json:"account"`
+	Account claudeAccount `json:"account"`
+}
+
+type claudeAccount struct {
+	UUID string `json:"uuid"`
 }
 
 // Claude's token and control-plane requests use the Axios profile captured by
@@ -44,40 +46,47 @@ type claudeTokens struct {
 	ExpiresIn    int64  `json:"expires_in"`
 }
 
-func refreshClaudeSubscription(ctx context.Context, client *http.Client, record SubscriptionRecord, now time.Time) (SubscriptionRecord, bool, error) {
+func refreshClaudeSubscription(ctx context.Context, client *http.Client, record SubscriptionRecord, now time.Time) (SubscriptionRecord, error) {
 	if record.Token == nil || record.Token.RefreshToken == "" {
-		return SubscriptionRecord{}, false, errors.New("claude refresh token is unavailable")
+		return SubscriptionRecord{}, errors.New("claude refresh token is unavailable")
 	}
 	body, err := json.Marshal(map[string]string{
-		"client_id":     ClaudeClientID,
+		"client_id":     claudeClientID,
 		"grant_type":    "refresh_token",
 		"refresh_token": record.Token.RefreshToken,
 		"scope":         "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload",
 	})
 	if err != nil {
-		return SubscriptionRecord{}, false, err
+		return SubscriptionRecord{}, err
 	}
 	payload, err := claudeOAuthRequest(ctx, client, http.MethodPost, ClaudeTokenEndpoint, "", body)
 	if err != nil {
-		return SubscriptionRecord{}, true, fmt.Errorf("refresh Claude token: %w", err)
+		return SubscriptionRecord{}, fmt.Errorf("refresh Claude token: %w", err)
 	}
 	var token claudeTokens
 	if err := json.Unmarshal(payload, &token); err != nil {
-		return SubscriptionRecord{}, true, fmt.Errorf("decode Claude refresh response: %w", err)
+		return SubscriptionRecord{}, fmt.Errorf("decode Claude refresh response: %w", err)
 	}
 	if token.AccessToken == "" || token.ExpiresIn <= 0 || token.ExpiresIn > 31536000 {
-		return SubscriptionRecord{}, true, errors.New("invalid Claude refresh response")
+		return SubscriptionRecord{}, errors.New("invalid Claude refresh response")
 	}
 	refreshToken := token.RefreshToken
 	if refreshToken == "" {
 		refreshToken = record.Token.RefreshToken
 	}
-	record.Token = &oauth2.Token{AccessToken: token.AccessToken, RefreshToken: refreshToken, TokenType: "Bearer", Expiry: now.Add(time.Duration(token.ExpiresIn) * time.Second)}
+	record.Token = &oauth2.Token{
+		AccessToken:  token.AccessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		Expiry:       now.Add(time.Duration(token.ExpiresIn) * time.Second),
+	}
 	record.UpdatedAt = now
-	return record, true, nil
+	return record, nil
 }
 
 func claudeOAuthRequest(ctx context.Context, client *http.Client, method, endpoint, accessToken string, body []byte) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -91,9 +100,6 @@ func claudeOAuthRequest(ctx context.Context, client *http.Client, method, endpoi
 		req.Header.Set("Authorization", "Bearer "+accessToken)
 		req.Header.Set("Cache-Control", "no-cache")
 	}
-	bounded, cancel := context.WithTimeout(req.Context(), 15*time.Second)
-	defer cancel()
-	req = req.WithContext(bounded)
 	oauthClient := *client
 	oauthClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
 	resp, err := oauthClient.Do(req)
@@ -104,11 +110,11 @@ func claudeOAuthRequest(ctx context.Context, client *http.Client, method, endpoi
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("claude OAuth upstream returned %s", resp.Status)
 	}
-	payload, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, claudeResponseLimit+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(payload) > 1<<20 {
+	if len(payload) > claudeResponseLimit {
 		return nil, errors.New("claude OAuth response exceeds 1 MiB")
 	}
 	encodings := strings.Split(strings.Join(resp.Header.Values("Content-Encoding"), ","), ",")
@@ -135,7 +141,7 @@ func claudeOAuthRequest(ctx context.Context, client *http.Client, method, endpoi
 		if err != nil {
 			return nil, err
 		}
-		payload, err = io.ReadAll(io.LimitReader(reader, (1<<20)+1))
+		payload, err = io.ReadAll(io.LimitReader(reader, claudeResponseLimit+1))
 		closeErr := reader.Close()
 		if err != nil {
 			return nil, err
@@ -143,7 +149,7 @@ func claudeOAuthRequest(ctx context.Context, client *http.Client, method, endpoi
 		if closeErr != nil {
 			return nil, closeErr
 		}
-		if len(payload) > 1<<20 {
+		if len(payload) > claudeResponseLimit {
 			return nil, errors.New("decoded Claude OAuth response exceeds 1 MiB")
 		}
 	}

@@ -631,7 +631,13 @@ function SortableMember({
                       ? `${candidate.scope} · ${providerKindLabels[candidate.kind]}`
                       : `${candidate.scope} · ${candidate.state} · unavailable`,
                   disabled: candidate.state !== "Ready",
-                  icon: <ProviderIcon provider={candidate.catalog_provider} className="size-4" />,
+                  icon: (
+                    <ProviderIcon
+                      provider={candidate.catalog_provider}
+                      kind={candidate.kind}
+                      className="size-4"
+                    />
+                  ),
                 }))}
                 onBlur={field.onBlur}
                 invalid={fieldState.invalid}

@@ -116,15 +116,9 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 	if strings.TrimSpace(spec.CatalogProvider) == "" {
 		issues = append(issues, Issue{Field: "catalog_provider", Message: "field is required"})
 	}
-	isCompatible := spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICompatible ||
-		spec.Kind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
-	isCatalogEntry := spec.CatalogProvider == "custom" && isCompatible
-	for _, entry := range catalogEntries {
-		if entry.ProviderID == spec.CatalogProvider && entry.Kind == spec.Kind {
-			isCatalogEntry = true
-			break
-		}
-	}
+	isCatalogEntry := slices.ContainsFunc(selectableCatalog, func(entry CatalogEntry) bool {
+		return entry.ProviderID == spec.CatalogProvider && entry.Kind == spec.Kind
+	})
 	if !isCatalogEntry {
 		issues = append(
 			issues,

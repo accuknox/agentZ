@@ -123,8 +123,7 @@ func DecodeSubscriptionRecord(data map[string]any) (SubscriptionRecord, error) {
 func refreshSubscription(ctx context.Context, client *http.Client, record SubscriptionRecord) (SubscriptionRecord, error) {
 	now := time.Now().UTC()
 	if record.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
-		updated, _, err := refreshClaudeSubscription(ctx, client, record, now)
-		return updated, err
+		return refreshClaudeSubscription(ctx, client, record, now)
 	}
 	if record.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
 		return SubscriptionRecord{}, fmt.Errorf("provider kind %q is not subscription-backed", record.Kind)

@@ -104,26 +104,33 @@ func NewCatalog(client *http.Client) *Catalog {
 	return &Catalog{client: client, url: modelsDevURL}
 }
 
-var selectableCatalog = slices.Concat([]CatalogEntry{
-	{
+var selectableCatalog = func() []CatalogEntry {
+	custom := []CatalogEntry{
+		{
+			ProviderID: "custom",
+			Name:       "Custom OpenAI-compatible",
+			Kind:       agentzv1alpha1.InferenceProviderKindOpenAICompatible,
+			AuthHeader: "authorization",
+			AuthPrefix: "Bearer ",
+		},
+		{
+			ProviderID: "custom",
+			Name:       "Custom Anthropic-compatible",
+			Kind:       agentzv1alpha1.InferenceProviderKindAnthropicCompatible,
+			AuthHeader: "x-api-key",
+		},
+	}
+	claude := CatalogEntry{
 		ProviderID: "anthropic",
 		Name:       "Claude subscription",
 		Kind:       agentzv1alpha1.InferenceProviderKindClaudeSubscription,
-	},
-	{
-		ProviderID: "custom",
-		Name:       "Custom OpenAI-compatible",
-		Kind:       agentzv1alpha1.InferenceProviderKindOpenAICompatible,
-		AuthHeader: "authorization",
-		AuthPrefix: "Bearer ",
-	},
-	{
-		ProviderID: "custom",
-		Name:       "Custom Anthropic-compatible",
-		Kind:       agentzv1alpha1.InferenceProviderKindAnthropicCompatible,
-		AuthHeader: "x-api-key",
-	},
-}, catalogEntries)
+	}
+	entries := slices.Concat(custom, catalogEntries, []CatalogEntry{claude})
+	slices.SortStableFunc(entries[len(custom):], func(a, b CatalogEntry) int {
+		return cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
+	return entries
+}()
 
 // Entries returns the pinned supported catalog variants matching query.
 func (c *Catalog) Entries(query string) (string, []CatalogEntry) {

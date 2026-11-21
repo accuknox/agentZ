@@ -872,7 +872,7 @@ func (s *delegationServer) Check(ctx context.Context, request *authv3.CheckReque
 	}
 	operation := extensions["agentz.operation"]
 	if operation == "inference" {
-		path := httpRequest.GetPath()
+		path, _, _ := strings.Cut(httpRequest.GetPath(), "?")
 		responses := strings.HasSuffix(path, "/responses")
 		messages := strings.HasSuffix(path, "/messages") || strings.HasSuffix(path, "/messages/count_tokens")
 		unsupportedEndpoint := httpRequest.GetMethod() != "POST" ||

@@ -3,6 +3,7 @@
 import { LoadingButton } from "@/components/interior/loading-button"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { queryOptions, useQuery } from "@tanstack/react-query"
+import { defaultFilter } from "cmdk"
 import {
   Brain,
   Cable,
@@ -11,7 +12,6 @@ import {
   CircleAlert,
   Cloud,
   ExternalLink,
-  FingerprintPattern,
   KeyRound,
   Pencil,
   Plus,
@@ -912,7 +912,7 @@ export function ProviderSheet({
       gcTime: 0,
     })
   )
-  const catalog = providerCatalog.data ?? []
+  const catalog = providerCatalog.isSuccess ? providerCatalog.data : []
 
   const providerID = provider?.id
   const modelCatalog = useQuery(
@@ -1159,7 +1159,11 @@ export function ProviderSheet({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             {provider ? (
-              <ProviderIcon provider={provider.catalog_provider} className="size-4" />
+              <ProviderIcon
+                provider={provider.catalog_provider}
+                kind={provider.kind}
+                className="size-4"
+              />
             ) : null}
             {provider ? "Edit inference provider" : "Add inference provider"}
           </SheetTitle>
@@ -1219,11 +1223,15 @@ export function ProviderSheet({
                           aria-invalid={Boolean(
                             formState.errors.catalog_provider || formState.errors.kind
                           )}
-                          disabled={Boolean(provider) || providerCatalog.isLoading || pending}
+                          disabled={Boolean(provider) || providerCatalog.isFetching || pending}
                           className="w-full justify-between font-normal"
                         >
                           <span className="flex min-w-0 items-center gap-2">
-                            <ProviderIcon provider={catalogProvider} className="size-4 shrink-0" />
+                            <ProviderIcon
+                              provider={catalogProvider}
+                              kind={kind}
+                              className="size-4 shrink-0"
+                            />
                             <span className="truncate">
                               {selectedCatalogEntry?.name ?? provider?.display_name ?? field.value}
                             </span>
@@ -1238,7 +1246,11 @@ export function ProviderSheet({
                         align="start"
                         className="w-(--radix-popover-trigger-width) p-0"
                       >
-                        <Command>
+                        <Command
+                          filter={(value, search, keywords) =>
+                            defaultFilter(value, search, keywords) > 0 ? 1 : 0
+                          }
+                        >
                           <CommandInput placeholder="Search providers..." />
                           <CommandList>
                             <CommandEmpty>No provider found.</CommandEmpty>
@@ -1348,7 +1360,11 @@ export function ProviderSheet({
                                     setProviderPickerOpen(false)
                                   }}
                                 >
-                                  <ProviderIcon provider={entry.provider_id} className="size-4" />
+                                  <ProviderIcon
+                                    provider={entry.provider_id}
+                                    kind={entry.provider_kind}
+                                    className="size-4"
+                                  />
                                   <span className="min-w-0 flex-1 truncate">{entry.name}</span>
                                   <span className="text-xs text-muted-foreground">
                                     {providerKindLabels[entry.provider_kind]}
@@ -1941,40 +1957,37 @@ export function ProviderSheet({
               icon={KeyRound}
               title={isSubscription ? "Subscription" : "Credentials"}
               description={
-                isSubscription
-                  ? provider || subscriptionOAuth.status === "connected"
-                    ? undefined
-                    : "Sign in to use your existing subscription."
-                  : provider
-                    ? "Leave blank to keep the current credentials."
-                    : undefined
+                !isSubscription && provider
+                  ? "Leave blank to keep the current credentials."
+                  : undefined
               }
             >
               {isSubscription ? (
-                <div className="flex flex-col gap-4 rounded-lg border p-4">
+                <div className="overflow-hidden rounded-xl border bg-card">
                   {subscriptionOAuth.status === "connected" ? (
-                    <div role="status" className="flex items-start gap-3">
-                      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
+                    <div role="status" className="flex items-center gap-3 bg-success/5 p-4">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
                         <Check aria-hidden className="size-4" />
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <p className="text-sm font-medium text-success">
-                          Connected to {providerKindLabels[kind]}
-                        </p>
-                      </div>
+                      <p className="text-sm font-medium text-success">
+                        Connected to {providerKindLabels[kind]}
+                      </p>
                     </div>
                   ) : (
                     <>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex flex-col gap-1">
-                          <p className="text-sm font-medium">
-                            {provider ? "Re-authenticate" : "Connect"} {providerKindLabels[kind]}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {kind === "ClaudeSubscription"
-                              ? "Approve access in a new tab, then paste the callback URL here."
-                              : "Complete sign-in in a new tab. We will detect when it finishes."}
-                          </p>
+                      <div className="flex flex-wrap items-center gap-3 bg-muted/30 p-4">
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-background">
+                            <ProviderIcon provider={catalogProvider} kind={kind} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold">{providerKindLabels[kind]}</p>
+                            <p className="text-xs leading-relaxed text-muted-foreground">
+                              {kind === "ClaudeSubscription"
+                                ? "Only for external Claude Code and Claude Desktop agents."
+                                : "Sign in with your ChatGPT account."}
+                            </p>
+                          </div>
                         </div>
                         {subscriptionOAuth.status !== "challenge" &&
                         subscriptionOAuth.status !== "authorization" ? (
@@ -1986,106 +1999,121 @@ export function ProviderSheet({
                             onClick={connectSubscription}
                             disabled={pending || subscriptionOAuth.status === "starting"}
                           >
-                            {provider ? (
-                              <FingerprintPattern data-icon="inline-start" />
-                            ) : (
-                              <Cable data-icon="inline-start" />
-                            )}
-                            {provider ? "Re-authenticate" : "Connect"}
+                            {provider ? "Sign in again" : "Connect"}
                           </LoadingButton>
                         ) : null}
                       </div>
-                      {kind === "ClaudeSubscription" ? (
-                        <p className="text-sm text-muted-foreground">
-                          Available only to external Claude Code and Claude Desktop agents. Your
-                          organization must enable Claude subscriptions.
-                        </p>
-                      ) : null}
                       {subscriptionOAuth.status === "authorization" ? (
-                        <div className="flex flex-col gap-3">
-                          <Button type="button" variant="outline" asChild>
-                            <a
-                              href={subscriptionOAuth.verificationUri}
-                              target="_blank"
-                              rel="noreferrer"
+                        <ol className="divide-y border-t">
+                          <SubscriptionStep number={1} title="Approve access in Claude">
+                            <Button type="button" size="sm" variant="outline" asChild>
+                              <a
+                                href={subscriptionOAuth.verificationUri}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Open Claude <ExternalLink data-icon="inline-end" />
+                              </a>
+                            </Button>
+                          </SubscriptionStep>
+                          <SubscriptionStep number={2} title="Return to AgentZ">
+                            <Field data-invalid={Boolean(claudeCallbackError)}>
+                              <FieldLabel htmlFor="claude-callback">
+                                Sign-in callback URL
+                              </FieldLabel>
+                              <Input
+                                id="claude-callback"
+                                type="password"
+                                autoComplete="off"
+                                spellCheck={false}
+                                aria-invalid={Boolean(claudeCallbackError)}
+                                aria-describedby="claude-callback-help claude-callback-error"
+                                value={claudeCallback}
+                                onChange={(event) => setClaudeCallback(event.target.value)}
+                                placeholder="http://localhost:54545/callback?…"
+                              />
+                              <FieldDescription id="claude-callback-help">
+                                After approving, copy the full localhost URL from your
+                                browser&apos;s address bar.
+                              </FieldDescription>
+                              <FieldError
+                                id="claude-callback-error"
+                                errors={
+                                  claudeCallbackError ? [{ message: claudeCallbackError }] : []
+                                }
+                              />
+                            </Field>
+                          </SubscriptionStep>
+                        </ol>
+                      ) : null}
+                      {subscriptionOAuth.status === "challenge" ? (
+                        <ol className="divide-y border-t">
+                          <SubscriptionStep number={1} title="Copy your one-time code">
+                            <div className="inline-flex items-center gap-3 rounded-lg border bg-muted/40 px-3 py-1.5">
+                              <code className="text-base font-semibold tracking-widest">
+                                {subscriptionOAuth.userCode}
+                              </code>
+                              <CopyButton
+                                content={subscriptionOAuth.userCode}
+                                label="Copy sign-in code"
+                              />
+                            </div>
+                          </SubscriptionStep>
+                          <SubscriptionStep number={2} title="Enter the code in Codex">
+                            <Button type="button" size="sm" variant="outline" asChild>
+                              <a
+                                href={subscriptionOAuth.verificationUri}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Open Codex <ExternalLink data-icon="inline-end" />
+                              </a>
+                            </Button>
+                          </SubscriptionStep>
+                        </ol>
+                      ) : null}
+                      {(subscriptionOAuth.status === "authorization" ||
+                        subscriptionOAuth.status === "challenge") && (
+                        <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-muted/30 px-4 py-3">
+                          {subscriptionOAuth.status === "challenge" && (
+                            <p
+                              role="status"
+                              className="mr-auto flex items-center gap-2 text-xs text-muted-foreground"
                             >
-                              Continue to Claude <ExternalLink />
-                            </a>
-                          </Button>
-                          <p className="text-sm text-muted-foreground">
-                            After approving, copy the full localhost callback URL from your
-                            browser&apos;s address bar and paste it below. The localhost page may
-                            not load.
-                          </p>
-                          <FieldLabel htmlFor="claude-callback">Sign-in callback URL</FieldLabel>
-                          <Input
-                            id="claude-callback"
-                            type="password"
-                            autoComplete="off"
-                            value={claudeCallback}
-                            onChange={(event) => setClaudeCallback(event.target.value)}
-                            placeholder="http://localhost:54545/callback?code=…&state=…"
-                          />
-                          <FieldError
-                            errors={claudeCallbackError ? [{ message: claudeCallbackError }] : []}
-                          />
-                          <LoadingButton
-                            type="button"
-                            pending={pending}
-                            pendingLabel="Completing sign-in..."
-                            disabled={pending || !claudeCallback.trim()}
-                            onClick={completeClaudeSignIn}
-                          >
-                            Complete sign-in
-                          </LoadingButton>
+                              <Spinner aria-hidden className="size-3" /> Waiting for Codex sign-in
+                            </p>
+                          )}
                           <Button
                             type="button"
+                            size="sm"
                             variant="ghost"
                             disabled={pending}
                             onClick={connectSubscription}
                           >
                             Start again
                           </Button>
-                        </div>
-                      ) : null}
-                      {subscriptionOAuth.status === "challenge" ? (
-                        <div className="flex flex-col items-start gap-3">
-                          <p className="text-sm text-muted-foreground">
-                            Enter this one-time code on the provider sign-in page.
-                          </p>
-                          <div className="flex items-center gap-3 rounded-md bg-muted/50 px-3 py-2">
-                            <code className="text-lg font-semibold tracking-widest">
-                              {subscriptionOAuth.userCode}
-                            </code>
-                            <CopyButton
-                              content={subscriptionOAuth.userCode}
-                              label="Copy sign-in code"
-                            />
-                          </div>
-                          <Button type="button" variant="outline" asChild>
-                            <a
-                              href={subscriptionOAuth.verificationUri}
-                              target="_blank"
-                              rel="noreferrer"
+                          {subscriptionOAuth.status === "authorization" && (
+                            <LoadingButton
+                              type="button"
+                              size="sm"
+                              pending={pending}
+                              pendingLabel="Completing sign-in..."
+                              disabled={pending || !claudeCallback.trim()}
+                              onClick={completeClaudeSignIn}
                             >
-                              Continue to {providerKindLabels[kind]} <ExternalLink />
-                            </a>
-                          </Button>
-                          <p
-                            role="status"
-                            className="flex items-center gap-2 text-xs text-muted-foreground"
-                          >
-                            <Spinner aria-hidden className="size-3" /> Waiting for you to finish
-                            signing in...
-                          </p>
+                              Complete sign-in
+                            </LoadingButton>
+                          )}
                         </div>
-                      ) : null}
+                      )}
                       {subscriptionOAuth.status === "error" ? (
-                        <Alert variant="destructive">
-                          <CircleAlert aria-hidden="true" />
-                          <AlertTitle>Connection failed</AlertTitle>
-                          <AlertDescription>{subscriptionOAuth.message}</AlertDescription>
-                        </Alert>
+                        <div className="border-t p-4">
+                          <Alert variant="destructive">
+                            <CircleAlert aria-hidden="true" />
+                            <AlertTitle>Connection failed</AlertTitle>
+                            <AlertDescription>{subscriptionOAuth.message}</AlertDescription>
+                          </Alert>
+                        </div>
                       ) : null}
                     </>
                   )}
@@ -2461,6 +2489,31 @@ export function ProviderSheet({
 }
 
 /** FormSection renders a titled, iconed block of related fields. */
+function SubscriptionStep({
+  number,
+  title,
+  children,
+}: {
+  number: number
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <li className="flex items-start gap-3 p-4">
+      <span
+        aria-hidden="true"
+        className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium"
+      >
+        {number}
+      </span>
+      <div className="min-w-0 flex-1 space-y-2">
+        <p className="text-sm leading-6 font-medium">{title}</p>
+        {children}
+      </div>
+    </li>
+  )
+}
+
 function FormSection({
   icon: Icon,
   title,

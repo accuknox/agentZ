@@ -6,7 +6,10 @@ import {
   AmazonWebServicesLight,
   AnthropicDark,
   AnthropicLight,
+  ClaudeAI,
   Cloudflare,
+  CodexDark,
+  CodexLight,
   Gemini,
   GoogleCloud,
   Meta,
@@ -18,6 +21,14 @@ import {
 } from "@ridemountainpig/svgl-react"
 import { Cloud, Cpu } from "lucide-react"
 import type { InferenceProviderKind } from "@/lib/gateway/client"
+
+const themedIcons = new Map([
+  ["amazon-bedrock", { light: AmazonWebServicesLight, dark: AmazonWebServicesDark }],
+  ["anthropic", { light: AnthropicLight, dark: AnthropicDark }],
+  ["codex", { light: CodexLight, dark: CodexDark }],
+  ["openai", { light: OpenAILight, dark: OpenAIDark }],
+  ["xai", { light: XAILight, dark: XAIDark }],
+])
 
 /** providerKindLabels describes the configuration selected by each kind. */
 export const providerKindLabels: Record<InferenceProviderKind, string> = {
@@ -33,76 +44,41 @@ export const providerKindLabels: Record<InferenceProviderKind, string> = {
   Azure: "Microsoft Azure",
 }
 
-/** ProviderIcon renders provider branding independently of configuration kind. */
+/** ProviderIcon renders the subscription or catalog provider brand. */
 export function ProviderIcon({
-  provider,
+  provider: catalogProvider,
+  kind,
   className = "size-5",
   inverted = false,
 }: {
   provider: string
+  kind?: InferenceProviderKind
   className?: string
   inverted?: boolean
 }) {
   const [failedProvider, setFailedProvider] = useState<string | null>(null)
+  const provider =
+    kind === "OpenAICodex" ? "codex" : kind === "ClaudeSubscription" ? "claude" : catalogProvider
+  const icons = themedIcons.get(provider)
 
-  if (provider === "openai") {
-    return inverted ? (
+  if (icons) {
+    const LightIcon = inverted ? icons.dark : icons.light
+    const DarkIcon = inverted ? icons.light : icons.dark
+    return (
       <>
-        <OpenAIDark aria-hidden className={`${className} dark:hidden`} />
-        <OpenAILight aria-hidden className={`hidden ${className} dark:block`} />
-      </>
-    ) : (
-      <>
-        <OpenAILight aria-hidden className={`${className} dark:hidden`} />
-        <OpenAIDark aria-hidden className={`hidden ${className} dark:block`} />
+        <LightIcon aria-hidden className={`${className} dark:hidden`} />
+        <DarkIcon aria-hidden className={`hidden ${className} dark:block`} />
       </>
     )
   }
-  if (provider === "anthropic") {
-    return inverted ? (
-      <>
-        <AnthropicDark aria-hidden className={`${className} dark:hidden`} />
-        <AnthropicLight aria-hidden className={`hidden ${className} dark:block`} />
-      </>
-    ) : (
-      <>
-        <AnthropicLight aria-hidden className={`${className} dark:hidden`} />
-        <AnthropicDark aria-hidden className={`hidden ${className} dark:block`} />
-      </>
-    )
-  }
+  if (provider === "claude") return <ClaudeAI aria-hidden className={className} />
+
   if (provider === "google") return <Gemini aria-hidden className={className} />
   if (provider.startsWith("google-vertex")) {
     return <GoogleCloud aria-hidden className={className} />
   }
-  if (provider === "amazon-bedrock") {
-    return inverted ? (
-      <>
-        <AmazonWebServicesDark aria-hidden className={`${className} dark:hidden`} />
-        <AmazonWebServicesLight aria-hidden className={`hidden ${className} dark:block`} />
-      </>
-    ) : (
-      <>
-        <AmazonWebServicesLight aria-hidden className={`${className} dark:hidden`} />
-        <AmazonWebServicesDark aria-hidden className={`hidden ${className} dark:block`} />
-      </>
-    )
-  }
   if (provider === "azure" || provider === "azure-cognitive-services") {
     return <MicrosoftAzure aria-hidden className={className} />
-  }
-  if (provider === "xai") {
-    return inverted ? (
-      <>
-        <XAIDark aria-hidden className={`${className} dark:hidden`} />
-        <XAILight aria-hidden className={`hidden ${className} dark:block`} />
-      </>
-    ) : (
-      <>
-        <XAILight aria-hidden className={`${className} dark:hidden`} />
-        <XAIDark aria-hidden className={`hidden ${className} dark:block`} />
-      </>
-    )
   }
   if (provider.startsWith("cloudflare-")) {
     return <Cloudflare aria-hidden className={className} />
@@ -110,9 +86,7 @@ export function ProviderIcon({
   if (provider === "meta" || provider === "llama") {
     return <Meta aria-hidden className={className} />
   }
-  if (provider === "custom") return <Cloud aria-hidden className={className} />
-
-  if (failedProvider === provider) {
+  if (provider === "custom" || failedProvider === provider) {
     return <Cloud aria-hidden className={className} />
   }
 

@@ -471,8 +471,9 @@ func (s *Service) resolveDelegation(ctx context.Context, grant gatewaydb.Delegat
 
 func configureClaudeSubscriptionRequest(req *httputil.ProxyRequest) {
 	req.Out.URL.RawQuery = "beta=true"
-	if req.Out.Header.Get("X-Client-Request-Id") == "" {
-		req.Out.Header.Set("X-Client-Request-Id", uuid.NewString())
+	headers := req.Out.Header
+	if headers.Get("X-Client-Request-Id") == "" {
+		headers.Set("X-Client-Request-Id", uuid.NewString())
 	}
 	// Keep the client betas in order and add the OAuth beta once.
 	betas := strings.Join(req.In.Header.Values("Anthropic-Beta"), ",")
@@ -488,7 +489,7 @@ func configureClaudeSubscriptionRequest(req *httputil.ProxyRequest) {
 		}
 		betas = strings.Join(slices.Insert(parts, index, oauthBeta), ",")
 	}
-	req.Out.Header.Set("Anthropic-Beta", strings.TrimSuffix(betas, ","))
+	headers.Set("Anthropic-Beta", strings.TrimSuffix(betas, ","))
 	defaults := map[string]string{
 		"Accept":            "application/json",
 		"Anthropic-Version": "2023-06-01",
@@ -502,8 +503,8 @@ func configureClaudeSubscriptionRequest(req *httputil.ProxyRequest) {
 		defaults["X-Stainless-Timeout"] = "600"
 	}
 	for name, value := range defaults {
-		if req.Out.Header.Get(name) == "" {
-			req.Out.Header.Set(name, value)
+		if headers.Get(name) == "" {
+			headers.Set(name, value)
 		}
 	}
 }

@@ -95,13 +95,6 @@ const openAITokenResponseSchema = z.object({
 
 type PendingInferenceOAuth = z.infer<typeof pendingInferenceOAuthSchema>
 
-type InferenceOAuthChallenge = {
-  status: "challenge"
-  verificationUri: string
-  userCode: string
-  interval: number
-}
-
 type InferenceOAuthResult =
   | { status: "connected"; connection: CreateInferenceProviderOAuthTicketResponse }
   | { status: "error"; message: string }
@@ -126,7 +119,7 @@ export async function startInferenceProviderOAuthAction(
   value: InferenceProviderKind,
   provider?: PendingInferenceOAuth["provider"]
 ): Promise<
-  | InferenceOAuthChallenge
+  | { status: "challenge"; verificationUri: string; userCode: string; interval: number }
   | { status: "authorization"; verificationUri: string }
   | { status: "error"; message: string }
 > {

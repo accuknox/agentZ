@@ -39,7 +39,7 @@ import {
   SelectItem,
   SelectGroup,
 } from "@/components/ui/select"
-import { externalAgentCompatibility } from "@/data/schema"
+import { delegationModelCompatibility } from "@/data/schema"
 import type { DelegationCatalog, LensApp } from "@/lib/gateway/client"
 import type { DelegationRequest } from "@/lib/delegation"
 import { approveConsentAction, delegationWorkspaceAction, denyDeviceConsentAction } from "./actions"
@@ -361,10 +361,8 @@ export function Consent({
                           searchPlaceholder="Search models or providers…"
                           emptyMessage="No matching models."
                           options={catalog.models.map((model) => {
-                            const compatibility = client.agent
-                              ? externalAgentCompatibility(client.agent, model)
-                              : undefined
-                            const unsupported = !!client.agent && !compatibility
+                            const compatibility = delegationModelCompatibility(client.agent, model)
+                            const unsupported = compatibility === undefined
                             let badge = model.provider_display_name || model.provider
                             if (compatibility?.support === "native") badge = "Native"
                             if (compatibility?.support === "translated") badge = "Supported"

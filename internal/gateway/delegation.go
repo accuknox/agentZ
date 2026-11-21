@@ -213,6 +213,15 @@ func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID,
 				if err != nil {
 					continue
 				}
+				isClaudeSubscription := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription
+				// Existing grants can contain other resources whose access still needs verification.
+				// Execution checks Claude's policy separately.
+				if isClaudeSubscription && !includeUnavailable {
+					err := inference.AuthorizeClaudeSubscription(ctx, s.k8sClient, provider.Namespace)
+					if err != nil {
+						continue
+					}
+				}
 				for _, model := range provider.Spec.Models {
 					target, err := inference.RenderProviderTarget(&provider, model.ID)
 					if err != nil || target.Policies.TLS == nil || target.Policies.TLS.InsecureSkipVerify != nil {

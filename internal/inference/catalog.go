@@ -147,23 +147,26 @@ func (c *Catalog) Entries(query string) (string, []CatalogEntry) {
 // Suggestions returns models for one pinned provider/runtime variant and
 // reports whether they came from the live response, cache, or snapshot.
 func (c *Catalog) Suggestions(ctx context.Context, providerID string, providerKind agentzv1alpha1.InferenceProviderKind) ([]agentzv1alpha1.InferenceModel, CatalogProvenance, error) {
-	isCustom := providerID == "custom"
-	isCompatible := providerKind == agentzv1alpha1.InferenceProviderKindOpenAICompatible ||
-		providerKind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
-	isSupported := isCustom && isCompatible
-	for _, entry := range catalogEntries {
-		if entry.ProviderID == providerID && entry.Kind == providerKind {
-			isSupported = true
-			break
-		}
-	}
-	if !isSupported {
+	supported := slices.ContainsFunc(selectableCatalog, func(entry CatalogEntry) bool {
+		return entry.ProviderID == providerID && entry.Kind == providerKind
+	})
+	if !supported {
 		return nil, "", fmt.Errorf("unsupported provider %q with kind %q", providerID, providerKind)
 	}
 	if providerID == "custom" {
 		return []agentzv1alpha1.InferenceModel{}, CatalogProvenanceSnapshot, nil
 	}
+	if providerKind != agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+		return c.loadSuggestions(ctx, providerID, providerKind)
+	}
+	models, provenance, err := c.loadSuggestions(ctx, providerID, agentzv1alpha1.InferenceProviderKindAnthropic)
+	for i := range models {
+		models[i].API = new(agentzv1alpha1.InferenceModelAPIMessages)
+	}
+	return models, provenance, err
+}
 
+func (c *Catalog) loadSuggestions(ctx context.Context, providerID string, providerKind agentzv1alpha1.InferenceProviderKind) ([]agentzv1alpha1.InferenceModel, CatalogProvenance, error) {
 	c.mu.Lock()
 	if c.providers != nil && time.Since(c.fetchedAt) < catalogLifetime {
 		models := modelsFromCatalog(c.providers[providerID], providerID, providerKind)
@@ -264,11 +267,7 @@ func (c *Catalog) SubscriptionModels(ctx context.Context, record SubscriptionRec
 		if err != nil {
 			return nil, "", fmt.Errorf("verify Claude subscription roles: %w", err)
 		}
-		models, provenance, err := c.Suggestions(ctx, "anthropic", agentzv1alpha1.InferenceProviderKindAnthropic)
-		for i := range models {
-			models[i].API = new(agentzv1alpha1.InferenceModelAPIMessages)
-		}
-		return models, provenance, err
+		return c.Suggestions(ctx, "anthropic", record.Kind)
 	}
 	if record.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
 		return nil, "", fmt.Errorf("provider kind %q is not subscription-backed", record.Kind)

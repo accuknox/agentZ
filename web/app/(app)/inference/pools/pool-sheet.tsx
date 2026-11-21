@@ -159,7 +159,7 @@ export function NewInferencePoolButton({
 
 export function PoolSheet({
   pool,
-  providers,
+  providers: inferenceProviders,
   open,
   onOpenChange,
   scope,
@@ -170,6 +170,7 @@ export function PoolSheet({
   onOpenChange: (open: boolean) => void
   scope: InferencePoolActionScope
 }) {
+  const providers = inferenceProviders.filter((provider) => provider.kind !== "ClaudeSubscription")
   const defaults: InferencePoolWrite = pool
     ? {
         display_name: pool.display_name,

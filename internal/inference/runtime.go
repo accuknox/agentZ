@@ -156,7 +156,26 @@ func refreshSubscription(ctx context.Context, client *http.Client, record Subscr
 // ErrSubscriptionRefresh marks a failed token exchange with the provider.
 var ErrSubscriptionRefresh = errors.New("subscription token exchange failed")
 
-var subscriptionRefresh sync.Mutex
+var subscriptionRefresh sync.Map // credential path to channel closed when refresh finishes
+
+func lockSubscriptionRefresh(ctx context.Context, path string) (func(), error) {
+	done := make(chan struct{})
+	for ctx.Err() == nil {
+		active, loaded := subscriptionRefresh.LoadOrStore(path, done)
+		if !loaded {
+			return func() {
+				subscriptionRefresh.Delete(path)
+				close(done)
+			}, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-active.(chan struct{}):
+		}
+	}
+	return nil, ctx.Err()
+}
 
 // ResolveSubscription reads a usable credential and persists rotated tokens.
 // Claude refresh claims use OpenBao CAS before the exchange, preventing the UI
@@ -190,8 +209,11 @@ func ResolveSubscription(ctx context.Context, client *http.Client, kv *baoapi.KV
 	if oauth.TokenUsable(record.Token, time.Now()) {
 		return record, false, nil
 	}
-	subscriptionRefresh.Lock()
-	defer subscriptionRefresh.Unlock()
+	unlock, err := lockSubscriptionRefresh(ctx, path)
+	if err != nil {
+		return SubscriptionRecord{}, true, err
+	}
+	defer unlock()
 	record, version, err := read(ctx)
 	if err != nil {
 		return SubscriptionRecord{}, true, err
@@ -238,18 +260,28 @@ func ResolveSubscription(ctx context.Context, client *http.Client, kv *baoapi.KV
 	// Persist the rotated token even if the request has gone away.
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	_, writeErr := kv.Put(saveCtx, path, data, baoapi.WithCheckAndSet(version))
-	if writeErr == nil {
-		return record, true, nil
+	cas := baoapi.WithCheckAndSet(version)
+	var writeErr error
+	for range 2 {
+		_, writeErr = kv.Put(saveCtx, path, data, cas)
+		if writeErr == nil {
+			return record, true, nil
+		}
+		latest, latestVersion, readErr := read(saveCtx)
+		if readErr != nil {
+			return SubscriptionRecord{}, true, errors.Join(writeErr, readErr)
+		}
+		// Retry the save while our expected version is still current. The OAuth
+		// exchange may have already consumed the previous refresh token.
+		if latestVersion == version {
+			continue
+		}
+		if latestVersion > version && oauth.TokenUsable(latest.Token, time.Now()) {
+			return latest, true, nil
+		}
+		break
 	}
-	latest, latestVersion, readErr := read(saveCtx)
-	if readErr != nil {
-		return SubscriptionRecord{}, true, errors.Join(writeErr, readErr)
-	}
-	if latestVersion <= version || !oauth.TokenUsable(latest.Token, time.Now()) {
-		return SubscriptionRecord{}, true, writeErr
-	}
-	return latest, true, nil
+	return SubscriptionRecord{}, true, writeErr
 }
 
 // Runtime contains the resources needed to route and authenticate a provider.
@@ -454,7 +486,13 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 	case agentzv1alpha1.InferenceProviderKindClaudeSubscription:
 		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
 			CustomProviderSettings: agentgatewayv1alpha1.CustomProviderSettings{
-				Formats: []agentgatewayv1alpha1.ProviderFormatConfig{{Type: agentgatewayv1alpha1.ProviderFormatMessages, Path: "/v1/messages"}},
+				Formats: []agentgatewayv1alpha1.ProviderFormatConfig{
+					{Type: agentgatewayv1alpha1.ProviderFormatMessages, Path: "/v1/messages"},
+					{
+						Type: agentgatewayv1alpha1.ProviderFormatAnthropicTokenCount,
+						Path: "/v1/messages/count_tokens",
+					},
+				},
 			},
 			Model: modelRef,
 		}

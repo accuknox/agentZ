@@ -951,6 +951,10 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 		if err := service.k8sClient.Update(t.Context(), tenant); err != nil {
 			t.Fatal(err)
 		}
+		catalog, err := service.delegationCatalog(t.Context(), testUserID, testOrganizationID, testWorkspaceID, false)
+		if err != nil || len(catalog.Models) != 1 {
+			t.Fatalf("enabled Claude subscription missing from catalog: %v, %v", catalog, err)
+		}
 		body := fmt.Sprintf(
 			`{"model":%q,"stream":true,"max_tokens":32,"messages":[{"role":"user","content":"hello"}],"thinking":{"type":"adaptive"},"metadata":{"user_id":"native-device"}}`,
 			selection.Models[0].Id,
@@ -1001,6 +1005,10 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 		}
 		if _, err := service.resolveDelegation(t.Context(), queries.grant, selection); err == nil {
 			t.Fatal("disabling tenant subscriptions did not revoke an existing Claude grant")
+		}
+		catalog, err = service.delegationCatalog(t.Context(), testUserID, testOrganizationID, testWorkspaceID, false)
+		if err != nil || len(catalog.Models) != 0 {
+			t.Fatalf("disabled Claude subscription remained in catalog: %v, %v", catalog, err)
 		}
 		queries.externalAgent = nil
 		tenant.Spec.AllowClaudeSubscription = true

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/flate"
 	"compress/gzip"
-	"compress/lzw"
 	"compress/zlib"
 	"context"
 	"encoding/json"
@@ -94,7 +93,7 @@ func claudeOAuthRequest(ctx context.Context, client *http.Client, method, endpoi
 	req.Header.Set("Accept", "application/json, text/plain, */*")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "axios/1.15.2")
-	req.Header.Set("Accept-Encoding", "gzip, compress, deflate, br")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
 	req.Close = true
 	if accessToken != "" {
 		req.Header.Set("Authorization", "Bearer "+accessToken)
@@ -131,8 +130,6 @@ func claudeOAuthRequest(ctx context.Context, client *http.Client, method, endpoi
 				reader = flate.NewReader(bytes.NewReader(payload))
 				err = nil
 			}
-		case "compress":
-			reader = lzw.NewReader(bytes.NewReader(payload), lzw.MSB, 8)
 		case "br":
 			reader = io.NopCloser(brotli.NewReader(bytes.NewReader(payload)))
 		default:

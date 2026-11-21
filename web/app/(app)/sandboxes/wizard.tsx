@@ -1268,13 +1268,17 @@ function ModelsStep({
   onNext,
   onPrev,
 }: ModelsStepProps) {
-  const [providers, setProviders] = React.useState(inferenceProviders)
+  const [availableProviders, setAvailableProviders] = React.useState(inferenceProviders)
   const [pools, setPools] = React.useState(inferencePools)
   const [refreshError, setRefreshError] = React.useState("")
   const [refreshing, startRefresh] = React.useTransition()
   const [invalidSubmit, setInvalidSubmit] = React.useState(false)
   const [submitting, setSubmitting] = React.useState(false)
   const selected = inference?.models ?? []
+  const providers = React.useMemo(
+    () => availableProviders.filter((provider) => provider.kind !== "ClaudeSubscription"),
+    [availableProviders]
+  )
 
   const refs = new Map(
     selected.map((ref) => [JSON.stringify([ref.scope, ref.provider, ref.model]), ref] as const)
@@ -1468,7 +1472,7 @@ function ModelsStep({
                       return
                     }
                     setRefreshError("")
-                    setProviders(providerResult.providers)
+                    setAvailableProviders(providerResult.providers)
                     setPools(poolResult.pools)
                   })
                 }

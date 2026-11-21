@@ -159,7 +159,7 @@ export async function startInferenceProviderOAuthAction(
         response_type: "code",
         redirect_uri: claudeRedirectURI,
         scope:
-          "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload",
+          "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload",
         code_challenge: createHash("sha256").update(verifier).digest("base64url"),
         code_challenge_method: "S256",
         state,
@@ -365,7 +365,7 @@ export async function completeClaudeSubscriptionOAuthAction(
         "Content-Type": "application/json",
         Accept: "application/json, text/plain, */*",
         "User-Agent": "axios/1.15.2",
-        "Accept-Encoding": "gzip, compress, deflate, br",
+        "Accept-Encoding": "gzip, deflate, br",
         Connection: "close",
       },
       body: JSON.stringify({

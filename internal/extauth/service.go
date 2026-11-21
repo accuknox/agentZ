@@ -330,18 +330,17 @@ func Serve(ctx context.Context, cfg Config) error {
 type Service struct {
 	authv3.UnimplementedAuthorizationServer
 
-	namespace          string
-	probeInterval      time.Duration
-	probeTimeout       time.Duration
-	kube               ctrlclient.Client
-	kv                 *baoapi.KVv2
-	http               *http.Client
-	oauthRefresh       singleflight.Group
-	inferenceRefreshMu sync.Mutex
-	mcpConnections     agentzlisters.MCPConnectionNamespaceLister
-	probeQueue         workqueue.TypedInterface[string]
-	probeTimes         map[string]time.Time
-	probeTimesMu       sync.Mutex
+	namespace      string
+	probeInterval  time.Duration
+	probeTimeout   time.Duration
+	kube           ctrlclient.Client
+	kv             *baoapi.KVv2
+	http           *http.Client
+	oauthRefresh   singleflight.Group
+	mcpConnections agentzlisters.MCPConnectionNamespaceLister
+	probeQueue     workqueue.TypedInterface[string]
+	probeTimes     map[string]time.Time
+	probeTimesMu   sync.Mutex
 }
 
 var _ authv3.AuthorizationServer = (*Service)(nil)
@@ -388,16 +387,23 @@ func (s *Service) inferenceCredentials(ctx context.Context, provider *agentzv1al
 			"chatgpt-account-id",
 		},
 	}
-	if provider.Spec.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
+	if !provider.Spec.Kind.IsSubscription() {
 		return response, nil
 	}
-	record, _, err := s.resolveInferenceSubscription(ctx, provider)
+	if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+		if err := inference.AuthorizeClaudeSubscription(ctx, s.kube, provider.Namespace); err != nil {
+			return nil, err
+		}
+	}
+	record, _, err := inference.ResolveSubscription(ctx, s.http, s.kv, provider)
 	if err != nil {
 		return nil, err
 	}
 	response.Headers = []*corev3.HeaderValueOption{
 		overwriteHeader("authorization", "Bearer "+record.Token.AccessToken),
-		overwriteHeader("chatgpt-account-id", record.AccountID),
+	}
+	if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
+		response.Headers = append(response.Headers, overwriteHeader("chatgpt-account-id", record.AccountID))
 	}
 	return response, nil
 }

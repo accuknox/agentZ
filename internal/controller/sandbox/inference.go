@@ -105,6 +105,9 @@ func (r *Reconciler) reconcileInference(ctx context.Context, sandbox *agentzv1al
 			providers[providerKey] = provider
 			ready = ready && provider.Status.State == agentzv1alpha1.InferenceProviderStateReady
 		}
+		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+			return false, errors.New("claude subscriptions are only available to external Claude agents")
+		}
 		var found bool
 		for _, model := range provider.Spec.Models {
 			if model.ID == ref.Model {

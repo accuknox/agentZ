@@ -935,6 +935,88 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 		t.Fatal("private runtime marker leaked")
 	}
 
+	t.Run("Claude subscription identities and tenant revocation", func(t *testing.T) {
+		provider.Spec.Kind = agentzv1alpha1.InferenceProviderKindClaudeSubscription
+		provider.Spec.OpenAI = nil
+		if err := service.k8sClient.Update(t.Context(), provider); err != nil {
+			t.Fatal(err)
+		}
+		tenant := &agentzv1alpha1.Tenant{}
+		tenantName := agentzv1alpha1.ScopeNamespace(agentzv1alpha1.ResourceScopeOrganisation, testOrganizationID)
+		err := service.k8sClient.Get(t.Context(), ctrlclient.ObjectKey{Name: tenantName}, tenant)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tenant.Spec.AllowClaudeSubscription = true
+		if err := service.k8sClient.Update(t.Context(), tenant); err != nil {
+			t.Fatal(err)
+		}
+		body := fmt.Sprintf(
+			`{"model":%q,"stream":true,"max_tokens":32,"messages":[{"role":"user","content":"hello"}],"thinking":{"type":"adaptive"},"metadata":{"user_id":"native-device"}}`,
+			selection.Models[0].Id,
+		)
+		kinds := []gatewaydb.ExternalAgentKind{
+			gatewaydb.ExternalAgentKindCodex, gatewaydb.ExternalAgentKindGithubCopilotCli,
+			gatewaydb.ExternalAgentKindGithubCopilotDesktop, gatewaydb.ExternalAgentKindChatgptDesktop,
+			gatewaydb.ExternalAgentKindMicrosoftCopilotStudio, gatewaydb.ExternalAgentKindClaude,
+			gatewaydb.ExternalAgentKindClaudeDesktop,
+		}
+		for _, kind := range kinds {
+			queries.externalAgent = &gatewaydb.ExternalAgent{
+				ClientID: "client-1", UserID: testUserID, OrganizationID: testOrganizationID, WorkspaceID: testWorkspaceID, Kind: kind,
+			}
+			upstream.request = nil
+			upstream.response = &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"type":"message"}`))}
+			request := httptest.NewRequest(http.MethodPost, "/api/inference/v1/messages", strings.NewReader(body))
+			request.Header.Set("Authorization", "Bearer "+signed)
+			request.Header.Set("Anthropic-Beta", "claude-code-20250219,thinking-display-updates-2026-08-18")
+			request.Header.Set("X-Stainless-Package-Version", "0.128.0")
+			request.Header.Set("X-Claude-Code-Agent-Id", "native-agent")
+			response := httptest.NewRecorder()
+			service.handleDelegatedRequest(response, request)
+			allowed := kind == gatewaydb.ExternalAgentKindClaude || kind == gatewaydb.ExternalAgentKindClaudeDesktop
+			if !allowed {
+				if response.Code != http.StatusForbidden || upstream.request != nil {
+					t.Fatalf("%s used a Claude subscription: HTTP %d", kind, response.Code)
+				}
+				continue
+			}
+			if response.Code != http.StatusOK || upstream.request == nil {
+				t.Fatalf("%s could not use a Claude subscription: HTTP %d: %s", kind, response.Code, response.Body.String())
+			}
+			if upstream.request.URL.RawQuery != "beta=true" || !strings.Contains(upstream.request.Header.Get("Anthropic-Beta"), "oauth-2025-04-20") {
+				t.Fatal("Claude subscription request omitted its OAuth beta or query")
+			}
+			if upstream.request.Header.Get("X-Stainless-Package-Version") != "0.128.0" || upstream.request.Header.Get("X-Claude-Code-Agent-Id") != "native-agent" {
+				t.Fatal("native Claude headers were lost")
+			}
+			forwarded, err := io.ReadAll(upstream.request.Body)
+			if err != nil || string(forwarded) != body {
+				t.Fatalf("native Claude parameters changed: %s, %v", forwarded, err)
+			}
+		}
+		tenant.Spec.AllowClaudeSubscription = false
+		if err := service.k8sClient.Update(t.Context(), tenant); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.resolveDelegation(t.Context(), queries.grant, selection); err == nil {
+			t.Fatal("disabling tenant subscriptions did not revoke an existing Claude grant")
+		}
+		queries.externalAgent = nil
+		tenant.Spec.AllowClaudeSubscription = true
+		if err := service.k8sClient.Update(t.Context(), tenant); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.resolveDelegation(t.Context(), queries.grant, selection); err == nil {
+			t.Fatal("an unregistered OAuth client used a Claude subscription")
+		}
+		provider.Spec.Kind = agentzv1alpha1.InferenceProviderKindOpenAI
+		provider.Spec.OpenAI = &agentzv1alpha1.OpenAIProviderConfig{}
+		if err := service.k8sClient.Update(t.Context(), provider); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	route := &gwv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "d-grant-1-model-0",

@@ -415,6 +415,7 @@ export type DelegationApiCompatibility = {
 }
 
 export type DelegationModel = {
+  provider_kind?: InferenceProviderKind
   model_info?: InferenceModel
   api_compatibility?: Array<DelegationApiCompatibility>
   id: string
@@ -739,6 +740,10 @@ export type ResourceActor = {
 }
 
 export type Tenant = {
+  /**
+   * Whether external Claude Code and Desktop agents may use Claude subscriptions.
+   */
+  allow_claude_subscription?: boolean
   guardrail_connection_capabilities: ResourceCapabilities
   guardrail_policy_capabilities: ResourceCapabilities
   guardrail_event_capabilities: ResourceCapabilities
@@ -2335,6 +2340,7 @@ export type SandboxInference = {
 export type InferenceProviderKind =
   | "OpenAI"
   | "OpenAICodex"
+  | "ClaudeSubscription"
   | "Anthropic"
   | "Gemini"
   | "OpenAICompatible"
@@ -2453,7 +2459,7 @@ export type InferenceProviderOAuthCredentials = {
 
 export type CreateInferenceProviderOAuthTicketRequest = {
   resource_version?: string
-  kind: "OpenAICodex"
+  kind: "OpenAICodex" | "ClaudeSubscription"
 }
 
 export type CreateInferenceProviderOAuthTicketResponse = {
@@ -2482,6 +2488,13 @@ export type OpenAiCodexInferenceProviderWrite = {
   display_name: string
   models: Array<InferenceModel>
   kind: "OpenAICodex"
+}
+
+export type ClaudeSubscriptionInferenceProviderWrite = {
+  catalog_provider: "anthropic"
+  display_name: string
+  models: Array<InferenceModel>
+  kind: "ClaudeSubscription"
 }
 
 export type AnthropicInferenceProviderWrite = {
@@ -2548,6 +2561,9 @@ export type InferenceProviderWriteDiscriminator =
       kind: "OpenAICodex"
     } & OpenAiCodexInferenceProviderWrite)
   | ({
+      kind: "ClaudeSubscription"
+    } & ClaudeSubscriptionInferenceProviderWrite)
+  | ({
       kind: "Anthropic"
     } & AnthropicInferenceProviderWrite)
   | ({
@@ -2576,6 +2592,10 @@ export type OpenAiInferenceProviderRead = {
 
 export type OpenAiCodexInferenceProviderRead = {
   kind: "OpenAICodex"
+}
+
+export type ClaudeSubscriptionInferenceProviderRead = {
+  kind: "ClaudeSubscription"
 }
 
 export type AnthropicInferenceProviderRead = {
@@ -2620,6 +2640,9 @@ export type InferenceProviderReadDiscriminator =
   | ({
       kind: "OpenAICodex"
     } & OpenAiCodexInferenceProviderRead)
+  | ({
+      kind: "ClaudeSubscription"
+    } & ClaudeSubscriptionInferenceProviderRead)
   | ({
       kind: "Anthropic"
     } & AnthropicInferenceProviderRead)
@@ -4041,7 +4064,7 @@ export type JsonObjectWritable = {
 
 export type CreateInferenceProviderOAuthTicketRequestWritable = {
   resource_version?: string
-  kind: "OpenAICodex"
+  kind: "OpenAICodex" | "ClaudeSubscription"
   credentials: InferenceProviderOAuthCredentials
 }
 
@@ -4124,6 +4147,9 @@ export type InferenceProviderWriteDiscriminatorWritable =
   | ({
       kind: "OpenAICodex"
     } & OpenAiCodexInferenceProviderWrite)
+  | ({
+      kind: "ClaudeSubscription"
+    } & ClaudeSubscriptionInferenceProviderWrite)
   | ({
       kind: "Anthropic"
     } & AnthropicInferenceProviderWriteWritable)

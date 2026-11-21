@@ -104,39 +104,35 @@ func NewCatalog(client *http.Client) *Catalog {
 	return &Catalog{client: client, url: modelsDevURL}
 }
 
+var selectableCatalog = slices.Concat([]CatalogEntry{
+	{
+		ProviderID: "anthropic",
+		Name:       "Claude subscription",
+		Kind:       agentzv1alpha1.InferenceProviderKindClaudeSubscription,
+	},
+	{
+		ProviderID: "custom",
+		Name:       "Custom OpenAI-compatible",
+		Kind:       agentzv1alpha1.InferenceProviderKindOpenAICompatible,
+		AuthHeader: "authorization",
+		AuthPrefix: "Bearer ",
+	},
+	{
+		ProviderID: "custom",
+		Name:       "Custom Anthropic-compatible",
+		Kind:       agentzv1alpha1.InferenceProviderKindAnthropicCompatible,
+		AuthHeader: "x-api-key",
+	},
+}, catalogEntries)
+
 // Entries returns the pinned supported catalog variants matching query.
 func (c *Catalog) Entries(query string) (string, []CatalogEntry) {
 	query = strings.ToLower(strings.TrimSpace(query))
-	entries := make([]CatalogEntry, 0, len(catalogEntries)+2)
-	custom := []CatalogEntry{
-		{
-			ProviderID: "custom",
-			Name:       "Custom OpenAI-compatible",
-			Kind:       agentzv1alpha1.InferenceProviderKindOpenAICompatible,
-			AuthHeader: "authorization",
-			AuthPrefix: "Bearer ",
-		},
-		{
-			ProviderID: "custom",
-			Name:       "Custom Anthropic-compatible",
-			Kind:       agentzv1alpha1.InferenceProviderKindAnthropicCompatible,
-			AuthHeader: "x-api-key",
-		},
-	}
-	for _, entry := range custom {
-		nameMatches := strings.Contains(strings.ToLower(entry.Name), query)
-		providerMatches := strings.Contains(entry.ProviderID, query)
-		if query == "" || nameMatches || providerMatches {
+	entries := make([]CatalogEntry, 0, len(selectableCatalog))
+	for _, entry := range selectableCatalog {
+		if strings.Contains(strings.ToLower(entry.Name), query) || strings.Contains(entry.ProviderID, query) {
 			entries = append(entries, entry)
 		}
-	}
-	for _, entry := range catalogEntries {
-		nameMatches := strings.Contains(strings.ToLower(entry.Name), query)
-		providerMatches := strings.Contains(entry.ProviderID, query)
-		if query != "" && !nameMatches && !providerMatches {
-			continue
-		}
-		entries = append(entries, entry)
 	}
 	return catalogCommit, entries
 }
@@ -238,12 +234,34 @@ func (c *Catalog) Suggestions(ctx context.Context, providerID string, providerKi
 	return models, CatalogProvenanceSnapshot, err
 }
 
-// SubscriptionModels returns models available to one authenticated
-// subscription. Provider endpoints determine entitlement; Models.dev only
-// supplies capability metadata that subscription endpoints omit.
+// SubscriptionModels verifies credentials and returns provider model metadata.
+// Codex supplies an entitlement list; Claude uses Anthropic catalog metadata,
+// matching CLIProxyAPI's catalog approach.
 func (c *Catalog) SubscriptionModels(ctx context.Context, record SubscriptionRecord) ([]agentzv1alpha1.InferenceModel, CatalogProvenance, error) {
 	if record.Token == nil || strings.TrimSpace(record.Token.AccessToken) == "" {
 		return nil, "", fmt.Errorf("subscription access token is unavailable")
+	}
+	if record.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+		payload, err := claudeOAuthRequest(ctx, c.client, http.MethodGet, "https://api.anthropic.com/api/oauth/profile", record.Token.AccessToken, nil)
+		if err != nil {
+			return nil, "", fmt.Errorf("verify Claude subscription: %w", err)
+		}
+		var profile claudeProfile
+		if err := json.Unmarshal(payload, &profile); err != nil {
+			return nil, "", fmt.Errorf("decode Claude subscription profile: %w", err)
+		}
+		if profile.Account.UUID == "" {
+			return nil, "", errors.New("claude subscription profile has no account UUID")
+		}
+		_, err = claudeOAuthRequest(ctx, c.client, http.MethodGet, "https://api.anthropic.com/api/oauth/claude_cli/roles", record.Token.AccessToken, nil)
+		if err != nil {
+			return nil, "", fmt.Errorf("verify Claude subscription roles: %w", err)
+		}
+		models, provenance, err := c.Suggestions(ctx, "anthropic", agentzv1alpha1.InferenceProviderKindAnthropic)
+		for i := range models {
+			models[i].API = new(agentzv1alpha1.InferenceModelAPIMessages)
+		}
+		return models, provenance, err
 	}
 	if record.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
 		return nil, "", fmt.Errorf("provider kind %q is not subscription-backed", record.Kind)

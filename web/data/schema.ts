@@ -36,6 +36,12 @@ export function externalAgentCompatibility(
   kind: NonNullable<LensApp["agent_kind"]>,
   model: DelegationModel
 ) {
+  if (
+    model.provider_kind === "ClaudeSubscription" &&
+    kind !== "claude" &&
+    kind !== "claude-desktop"
+  )
+    return
   const compatibility = model.api_compatibility ?? []
   if (kind !== "claude" && !model.model_info?.capabilities.tool_call) return
   if (kind === "claude-desktop" && !model.model.startsWith("claude-")) return

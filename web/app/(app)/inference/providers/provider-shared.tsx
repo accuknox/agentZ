@@ -23,6 +23,7 @@ import type { InferenceProviderKind } from "@/lib/gateway/client"
 export const providerKindLabels: Record<InferenceProviderKind, string> = {
   OpenAI: "OpenAI",
   OpenAICodex: "OpenAI Codex",
+  ClaudeSubscription: "Claude subscription",
   Anthropic: "Anthropic",
   Gemini: "Google Gemini",
   OpenAICompatible: "OpenAI-compatible",

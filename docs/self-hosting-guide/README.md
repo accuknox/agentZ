@@ -580,3 +580,27 @@ kubectl get deployments,pods,ingress -n agentz-system
 ```
 
 Open `https://agentz.example.com/signup` and register with `ADMIN_EMAIL`.
+
+## Enable Claude subscriptions
+
+Claude subscriptions are disabled by default. Enable them for an existing tenant:
+
+```sh
+kubectl patch tenant TENANT_NAME --type=merge -p '{"spec":{"allowClaudeSubscription":true}}'
+```
+
+Add a **Claude subscription** under **Inference providers**, approve the browser sign-in, and paste
+the full localhost callback URL into the provider form. The localhost page does not need to load.
+Select models and save the provider, then assign them to a registered external Claude Code or Claude
+Desktop agent.
+
+The flag is checked for existing grants and before credential injection. Setting it to `false`
+revokes subscription use. Sandboxes, pools, other external agent kinds, and unregistered OAuth
+clients cannot use these credentials. Model grants permit inline Messages input and local tools;
+provider files, stored threads, containers, and hosted MCP tools remain unavailable. Claude model
+suggestions use Anthropic catalog metadata, so listing a model does not establish account
+entitlement.
+
+Tokens stay in OpenBao. Refresh claims prevent concurrent exchanges across gateway and extAuth
+processes. An ambiguous failed exchange enters a five-minute cooldown before another attempt;
+re-authentication can replace the credentials sooner.

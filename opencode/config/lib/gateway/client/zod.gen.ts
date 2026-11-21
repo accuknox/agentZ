@@ -612,6 +612,7 @@ export const zChatInputs = z.object({
 })
 
 export const zTenant = z.object({
+  allow_claude_subscription: z.boolean().optional(),
   guardrail_connection_capabilities: zResourceCapabilities,
   guardrail_policy_capabilities: zResourceCapabilities,
   guardrail_event_capabilities: zResourceCapabilities,
@@ -2482,6 +2483,7 @@ export const zSandboxInference = z.object({
 export const zInferenceProviderKind = z.enum([
   "OpenAI",
   "OpenAICodex",
+  "ClaudeSubscription",
   "Anthropic",
   "Gemini",
   "OpenAICompatible",
@@ -2530,6 +2532,7 @@ export const zInferenceModel = z.object({
 })
 
 export const zDelegationModel = z.object({
+  provider_kind: zInferenceProviderKind.optional(),
   model_info: zInferenceModel.optional(),
   api_compatibility: z.array(zDelegationApiCompatibility).optional(),
   id: z.string().min(1),
@@ -2646,7 +2649,7 @@ export const zInferenceProviderOAuthCredentials = z.object({
 
 export const zCreateInferenceProviderOAuthTicketRequest = z.object({
   resource_version: z.string().min(1).optional(),
-  kind: z.enum(["OpenAICodex"]),
+  kind: z.enum(["OpenAICodex", "ClaudeSubscription"]),
 })
 
 export const zInferenceProviderReadFields = z.object({
@@ -2668,6 +2671,13 @@ export const zOpenAiCodexInferenceProviderWrite = z.object({
   display_name: z.string().min(1).max(128),
   models: z.array(zInferenceModel).min(1).max(500),
   kind: z.enum(["OpenAICodex"]),
+})
+
+export const zClaudeSubscriptionInferenceProviderWrite = z.object({
+  catalog_provider: z.enum(["anthropic"]),
+  display_name: z.string().min(1).max(128),
+  models: z.array(zInferenceModel).min(1).max(500),
+  kind: z.enum(["ClaudeSubscription"]),
 })
 
 export const zAnthropicInferenceProviderWrite = z.object({
@@ -2729,6 +2739,7 @@ export const zAnthropicCompatibleInferenceProviderWrite = z.object({
 export const zInferenceProviderWriteDiscriminator = z.discriminatedUnion("kind", [
   zOpenAiInferenceProviderWrite.extend({ kind: z.literal("OpenAI") }),
   zOpenAiCodexInferenceProviderWrite.extend({ kind: z.literal("OpenAICodex") }),
+  zClaudeSubscriptionInferenceProviderWrite.extend({ kind: z.literal("ClaudeSubscription") }),
   zAnthropicInferenceProviderWrite.extend({ kind: z.literal("Anthropic") }),
   zGeminiInferenceProviderWrite.extend({ kind: z.literal("Gemini") }),
   zVertexAiInferenceProviderWrite.extend({ kind: z.literal("VertexAI") }),
@@ -2745,6 +2756,10 @@ export const zOpenAiInferenceProviderRead = z.object({
 
 export const zOpenAiCodexInferenceProviderRead = z.object({
   kind: z.enum(["OpenAICodex"]),
+})
+
+export const zClaudeSubscriptionInferenceProviderRead = z.object({
+  kind: z.enum(["ClaudeSubscription"]),
 })
 
 export const zAnthropicInferenceProviderRead = z.object({
@@ -2785,6 +2800,7 @@ export const zAnthropicCompatibleInferenceProviderRead = z.object({
 export const zInferenceProviderReadDiscriminator = z.discriminatedUnion("kind", [
   zOpenAiInferenceProviderRead.extend({ kind: z.literal("OpenAI") }),
   zOpenAiCodexInferenceProviderRead.extend({ kind: z.literal("OpenAICodex") }),
+  zClaudeSubscriptionInferenceProviderRead.extend({ kind: z.literal("ClaudeSubscription") }),
   zAnthropicInferenceProviderRead.extend({ kind: z.literal("Anthropic") }),
   zGeminiInferenceProviderRead.extend({ kind: z.literal("Gemini") }),
   zVertexAiInferenceProviderRead.extend({ kind: z.literal("VertexAI") }),
@@ -4483,7 +4499,7 @@ export const zJsonObjectWritable = z.record(z.string(), zJsonValueWritable)
 
 export const zCreateInferenceProviderOAuthTicketRequestWritable = z.object({
   resource_version: z.string().min(1).optional(),
-  kind: z.enum(["OpenAICodex"]),
+  kind: z.enum(["OpenAICodex", "ClaudeSubscription"]),
   credentials: zInferenceProviderOAuthCredentials,
 })
 
@@ -4562,6 +4578,7 @@ export const zAnthropicCompatibleInferenceProviderWriteWritable = z.object({
 export const zInferenceProviderWriteDiscriminatorWritable = z.discriminatedUnion("kind", [
   zOpenAiInferenceProviderWriteWritable.extend({ kind: z.literal("OpenAI") }),
   zOpenAiCodexInferenceProviderWrite.extend({ kind: z.literal("OpenAICodex") }),
+  zClaudeSubscriptionInferenceProviderWrite.extend({ kind: z.literal("ClaudeSubscription") }),
   zAnthropicInferenceProviderWriteWritable.extend({ kind: z.literal("Anthropic") }),
   zGeminiInferenceProviderWriteWritable.extend({ kind: z.literal("Gemini") }),
   zVertexAiInferenceProviderWriteWritable.extend({ kind: z.literal("VertexAI") }),

@@ -90,6 +90,7 @@ import {
   refreshInferenceProviderModelsAction,
   saveInferenceProviderAction,
   startInferenceProviderOAuthAction,
+  completeClaudeSubscriptionOAuthAction,
   suggestInferenceModelsAction,
   type InferenceProviderActionScope,
 } from "@/data/inference-provider.actions"
@@ -97,6 +98,7 @@ import { formatCompactNumber } from "@/lib/format"
 import {
   type InferenceModel,
   type InferenceProvider,
+  type InferenceProviderKind,
   type InferenceProviderWriteDiscriminatorWritable,
 } from "@/lib/gateway/client"
 import {
@@ -123,10 +125,14 @@ const capabilities = zInferenceModelCapabilities.keyof().options
 const limitFields = zInferenceModelLimits.keyof().options
 const modalityFields = zInferenceModelModalities.keyof().options
 
+function isSubscriptionProvider(kind: InferenceProviderKind) {
+  return kind === "OpenAICodex" || kind === "ClaudeSubscription"
+}
+
 type SubscriptionOAuthState =
   | { status: "idle" | "starting" }
   | Awaited<ReturnType<typeof startInferenceProviderOAuthAction>>
-  | Exclude<Awaited<ReturnType<typeof pollInferenceProviderOAuthAction>>, { status: "pending" }>
+  | Awaited<ReturnType<typeof completeClaudeSubscriptionOAuthAction>>
 
 const gatewayControlledHeaders = new Set([
   "connection",
@@ -475,6 +481,15 @@ const providerFormSchema = z
       }),
       z.object({
         ...providerFields,
+        catalog_provider: z.literal("anthropic", {
+          error: "Select Claude subscription from the provider list",
+        }),
+        kind: z.literal("ClaudeSubscription", {
+          error: "Select Claude subscription as the provider kind",
+        }),
+      }),
+      z.object({
+        ...providerFields,
         kind: z.literal("Anthropic", { error: "Select Anthropic as the provider kind" }),
         anthropic: z.object({ base_url: baseURLSchema }),
         credentials: apiKeyCredentialsSchema,
@@ -693,7 +708,7 @@ export function ProviderSheet({
 }) {
   const defaults = provider
     ? zInferenceProviderWriteDiscriminatorWritable.parse(
-        provider.kind === "OpenAICodex" ? provider : { ...provider, credentials: {} }
+        isSubscriptionProvider(provider.kind) ? provider : { ...provider, credentials: {} }
       )
     : ({
         display_name: "",
@@ -707,7 +722,7 @@ export function ProviderSheet({
     () =>
       providerFormSchema.superRefine((values, ctx) => {
         const isCreate = provider === undefined
-        if (values.kind === "OpenAICodex") {
+        if (values.kind === "OpenAICodex" || values.kind === "ClaudeSubscription") {
           return
         }
         if (values.kind === "OpenAI" || values.kind === "Anthropic" || values.kind === "Gemini") {
@@ -844,7 +859,7 @@ export function ProviderSheet({
     keyName: "key",
   })
   const kind = useWatch({ control: form.control, name: "kind", defaultValue: defaults.kind })
-  const isSubscription = kind === "OpenAICodex"
+  const isSubscription = isSubscriptionProvider(kind)
   const compatibleField =
     kind === "AnthropicCompatible" ? "anthropic_compatible" : "openai_compatible"
   const isCompatibleKind = kind === "OpenAICompatible" || kind === "AnthropicCompatible"
@@ -871,6 +886,8 @@ export function ProviderSheet({
   const [editingModel, setEditingModel] = React.useState<number>()
   const [submitError, setSubmitError] = React.useState("")
   const [submitErrors, setSubmitErrors] = React.useState<string[]>([])
+  const [claudeCallback, setClaudeCallback] = React.useState("")
+  const [claudeCallbackError, setClaudeCallbackError] = React.useState("")
   const [subscriptionOAuth, setSubscriptionOAuth] = React.useState<SubscriptionOAuthState>({
     status: "idle",
   })
@@ -915,7 +932,7 @@ export function ProviderSheet({
         subscriptionOAuth.status !== "connected",
       queryFn: async () => {
         const result =
-          kind === "OpenAICodex" && providerID
+          isSubscriptionProvider(kind) && providerID
             ? await refreshInferenceProviderModelsAction(scope, providerID)
             : await suggestInferenceModelsAction(scope, catalogProvider, kind)
         if (result.error) throw new Error(result.error.message)
@@ -934,6 +951,20 @@ export function ProviderSheet({
     subscriptionOAuth.status === "connected"
       ? modelFields.filter((model) => !suggestions.some((available) => available.id === model.id))
       : []
+
+  const applySubscriptionConnection = React.useCallback(
+    (result: Extract<SubscriptionOAuthState, { status: "connected" }>) => {
+      setSubscriptionOAuth(result)
+      setSubmitError("")
+      setSubmitErrors([])
+      // Tickets validate full model metadata. Keep selected IDs and leave
+      // unavailable models visible so the user can remove them explicitly.
+      const available = new Map(result.connection.models.map((model) => [model.id, model]))
+      const selected = provider ? getValues("models") : result.connection.models
+      replaceModels(selected.map((model) => available.get(model.id) ?? model))
+    },
+    [getValues, provider, replaceModels]
+  )
 
   React.useEffect(() => {
     if (!open || subscriptionOAuth.status !== "challenge") {
@@ -956,14 +987,7 @@ export function ProviderSheet({
             setSubscriptionOAuth(result)
             return
           }
-          setSubscriptionOAuth(result)
-          setSubmitError("")
-          setSubmitErrors([])
-          // Ticket validation compares complete models. Refresh selected
-          // metadata while retaining unavailable IDs for explicit removal.
-          const available = new Map(result.connection.models.map((model) => [model.id, model]))
-          const selected = provider ? getValues("models") : result.connection.models
-          replaceModels(selected.map((model) => available.get(model.id) ?? model))
+          applySubscriptionConnection(result)
         })
       }, interval * 1000)
     }
@@ -973,16 +997,16 @@ export function ProviderSheet({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [getValues, open, provider, replaceModels, scope, subscriptionOAuth])
+  }, [applySubscriptionConnection, open, scope, subscriptionOAuth])
 
   const selectedCatalogEntry = catalog.find(
     (entry) => entry.provider_id === catalogProvider && entry.provider_kind === kind
   )
 
   function connectSubscription() {
-    if (kind !== "OpenAICodex") {
-      return
-    }
+    if (!isSubscriptionProvider(kind)) return
+    setClaudeCallback("")
+    setClaudeCallbackError("")
     setSubscriptionOAuth({ status: "starting" })
     setSubmitError("")
     startTransition(async () => {
@@ -992,10 +1016,23 @@ export function ProviderSheet({
         provider ? { id: provider.id, resourceVersion: provider.resource_version } : undefined
       )
       setSubscriptionOAuth(result)
-      if (result.status !== "challenge") {
+      if (result.status !== "challenge" && result.status !== "authorization") {
         return
       }
       window.open(result.verificationUri, "_blank", "noopener,noreferrer")
+    })
+  }
+
+  function completeClaudeSignIn() {
+    startTransition(async () => {
+      const result = await completeClaudeSubscriptionOAuthAction(scope, claudeCallback)
+      if (result.status === "error") {
+        setClaudeCallbackError(result.message)
+        return
+      }
+      setClaudeCallback("")
+      setClaudeCallbackError("")
+      applySubscriptionConnection(result)
     })
   }
 
@@ -1182,7 +1219,7 @@ export function ProviderSheet({
                           aria-invalid={Boolean(
                             formState.errors.catalog_provider || formState.errors.kind
                           )}
-                          disabled={Boolean(provider) || providerCatalog.isLoading}
+                          disabled={Boolean(provider) || providerCatalog.isLoading || pending}
                           className="w-full justify-between font-normal"
                         >
                           <span className="flex min-w-0 items-center gap-2">
@@ -1215,10 +1252,10 @@ export function ProviderSheet({
                                     const displayName = getFieldState("display_name").isDirty
                                       ? form.getValues("display_name")
                                       : entry.name
+                                    const modelDefaults = { display_name: displayName, models: [] }
                                     const common = {
+                                      ...modelDefaults,
                                       catalog_provider: entry.provider_id,
-                                      display_name: displayName,
-                                      models: [],
                                       credentials: {},
                                     }
                                     switch (entry.provider_kind) {
@@ -1231,10 +1268,16 @@ export function ProviderSheet({
                                         break
                                       case "OpenAICodex":
                                         form.reset({
-                                          catalog_provider: "openai",
-                                          display_name: displayName,
-                                          models: [],
+                                          ...modelDefaults,
                                           kind: "OpenAICodex",
+                                          catalog_provider: "openai",
+                                        })
+                                        break
+                                      case "ClaudeSubscription":
+                                        form.reset({
+                                          ...modelDefaults,
+                                          kind: "ClaudeSubscription",
+                                          catalog_provider: "anthropic",
                                         })
                                         break
                                       case "Anthropic":
@@ -1928,10 +1971,13 @@ export function ProviderSheet({
                             {provider ? "Re-authenticate" : "Connect"} {providerKindLabels[kind]}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Complete sign-in in a new tab. We will detect when it finishes.
+                            {kind === "ClaudeSubscription"
+                              ? "Approve access in a new tab, then paste the callback URL here."
+                              : "Complete sign-in in a new tab. We will detect when it finishes."}
                           </p>
                         </div>
-                        {subscriptionOAuth.status !== "challenge" ? (
+                        {subscriptionOAuth.status !== "challenge" &&
+                        subscriptionOAuth.status !== "authorization" ? (
                           <LoadingButton
                             className="ml-auto"
                             pending={subscriptionOAuth.status === "starting"}
@@ -1949,6 +1995,59 @@ export function ProviderSheet({
                           </LoadingButton>
                         ) : null}
                       </div>
+                      {kind === "ClaudeSubscription" ? (
+                        <p className="text-sm text-muted-foreground">
+                          Available only to external Claude Code and Claude Desktop agents. Your
+                          organization must enable Claude subscriptions.
+                        </p>
+                      ) : null}
+                      {subscriptionOAuth.status === "authorization" ? (
+                        <div className="flex flex-col gap-3">
+                          <Button type="button" variant="outline" asChild>
+                            <a
+                              href={subscriptionOAuth.verificationUri}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Continue to Claude <ExternalLink />
+                            </a>
+                          </Button>
+                          <p className="text-sm text-muted-foreground">
+                            After approving, copy the full localhost callback URL from your
+                            browser&apos;s address bar and paste it below. The localhost page may
+                            not load.
+                          </p>
+                          <FieldLabel htmlFor="claude-callback">Sign-in callback URL</FieldLabel>
+                          <Input
+                            id="claude-callback"
+                            type="password"
+                            autoComplete="off"
+                            value={claudeCallback}
+                            onChange={(event) => setClaudeCallback(event.target.value)}
+                            placeholder="http://localhost:54545/callback?code=…&state=…"
+                          />
+                          <FieldError
+                            errors={claudeCallbackError ? [{ message: claudeCallbackError }] : []}
+                          />
+                          <LoadingButton
+                            type="button"
+                            pending={pending}
+                            pendingLabel="Completing sign-in..."
+                            disabled={pending || !claudeCallback.trim()}
+                            onClick={completeClaudeSignIn}
+                          >
+                            Complete sign-in
+                          </LoadingButton>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={pending}
+                            onClick={connectSubscription}
+                          >
+                            Start again
+                          </Button>
+                        </div>
+                      ) : null}
                       {subscriptionOAuth.status === "challenge" ? (
                         <div className="flex flex-col items-start gap-3">
                           <p className="text-sm text-muted-foreground">

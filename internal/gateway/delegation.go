@@ -17,6 +17,7 @@ import (
 	"time"
 
 	jwtrequest "github.com/golang-jwt/jwt/v5/request"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -225,6 +226,7 @@ func (s *Service) delegationCatalog(ctx context.Context, userID, organizationID,
 						Namespace:           namespace,
 						Provider:            provider.Name,
 						ProviderDisplayName: provider.Spec.DisplayName,
+						ProviderKind:        new(gatewayapi.InferenceProviderKind(provider.Spec.Kind)),
 						Uid:                 string(provider.UID),
 						Model:               model.ID,
 						ModelDisplayName:    model.DisplayName,
@@ -408,6 +410,16 @@ func (s *Service) resolveDelegation(ctx context.Context, grant gatewaydb.Delegat
 			if err := s.k8sClient.Get(ctx, key, provider); err != nil {
 				return nil, err
 			}
+			if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+				isClaude := agent.Kind == gatewaydb.ExternalAgentKindClaude ||
+					agent.Kind == gatewaydb.ExternalAgentKindClaudeDesktop
+				if agentErr != nil || !isClaude {
+					return nil, errors.New("claude subscriptions require an external Claude Code or Desktop agent")
+				}
+				if err := inference.AuthorizeClaudeSubscription(ctx, s.k8sClient, provider.Namespace); err != nil {
+					return nil, err
+				}
+			}
 			resources.providers[key] = provider
 		}
 		identity := model.WorkspaceId + "/" + string(provider.UID) + "/" + model.Model
@@ -455,6 +467,45 @@ func (s *Service) resolveDelegation(ctx context.Context, grant gatewaydb.Delegat
 		}
 	}
 	return resources, nil
+}
+
+func configureClaudeSubscriptionRequest(req *httputil.ProxyRequest) {
+	req.Out.URL.RawQuery = "beta=true"
+	if req.Out.Header.Get("X-Client-Request-Id") == "" {
+		req.Out.Header.Set("X-Client-Request-Id", uuid.NewString())
+	}
+	// Keep the client betas in order and add the OAuth beta once.
+	betas := strings.Join(req.In.Header.Values("Anthropic-Beta"), ",")
+	parts := strings.Split(betas, ",")
+	const oauthBeta = "oauth-2025-04-20"
+	hasOAuth := slices.ContainsFunc(parts, func(beta string) bool {
+		return strings.TrimSpace(beta) == oauthBeta
+	})
+	if !hasOAuth {
+		index := 0
+		if strings.TrimSpace(parts[0]) == "claude-code-20250219" {
+			index = 1
+		}
+		betas = strings.Join(slices.Insert(parts, index, oauthBeta), ",")
+	}
+	req.Out.Header.Set("Anthropic-Beta", strings.TrimSuffix(betas, ","))
+	defaults := map[string]string{
+		"Accept":            "application/json",
+		"Anthropic-Version": "2023-06-01",
+		"Anthropic-Dangerous-Direct-Browser-Access": "true",
+		"X-App":                   "cli",
+		"X-Stainless-Retry-Count": "0",
+		"X-Stainless-Runtime":     "node",
+		"X-Stainless-Lang":        "js",
+	}
+	if !strings.HasSuffix(req.In.URL.Path, "/count_tokens") {
+		defaults["X-Stainless-Timeout"] = "600"
+	}
+	for name, value := range defaults {
+		if req.Out.Header.Get(name) == "" {
+			req.Out.Header.Set(name, value)
+		}
+	}
 }
 
 func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request) {
@@ -709,6 +760,7 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		r.Body = io.NopCloser(bytes.NewReader(body))
 	}
 
+	claudeSubscription := false
 	initializingMCP := false
 	path := "/delegations/" + claims.GrantID + "/mcp"
 	if !mcpRequest {
@@ -752,6 +804,7 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		}
 		key := ctrlclient.ObjectKey{Namespace: selected.Namespace, Name: selected.Provider}
 		provider := resources.providers[key]
+		claudeSubscription = provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription
 		err = input.ValidateProvider(provider.Spec.Kind)
 		if err != nil {
 			s.delegationError(w, r, http.StatusBadRequest, "invalid_request_error", err.Error())
@@ -917,6 +970,9 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			req.Out.URL.RawPath = ""
 			// Let the transport negotiate and decode compression before inspecting errors.
 			req.Out.Header.Del("Accept-Encoding")
+			if claudeSubscription {
+				configureClaudeSubscriptionRequest(req)
+			}
 			req.Out.Header.Del("Authorization")
 			req.Out.Header.Del("Cookie")
 			req.Out.Header.Del("Origin")

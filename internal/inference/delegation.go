@@ -34,6 +34,8 @@ type DelegatedRequest struct {
 // support: Responses cannot be translated to Anthropic Messages or Gemini.
 func DelegatedProviderEndpoints(kind agentzv1alpha1.InferenceProviderKind) []string {
 	switch kind {
+	case agentzv1alpha1.InferenceProviderKindClaudeSubscription:
+		return []string{"/messages", "/messages/count_tokens"}
 	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
 		return []string{"/responses"}
 	case agentzv1alpha1.InferenceProviderKindAnthropic, agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
@@ -213,16 +215,23 @@ type anthropicRequest struct {
 	Stream     bool                 `json:"stream"`
 	Container  json.RawMessage      `json:"container"`
 	MCPServers json.RawMessage      `json:"mcp_servers"`
+	Thread     json.RawMessage      `json:"thread"`
 	Tools      []inferenceTool      `json:"tools"`
 	Messages   []inferenceInputItem `json:"messages"`
 	System     json.RawMessage      `json:"system"`
 }
 
+type anthropicToolDefinition struct {
+	Type       string        `json:"type"`
+	Definition inferenceTool `json:"definition"`
+}
+
 type anthropicContent struct {
-	Type    string           `json:"type"`
-	FileID  string           `json:"file_id"`
-	Source  *anthropicSource `json:"source"`
-	Content json.RawMessage  `json:"content"`
+	Tool    *anthropicToolDefinition `json:"tool"`
+	Type    string                   `json:"type"`
+	FileID  string                   `json:"file_id"`
+	Source  *anthropicSource         `json:"source"`
+	Content json.RawMessage          `json:"content"`
 }
 
 type anthropicSource struct {
@@ -241,15 +250,9 @@ func ValidateDelegatedMessages(body []byte, countTokens bool) (*DelegatedRequest
 	}
 	container := len(input.Container) != 0 && string(input.Container) != "null"
 	hostedMCP := len(input.MCPServers) != 0 && string(input.MCPServers) != "null"
-	if container || hostedMCP {
-		return nil, errors.New("provider containers and hosted MCP servers are unavailable")
-	}
-	for _, tool := range input.Tools {
-		local := tool.Type == "" || tool.Type == "custom" || strings.HasPrefix(tool.Type, "computer_") ||
-			strings.HasPrefix(tool.Type, "bash_") || strings.HasPrefix(tool.Type, "text_editor_")
-		if !local {
-			return nil, errors.New("use client-side tools; provider hosted tools are unavailable")
-		}
+	thread := len(input.Thread) != 0 && string(input.Thread) != "null"
+	if container || hostedMCP || thread {
+		return nil, errors.New("provider containers, stored threads and hosted MCP servers are unavailable")
 	}
 	contents := []json.RawMessage{input.System}
 	for _, message := range input.Messages {
@@ -271,10 +274,23 @@ func ValidateDelegatedMessages(body []byte, countTokens bool) (*DelegatedRequest
 			if part.Type == "file" || part.Type == "container_upload" || part.FileID != "" || storedSource {
 				return nil, errors.New("provider files are unavailable; provide inline content or a URL")
 			}
+			if part.Type == "tool_addition" {
+				if part.Tool == nil || part.Tool.Type != "tool_definition" {
+					return nil, errors.New("invalid inline tool definition")
+				}
+				input.Tools = append(input.Tools, part.Tool.Definition)
+			}
 			contents = append(contents, part.Content)
 			if part.Source != nil {
 				contents = append(contents, part.Source.Content)
 			}
+		}
+	}
+	for _, tool := range input.Tools {
+		local := tool.Type == "" || tool.Type == "custom" || strings.HasPrefix(tool.Type, "computer_") ||
+			strings.HasPrefix(tool.Type, "bash_") || strings.HasPrefix(tool.Type, "text_editor_")
+		if !local {
+			return nil, errors.New("use client-side tools; provider hosted tools are unavailable")
 		}
 	}
 	endpoint := "/messages"

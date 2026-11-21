@@ -503,7 +503,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, provider *agentzv1alpha1.
 
 			credentialsReady := reconcileErr == nil && runtime.ExternalSecret == nil
 			credentialsMessage := "Authentication is not required"
-			if current.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
+			if current.Spec.Kind.IsSubscription() {
 				credentialsMessage = "Subscription is connected"
 			}
 			if reconcileErr != nil {

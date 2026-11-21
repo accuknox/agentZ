@@ -302,6 +302,8 @@ export type {
   ChatSessionState,
   ChatSessionStatus,
   ChatSessionTimeZoneQuery,
+  ClaudeSubscriptionInferenceProviderRead,
+  ClaudeSubscriptionInferenceProviderWrite,
   ClientOptions,
   CodingAction,
   CodingDiscoveredWorktree,

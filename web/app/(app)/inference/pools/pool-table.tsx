@@ -186,6 +186,7 @@ export function InferencePoolTable({
                   {provider ? (
                     <ProviderIcon
                       provider={provider.catalog_provider}
+                      kind={provider.kind}
                       className="size-4 shrink-0"
                     />
                   ) : null}
@@ -216,6 +217,7 @@ export function InferencePoolTable({
                       {itemProvider ? (
                         <ProviderIcon
                           provider={itemProvider.catalog_provider}
+                          kind={itemProvider.kind}
                           className="size-4 shrink-0"
                           inverted
                         />
@@ -617,6 +619,7 @@ function PoolViewSheet({
                       {provider ? (
                         <ProviderIcon
                           provider={provider.catalog_provider}
+                          kind={provider.kind}
                           className="size-4 shrink-0"
                         />
                       ) : (

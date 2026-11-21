@@ -25,14 +25,21 @@ const (
 
 // InferenceProviderKind identifies the configuration and credentials required
 // by an upstream inference protocol.
-// +kubebuilder:validation:Enum=OpenAI;OpenAICodex;Anthropic;Gemini;OpenAICompatible;AnthropicCompatible;Bedrock;VertexAI;Azure
+// +kubebuilder:validation:Enum=OpenAI;OpenAICodex;ClaudeSubscription;Anthropic;Gemini;OpenAICompatible;AnthropicCompatible;Bedrock;VertexAI;Azure
 type InferenceProviderKind string
+
+// IsSubscription reports whether the provider uses stored subscription tokens.
+func (kind InferenceProviderKind) IsSubscription() bool {
+	return kind == InferenceProviderKindOpenAICodex || kind == InferenceProviderKindClaudeSubscription
+}
 
 const (
 	// InferenceProviderKindOpenAI identifies the native OpenAI provider.
 	InferenceProviderKindOpenAI InferenceProviderKind = "OpenAI"
 	// InferenceProviderKindOpenAICodex identifies a ChatGPT Codex subscription.
 	InferenceProviderKindOpenAICodex InferenceProviderKind = "OpenAICodex"
+	// InferenceProviderKindClaudeSubscription identifies a Claude subscription for external Claude agents.
+	InferenceProviderKindClaudeSubscription InferenceProviderKind = "ClaudeSubscription"
 	// InferenceProviderKindAnthropic identifies the native Anthropic provider.
 	InferenceProviderKindAnthropic InferenceProviderKind = "Anthropic"
 	// InferenceProviderKindGemini identifies the native Gemini provider.

@@ -116,15 +116,9 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 	if strings.TrimSpace(spec.CatalogProvider) == "" {
 		issues = append(issues, Issue{Field: "catalog_provider", Message: "field is required"})
 	}
-	isCompatible := spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICompatible ||
-		spec.Kind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
-	isCatalogEntry := spec.CatalogProvider == "custom" && isCompatible
-	for _, entry := range catalogEntries {
-		if entry.ProviderID == spec.CatalogProvider && entry.Kind == spec.Kind {
-			isCatalogEntry = true
-			break
-		}
-	}
+	isCatalogEntry := slices.ContainsFunc(selectableCatalog, func(entry CatalogEntry) bool {
+		return entry.ProviderID == spec.CatalogProvider && entry.Kind == spec.Kind
+	})
 	if !isCatalogEntry {
 		issues = append(
 			issues,
@@ -166,7 +160,7 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 	if spec.AnthropicCompatible != nil {
 		arms++
 	}
-	isSubscription := spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+	isSubscription := spec.Kind.IsSubscription()
 	expectedArms := 1
 	if isSubscription {
 		expectedArms = 0
@@ -182,6 +176,10 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 	}
 
 	switch spec.Kind {
+	case agentzv1alpha1.InferenceProviderKindClaudeSubscription:
+		if spec.CatalogProvider != "anthropic" {
+			issues = append(issues, Issue{Field: "catalog_provider", Message: "Claude subscriptions require the anthropic catalog"})
+		}
 	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
 		if spec.CatalogProvider != "openai" {
 			issues = append(
@@ -607,6 +605,13 @@ func ValidateProvider(spec agentzv1alpha1.InferenceProviderSpec) []Issue {
 				},
 			)
 		}
+		wrongClaudeAPI := model.API != nil && *model.API != agentzv1alpha1.InferenceModelAPIMessages
+		if spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription && wrongClaudeAPI {
+			issues = append(issues, Issue{
+				Field:   field + ".api",
+				Message: "Claude subscriptions require the Messages API",
+			})
+		}
 		if !isSubscription && model.API != nil {
 			issues = append(
 				issues,
@@ -824,7 +829,7 @@ func CredentialsForUpdate(spec agentzv1alpha1.InferenceProviderSpec, values Cred
 		strings.TrimSpace(values.ClientSecret) != ""
 
 	switch spec.Kind {
-	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
+	case agentzv1alpha1.InferenceProviderKindOpenAICodex, agentzv1alpha1.InferenceProviderKindClaudeSubscription:
 		if hasAPIKey || hasBearerToken || hasServiceAccount || hasAWS || hasAzure {
 			return nil, false, &InputError{
 				Field:   "credentials",

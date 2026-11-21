@@ -1634,6 +1634,13 @@ func (s *Service) validateSandboxDependencies(ctx context.Context, access resour
 			)
 			continue
 		}
+		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+			fields = append(fields, gatewayapi.FieldError{
+				Field:   fmt.Sprintf("inference.models[%d].provider", i),
+				Message: "Claude subscriptions are only available to external Claude agents",
+			})
+			continue
+		}
 		var modelFound bool
 		for _, model := range provider.Spec.Models {
 			if model.ID == ref.Model {

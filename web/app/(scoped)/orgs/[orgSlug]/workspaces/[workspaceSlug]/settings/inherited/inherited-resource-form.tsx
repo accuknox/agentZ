@@ -11,8 +11,6 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table"
-import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
-import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
 import {
   replaceWorkspaceInheritanceAction,
   type WorkspaceInheritanceFormState,
@@ -56,7 +54,7 @@ const statusMeta = {
 
 type InheritedResourceFormProps = {
   displayNames?: Record<string, string>
-  iconSources: Record<string, string>
+  icons: Record<string, React.ReactNode>
   label: string
   orgSlug: string
   resourceType: InheritedResourceType
@@ -70,7 +68,7 @@ export function InheritedResourceForm(props: InheritedResourceFormProps) {
   "use no memo"
   const {
     displayNames,
-    iconSources,
+    icons,
     label,
     orgSlug,
     resourceType,
@@ -162,7 +160,6 @@ export function InheritedResourceForm(props: InheritedResourceFormProps) {
         cell: ({ row }) => {
           const resource = row.original
           const displayName = displayNames ? displayNames[resource.name] : resource.name
-          const iconSource = iconSources[resource.name]
           const locked =
             selected.includes(resource.name) &&
             (resource.consumers.length > 0 || Boolean(resource.disabled_reason))
@@ -172,15 +169,7 @@ export function InheritedResourceForm(props: InheritedResourceFormProps) {
           return (
             <>
               <div className="flex min-w-0 items-center gap-2">
-                {resourceType === "mcp_connection" && iconSource
-                  ? renderMcpServerIcon(iconSource, {
-                      "aria-hidden": "true",
-                      className: "size-4 shrink-0",
-                    })
-                  : null}
-                {resourceType === "inference_provider" && iconSource ? (
-                  <ProviderIcon className="size-4 shrink-0" provider={iconSource} />
-                ) : null}
+                {icons[resource.name]}
                 <div className="font-medium break-all">{displayName}</div>
               </div>
               {description ? (
@@ -260,7 +249,7 @@ export function InheritedResourceForm(props: InheritedResourceFormProps) {
           ),
       },
     ],
-    [displayNames, iconSources, orgSlug, pending, resourceType, selected, workspaceSlug]
+    [displayNames, icons, orgSlug, pending, selected, workspaceSlug]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table is not React Compiler compatible yet.
   const table = useReactTable({

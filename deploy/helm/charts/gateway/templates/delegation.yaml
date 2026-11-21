@@ -1,7 +1,11 @@
+{{- $namespace := "" }}
 {{- if and .Values.enabled (or (dig "agentz" "delegationEnabled" false (.Values.global | default dict)) (dig "agentz" "copilotStudioEnabled" false (.Values.global | default dict))) }}
-{{- $name := include "gateway.fullname" . }}
+{{- $namespace = printf "%s-delegations" (include "gateway.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- else if not .Values.enabled }}
+{{- $namespace = .Values.delegationOnly.namespace }}
+{{- end }}
+{{- if $namespace }}
 {{- $account := include "gateway.serviceAccountName" . }}
-{{- $namespace := printf "%s-delegations" $name | trunc 63 | trimSuffix "-" }}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -50,6 +54,10 @@ metadata:
   name: delegations
   namespace: {{ $namespace }}
 spec:
+  {{- if and (not .Values.enabled) .Values.delegationOnly.imageTag }}
+  image:
+    tag: {{ .Values.delegationOnly.imageTag | quote }}
+  {{- end }}
   deployment:
     spec:
       template:
@@ -57,6 +65,11 @@ spec:
           automountServiceAccountToken: false
           dnsConfig:
             options: [{name: ndots, value: "1"}]
+          {{- if and (not .Values.enabled) .Values.delegationOnly.xdsServiceIP }}
+          hostAliases:
+            - ip: {{ .Values.delegationOnly.xdsServiceIP | quote }}
+              hostnames: [agentgateway.agentgateway-system.svc.cluster.local]
+          {{- end }}
   service:
     spec:
       type: ClusterIP

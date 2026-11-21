@@ -268,6 +268,10 @@ func (v *Validator) validateInference(ctx context.Context, sandbox *agentzv1alph
 			)
 			continue
 		}
+		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+			fields = append(fields, field.Forbidden(path.Child("models"), "Claude subscriptions are only available to external Claude agents"))
+			continue
+		}
 		enabled := make(map[string]struct{}, len(provider.Spec.Models))
 		for _, model := range provider.Spec.Models {
 			enabled[model.ID] = struct{}{}

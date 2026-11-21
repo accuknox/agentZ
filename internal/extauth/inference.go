@@ -6,17 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
-	baoapi "github.com/openbao/openbao/api/v2"
 	"google.golang.org/grpc/codes"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/accuknox/agentz/internal/inference"
-	"github.com/accuknox/agentz/internal/oauth"
 	"github.com/accuknox/agentz/internal/scope"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
@@ -111,6 +108,12 @@ func (s *Service) evaluateInference(ctx context.Context, checkAttrs *authv3.Attr
 			slog.LevelError,
 		), attrs
 	}
+	if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+		return denyDecision(
+			codes.PermissionDenied, typev3.StatusCode_Forbidden,
+			"Claude subscriptions require an external Claude agent", "external_claude_required", slog.LevelWarn,
+		), attrs
+	}
 	if provider.Spec.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
 		if attrs.pool == "" {
 			return denyDecision(
@@ -128,7 +131,7 @@ func (s *Service) evaluateInference(ctx context.Context, checkAttrs *authv3.Attr
 			},
 		}), attrs
 	}
-	record, refreshed, err := s.resolveInferenceSubscription(ctx, provider)
+	record, refreshed, err := inference.ResolveSubscription(ctx, s.http, s.kv, provider)
 	attrs.refreshAttempted = refreshed
 	attrs.refreshSucceeded = refreshed && err == nil
 	if err != nil {
@@ -218,87 +221,6 @@ func (s *Service) authorizeInferenceTarget(ctx context.Context, providerNamespac
 		}
 	}
 	return fmt.Errorf("pool %q does not include provider %q", poolName, providerName)
-}
-
-func (s *Service) resolveInferenceSubscription(ctx context.Context, provider *agentzv1alpha1.InferenceProvider) (inference.SubscriptionRecord, bool, error) {
-	path := inference.CredentialPath(
-		provider.Namespace,
-		provider.Name,
-		provider.Spec.Kind,
-		provider.Spec.CredentialRevision,
-	)
-	secret, err := s.kv.Get(ctx, path)
-	if err != nil {
-		return inference.SubscriptionRecord{}, false, fmt.Errorf("read inference credentials: %w", err)
-	}
-	record, err := inference.DecodeSubscriptionRecord(secret.Data)
-	if err != nil {
-		return inference.SubscriptionRecord{}, false, err
-	}
-	if record.Kind != provider.Spec.Kind {
-		return inference.SubscriptionRecord{}, false, fmt.Errorf("inference credential kind does not match provider")
-	}
-	if oauth.TokenUsable(record.Token, time.Now().UTC()) {
-		return record, false, nil
-	}
-
-	s.inferenceRefreshMu.Lock()
-	defer s.inferenceRefreshMu.Unlock()
-
-	current, err := s.kv.Get(ctx, path)
-	if err != nil {
-		return inference.SubscriptionRecord{}, true, fmt.Errorf("reread inference credentials: %w", err)
-	}
-	record, err = inference.DecodeSubscriptionRecord(current.Data)
-	if err != nil {
-		return inference.SubscriptionRecord{}, true, err
-	}
-	if record.Kind != provider.Spec.Kind {
-		return inference.SubscriptionRecord{}, true, fmt.Errorf("inference credential kind does not match provider")
-	}
-	record, changed, err := inference.RefreshSubscription(ctx, s.http, record)
-	if err != nil {
-		return inference.SubscriptionRecord{}, true, err
-	}
-	if !changed {
-		return record, true, nil
-	}
-	if current.VersionMetadata == nil {
-		return inference.SubscriptionRecord{}, true, fmt.Errorf("inference credential version is missing")
-	}
-	data, err := inference.SubscriptionRecordData(record)
-	if err != nil {
-		return inference.SubscriptionRecord{}, true, err
-	}
-	_, writeErr := s.kv.Put(
-		ctx,
-		path,
-		data,
-		baoapi.WithCheckAndSet(current.VersionMetadata.Version),
-	)
-	if writeErr == nil {
-		return record, true, nil
-	}
-
-	latest, readErr := s.kv.Get(ctx, path)
-	if readErr != nil {
-		return inference.SubscriptionRecord{}, true, errors.Join(writeErr, readErr)
-	}
-	if latest.VersionMetadata == nil {
-		return inference.SubscriptionRecord{}, true, writeErr
-	}
-	if latest.VersionMetadata.Version <= current.VersionMetadata.Version {
-		return inference.SubscriptionRecord{}, true, writeErr
-	}
-	record, err = inference.DecodeSubscriptionRecord(latest.Data)
-	if err != nil {
-		return inference.SubscriptionRecord{}, true, errors.Join(writeErr, err)
-	}
-	kindChanged := record.Kind != provider.Spec.Kind
-	if kindChanged || !oauth.TokenUsable(record.Token, time.Now().UTC()) {
-		return inference.SubscriptionRecord{}, true, writeErr
-	}
-	return record, true, nil
 }
 
 func overwriteHeader(name, value string) *corev3.HeaderValueOption {

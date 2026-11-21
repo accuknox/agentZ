@@ -200,6 +200,7 @@ func (s *Service) tenantView(ctx context.Context, claims gatewayClaims, tenant *
 		return gatewayapi.Tenant{}, err
 	}
 	return gatewayapi.Tenant{
+		AllowClaudeSubscription:         new(tenant.Spec.AllowClaudeSubscription),
 		Conditions:                      conditions,
 		SkillCapabilities:               capabilities.skill,
 		McpConnectionCapabilities:       capabilities.mcp,

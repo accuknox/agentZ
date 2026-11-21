@@ -104,10 +104,7 @@ func NewCatalog(client *http.Client) *Catalog {
 	return &Catalog{client: client, url: modelsDevURL}
 }
 
-// Entries returns the pinned supported catalog variants matching query.
-func (c *Catalog) Entries(query string) (string, []CatalogEntry) {
-	query = strings.ToLower(strings.TrimSpace(query))
-	entries := make([]CatalogEntry, 0, len(catalogEntries)+2)
+var selectableCatalog = func() []CatalogEntry {
 	custom := []CatalogEntry{
 		{
 			ProviderID: "custom",
@@ -123,20 +120,26 @@ func (c *Catalog) Entries(query string) (string, []CatalogEntry) {
 			AuthHeader: "x-api-key",
 		},
 	}
-	for _, entry := range custom {
-		nameMatches := strings.Contains(strings.ToLower(entry.Name), query)
-		providerMatches := strings.Contains(entry.ProviderID, query)
-		if query == "" || nameMatches || providerMatches {
+	claude := CatalogEntry{
+		ProviderID: "anthropic",
+		Name:       "Claude subscription",
+		Kind:       agentzv1alpha1.InferenceProviderKindClaudeSubscription,
+	}
+	entries := slices.Concat(custom, catalogEntries, []CatalogEntry{claude})
+	slices.SortStableFunc(entries[len(custom):], func(a, b CatalogEntry) int {
+		return cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
+	return entries
+}()
+
+// Entries returns the pinned supported catalog variants matching query.
+func (c *Catalog) Entries(query string) (string, []CatalogEntry) {
+	query = strings.ToLower(strings.TrimSpace(query))
+	entries := make([]CatalogEntry, 0, len(selectableCatalog))
+	for _, entry := range selectableCatalog {
+		if strings.Contains(strings.ToLower(entry.Name), query) || strings.Contains(entry.ProviderID, query) {
 			entries = append(entries, entry)
 		}
-	}
-	for _, entry := range catalogEntries {
-		nameMatches := strings.Contains(strings.ToLower(entry.Name), query)
-		providerMatches := strings.Contains(entry.ProviderID, query)
-		if query != "" && !nameMatches && !providerMatches {
-			continue
-		}
-		entries = append(entries, entry)
 	}
 	return catalogCommit, entries
 }
@@ -144,23 +147,26 @@ func (c *Catalog) Entries(query string) (string, []CatalogEntry) {
 // Suggestions returns models for one pinned provider/runtime variant and
 // reports whether they came from the live response, cache, or snapshot.
 func (c *Catalog) Suggestions(ctx context.Context, providerID string, providerKind agentzv1alpha1.InferenceProviderKind) ([]agentzv1alpha1.InferenceModel, CatalogProvenance, error) {
-	isCustom := providerID == "custom"
-	isCompatible := providerKind == agentzv1alpha1.InferenceProviderKindOpenAICompatible ||
-		providerKind == agentzv1alpha1.InferenceProviderKindAnthropicCompatible
-	isSupported := isCustom && isCompatible
-	for _, entry := range catalogEntries {
-		if entry.ProviderID == providerID && entry.Kind == providerKind {
-			isSupported = true
-			break
-		}
-	}
-	if !isSupported {
+	supported := slices.ContainsFunc(selectableCatalog, func(entry CatalogEntry) bool {
+		return entry.ProviderID == providerID && entry.Kind == providerKind
+	})
+	if !supported {
 		return nil, "", fmt.Errorf("unsupported provider %q with kind %q", providerID, providerKind)
 	}
 	if providerID == "custom" {
 		return []agentzv1alpha1.InferenceModel{}, CatalogProvenanceSnapshot, nil
 	}
+	if providerKind != agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+		return c.loadSuggestions(ctx, providerID, providerKind)
+	}
+	models, provenance, err := c.loadSuggestions(ctx, providerID, agentzv1alpha1.InferenceProviderKindAnthropic)
+	for i := range models {
+		models[i].API = new(agentzv1alpha1.InferenceModelAPIMessages)
+	}
+	return models, provenance, err
+}
 
+func (c *Catalog) loadSuggestions(ctx context.Context, providerID string, providerKind agentzv1alpha1.InferenceProviderKind) ([]agentzv1alpha1.InferenceModel, CatalogProvenance, error) {
 	c.mu.Lock()
 	if c.providers != nil && time.Since(c.fetchedAt) < catalogLifetime {
 		models := modelsFromCatalog(c.providers[providerID], providerID, providerKind)
@@ -238,12 +244,30 @@ func (c *Catalog) Suggestions(ctx context.Context, providerID string, providerKi
 	return models, CatalogProvenanceSnapshot, err
 }
 
-// SubscriptionModels returns models available to one authenticated
-// subscription. Provider endpoints determine entitlement; Models.dev only
-// supplies capability metadata that subscription endpoints omit.
+// SubscriptionModels verifies credentials and returns provider model metadata.
+// Codex supplies an entitlement list; Claude uses Anthropic catalog metadata,
+// matching CLIProxyAPI's catalog approach.
 func (c *Catalog) SubscriptionModels(ctx context.Context, record SubscriptionRecord) ([]agentzv1alpha1.InferenceModel, CatalogProvenance, error) {
 	if record.Token == nil || strings.TrimSpace(record.Token.AccessToken) == "" {
 		return nil, "", fmt.Errorf("subscription access token is unavailable")
+	}
+	if record.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+		payload, err := claudeOAuthRequest(ctx, c.client, http.MethodGet, "https://api.anthropic.com/api/oauth/profile", record.Token.AccessToken, nil)
+		if err != nil {
+			return nil, "", fmt.Errorf("verify Claude subscription: %w", err)
+		}
+		var profile claudeProfile
+		if err := json.Unmarshal(payload, &profile); err != nil {
+			return nil, "", fmt.Errorf("decode Claude subscription profile: %w", err)
+		}
+		if profile.Account.UUID == "" {
+			return nil, "", errors.New("claude subscription profile has no account UUID")
+		}
+		_, err = claudeOAuthRequest(ctx, c.client, http.MethodGet, "https://api.anthropic.com/api/oauth/claude_cli/roles", record.Token.AccessToken, nil)
+		if err != nil {
+			return nil, "", fmt.Errorf("verify Claude subscription roles: %w", err)
+		}
+		return c.Suggestions(ctx, "anthropic", record.Kind)
 	}
 	if record.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
 		return nil, "", fmt.Errorf("provider kind %q is not subscription-backed", record.Kind)

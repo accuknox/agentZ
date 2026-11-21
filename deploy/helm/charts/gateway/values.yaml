@@ -7,6 +7,14 @@ global:
 
 enabled: true
 
+# Render only the private delegation resources in this namespace when enabled is false.
+delegationOnly:
+  namespace: ""
+  # Override the AgentGateway controller's default proxy image tag.
+  imageTag: ""
+  # Resolve the controller hostname locally when the dev cluster's DNS proxy is unavailable.
+  xdsServiceIP: ""
+
 nameOverride: ""
 fullnameOverride: ""
 

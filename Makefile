@@ -29,6 +29,7 @@ SKILLS_S3_SECRET_ACCESS_KEY ?= admin
 # Host development uses the same gateway for management and delegated requests.
 DELEGATION_NAMESPACE ?= agentz-delegations
 DELEGATION_GATEWAY_URL ?= http://localhost:8080
+DELEGATION_GATEWAY_IMAGE_TAG ?=
 GATEWAY_FLAGS ?=
 
 KUBECTL ?= kubectl
@@ -200,6 +201,19 @@ run-manager:
 		--agentgateway-trace-port=4317 \
 		--delegation-trace-port=4318 \
 		--gateway-url=http://172.18.0.1:8090
+
+.PHONY: install-delegations-gateway
+install-delegations-gateway:
+	xds_service_ip="$$($(KUBECTL) -n agentgateway-system get service agentgateway -o jsonpath='{.spec.clusterIP}')"; \
+	$(HELM) template agentz-dev deploy/helm/charts/gateway \
+		--namespace "$(K8S_NAMESPACE)" \
+		--set enabled=false,serviceAccount.create=false \
+		--set-string delegationOnly.namespace="$(DELEGATION_NAMESPACE)" \
+		--set-string delegationOnly.imageTag="$(DELEGATION_GATEWAY_IMAGE_TAG)" \
+		--set-string delegationOnly.xdsServiceIP="$$xds_service_ip" \
+		--show-only templates/delegation.yaml | $(KUBECTL) apply -f -
+	$(KUBECTL) -n "$(DELEGATION_NAMESPACE)" wait gateway/delegations --for=condition=Programmed --timeout=120s
+	$(KUBECTL) -n "$(DELEGATION_NAMESPACE)" rollout status deployment/delegations --timeout=120s
 
 # Run once per development cluster before enabling browser use, unless Helm installed it.
 .PHONY: install-browser-seccomp

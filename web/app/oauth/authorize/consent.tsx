@@ -39,7 +39,7 @@ import {
   SelectItem,
   SelectGroup,
 } from "@/components/ui/select"
-import { delegationModelCompatibility } from "@/data/schema"
+import { delegationModelCompatibility, delegationRequiresModel } from "@/data/schema"
 import type { DelegationCatalog, LensApp } from "@/lib/gateway/client"
 import type { DelegationRequest } from "@/lib/delegation"
 import { approveConsentAction, delegationWorkspaceAction, denyDeviceConsentAction } from "./actions"
@@ -100,6 +100,8 @@ export function Consent({
           )
         : [],
   }))
+  const needsModel =
+    !selection.models.length && delegationRequiresModel(client.agent, request.type, scopes)
   const [error, setError] = useState<string>()
   const [pending, startTransition] = useTransition()
   const [loadError, setLoadError] = useState<string>()
@@ -494,6 +496,11 @@ export function Consent({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
+      {needsModel ? (
+        <p className="text-sm text-muted-foreground">
+          Choose at least one model to connect Claude Code.
+        </p>
+      ) : null}
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <Button
           variant="outline"
@@ -532,7 +539,7 @@ export function Consent({
         </Button>
         <Button
           size="lg"
-          disabled={pending || loading}
+          disabled={pending || loading || needsModel}
           onClick={() =>
             startTransition(async () => {
               setError(undefined)

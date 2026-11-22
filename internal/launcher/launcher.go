@@ -493,7 +493,9 @@ func (installed *installation) ensureRelay(ctx context.Context) error {
 	}()
 	ready := false
 	defer func() {
-		if !ready {
+		// A canceled launcher releases its ownership lock on exit. Let a relay
+		// already serving requests drain them before its own shutdown.
+		if !ready && ctx.Err() == nil {
 			child.Process.Kill()
 			<-exited
 		}

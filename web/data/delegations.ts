@@ -14,7 +14,11 @@ import {
   type DelegationRequest,
 } from "@/lib/delegation"
 import { DEVICE_CODE_GRANT_TYPE } from "@better-auth/oauth-provider"
-import { delegationModelCompatibility, oauthApplicationInput } from "@/data/schema"
+import {
+  delegationModelCompatibility,
+  delegationRequiresModel,
+  oauthApplicationInput,
+} from "@/data/schema"
 import type { DelegationCatalog } from "@/lib/gateway/client"
 
 /** saveOAuthApplication delegates protocol metadata and secret generation to Better Auth. */
@@ -309,6 +313,11 @@ export async function approveDelegation(
   const mcp = transaction.scopes.includes("mcp:use")
   if ((!inference && selection.models.length) || (!mcp && selection.mcp.length))
     throw new Error("The application did not request those resources.")
+  if (
+    !selection.models.length &&
+    delegationRequiresModel(agent?.kind, request.type, transaction.scopes)
+  )
+    throw new Error("Choose at least one model to connect Claude Code.")
   if (!inference && !mcp && organizationId)
     throw new Error("Identity access does not require an organization.")
   if (!selection.models.length && !selection.mcp.length) organizationId = null

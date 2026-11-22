@@ -16,6 +16,7 @@ import {
   zLensApp,
 } from "@/lib/gateway/client/zod.gen"
 import type { DelegationModel, LensApp } from "@/lib/gateway/client"
+import type { DelegationRequest } from "@/lib/delegation"
 
 export const delegationScopes = [
   "openid",
@@ -30,6 +31,20 @@ export const externalAgentInput = z.object({
   name: z.string().trim().min(1, "Enter an agent name.").max(100, "Use 100 characters or fewer."),
   kind: zLensApp.shape.agent_kind.unwrap(),
 })
+
+/** Indicates when the gateway must supply Claude Code with a managed model. */
+export function delegationRequiresModel(
+  kind: LensApp["agent_kind"],
+  login: DelegationRequest["type"],
+  scopes: readonly string[]
+) {
+  return (
+    kind === "claude" &&
+    login === "device_code" &&
+    scopes.includes("inference:use") &&
+    !scopes.includes("mcp:use")
+  )
+}
 
 /** Returns a protocol, null if a generic OAuth client can use the model, or undefined if unsupported. */
 export function delegationModelCompatibility(kind: LensApp["agent_kind"], model: DelegationModel) {

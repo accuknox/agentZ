@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/tmaxmax/go-sse"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
@@ -96,6 +97,7 @@ type oauthCatalog struct {
 
 func (installed *installation) serve(ctx context.Context) error {
 	copilot := installed.Provider == "github-copilot-cli" || installed.Provider == "github-copilot-desktop"
+	adapter := copilot || installed.Provider == "claude-desktop"
 	address, err := url.Parse(installed.address)
 	if err != nil {
 		return err
@@ -230,28 +232,50 @@ func (installed *installation) serve(ctx context.Context) error {
 			io.WriteString(w, data)
 			return
 		}
-		adapter := copilot || installed.Provider == "claude-desktop"
-		if adapter && !strings.HasPrefix(r.URL.Path, "/relay/") {
-			credential := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if credential == "" {
-				credential = r.Header.Get("X-Api-Key")
-			}
-			if !hmac.Equal([]byte(credential), []byte(installed.clientKey)) {
-				http.Error(w, "Local AgentZ credential required.", http.StatusUnauthorized)
-				return
+		gatewayRoute := strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/managed/settings"
+		native := installed.Provider == "claude" && gatewayRoute
+		adapterRoute := adapter && !strings.HasPrefix(r.URL.Path, "/relay/")
+		if native || adapterRoute {
+			credential, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+			var sessionID string
+			switch {
+			case native:
+				var claims jwt.RegisteredClaims
+				key := func(_ *jwt.Token) (any, error) { return []byte(installed.ownerKey), nil }
+				_, err := jwt.ParseWithClaims(credential, &claims, key,
+					jwt.WithValidMethods([]string{"HS256"}), jwt.WithIssuer(installed.address),
+					jwt.WithSubject(installed.ClientID), jwt.WithExpirationRequired(), jwt.WithStrictDecoding(),
+				)
+				if !bearer || err != nil || claims.ID == "" {
+					http.Error(w, "Run /login in Claude Code to connect to AgentZ.", http.StatusUnauthorized)
+					return
+				}
+				sessionID = claims.ID
+			default:
+				credential = cmp.Or(credential, r.Header.Get("X-Api-Key"))
+				if !hmac.Equal([]byte(credential), []byte(installed.clientKey)) {
+					http.Error(w, "Local AgentZ credential required.", http.StatusUnauthorized)
+					return
+				}
 			}
 			resource := "inference"
 			if r.URL.Path == "/mcp" {
 				resource = "mcp"
 			}
-			token, err := installed.accessToken(r.Context(), resource)
+			token, err := installed.accessToken(r.Context(), resource, sessionID)
 			if err != nil {
+				status, kind := http.StatusUnauthorized, "authentication_error"
+				if native && !errors.Is(err, errCredentialRequired) {
+					status, kind = http.StatusServiceUnavailable, "api_error"
+				}
 				w.Header().Set("Content-Type", "application/json")
-				w.Header().Set("x-should-retry", "false")
-				w.WriteHeader(http.StatusUnauthorized)
+				if status == http.StatusUnauthorized {
+					w.Header().Set("x-should-retry", "false")
+				}
+				w.WriteHeader(status)
 				json.NewEncoder(w).Encode(relayError{
 					Type:  "error",
-					Error: relayErrorDetail{Type: "authentication_error", Message: err.Error()},
+					Error: relayErrorDetail{Type: kind, Message: err.Error()},
 				})
 				return
 			}
@@ -320,7 +344,13 @@ func (installed *installation) serve(ctx context.Context) error {
 			case <-ticker.C:
 			}
 		}
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		shutdownTimeout := 5 * time.Second
+		if installed.Provider == "claude" {
+			// Let credential requests finish their lock wait and any rotation
+			// before exiting, even when the last Claude window has closed.
+			shutdownTimeout += oauthRequestTimeout + oauthRefreshTimeout
+		}
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 		defer shutdownCancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			server.Close()
@@ -503,6 +533,35 @@ func (installed *installation) forwardOAuth(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	form.Set("client_id", installed.ClientID)
+	grant := form.Get("grant_type")
+	claude := installed.Provider == "claude"
+	tokenRequest := r.URL.Path == "/oauth/token"
+	ctx := r.Context()
+	if claude && (tokenRequest || r.URL.Path == "/oauth/revoke") {
+		// A disconnected client must not interrupt an exchange or its save.
+		ctx = context.WithoutCancel(ctx)
+	}
+	ctx, cancel := context.WithTimeout(ctx, oauthRequestTimeout)
+	defer cancel()
+
+	if claude && tokenRequest && grant == "refresh_token" {
+		refresh := form.Get("refresh_token")
+		sessionID := claudeSessionID(refresh)
+		_, err := installed.accessToken(ctx, "inference", sessionID)
+		if errors.Is(err, errCredentialRequired) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid_grant"})
+			return
+		}
+		if err != nil {
+			http.Error(w, "AgentZ could not renew your authorization. Try again shortly.", http.StatusServiceUnavailable)
+			return
+		}
+		installed.writeClaudeSession(w, refresh)
+		return
+	}
+
 	path := "/api/auth/oauth2/token"
 	switch r.URL.Path {
 	case "/oauth/device_authorization":
@@ -513,39 +572,45 @@ func (installed *installation) forwardOAuth(w http.ResponseWriter, r *http.Reque
 	case "/oauth/revoke":
 		path = "/api/auth/oauth2/revoke"
 	case "/oauth/token":
-		switch form.Get("grant_type") {
+		switch grant {
 		case "authorization_code", "urn:ietf:params:oauth:grant-type:device_code", "refresh_token":
 		default:
 			http.Error(w, "Unsupported OAuth grant type.", http.StatusBadRequest)
 			return
 		}
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-	defer cancel()
-	target := installed.upstream.ResolveReference(&url.URL{Path: path})
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), strings.NewReader(form.Encode()))
+	var response *http.Response
+	var data []byte
+	var err error
+	switch {
+	case claude && r.URL.Path == "/oauth/revoke":
+		response, data, err = installed.revokeClaudeGrant(ctx, client, form)
+	default:
+		response, data, err = installed.requestOAuth(ctx, client, path, form)
+	}
 	if err != nil {
-		http.Error(w, "Cannot prepare OAuth request.", http.StatusInternalServerError)
+		http.Error(w, "AgentZ could not complete the OAuth request. Try again shortly.", http.StatusBadGateway)
 		return
 	}
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	response, err := client.Do(request)
-	if err != nil {
-		http.Error(w, "AgentZ authentication is unreachable.", http.StatusBadGateway)
+	if response == nil {
+		w.WriteHeader(http.StatusOK)
 		return
 	}
-	defer response.Body.Close()
-	if response.StatusCode >= 300 && response.StatusCode < 400 {
-		http.Error(w, "AgentZ authentication redirected unexpectedly.", http.StatusBadGateway)
+	if claude && tokenRequest && response.StatusCode == http.StatusOK {
+		refresh, err := installed.acceptClaudeGrant(ctx, data)
+		if errors.Is(err, errInvalidOAuthResponse) {
+			http.Error(w, "Invalid AgentZ authentication response.", http.StatusBadGateway)
+			return
+		}
+		if err != nil {
+			http.Error(w, "Cannot save the AgentZ credential.", http.StatusServiceUnavailable)
+			return
+		}
+		installed.writeClaudeSession(w, refresh)
 		return
 	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, (1<<20)+1))
-	if err != nil || len(data) > 1<<20 {
-		http.Error(w, "Invalid AgentZ authentication response.", http.StatusBadGateway)
-		return
-	}
-	code := form.Get("grant_type") == "authorization_code"
-	refresh := form.Get("grant_type") == "refresh_token" && form.Get("resource") == installed.upstream.String()+"/api/inference/v1"
+	code := grant == "authorization_code"
+	refresh := grant == "refresh_token" && form.Get("resource") == installed.upstream.String()+"/api/inference/v1"
 	if response.StatusCode == http.StatusOK && (code || refresh) {
 		var metadata oauthCatalog
 		if err := json.Unmarshal(data, &metadata); err != nil {
@@ -571,4 +636,27 @@ func (installed *installation) forwardOAuth(w http.ResponseWriter, r *http.Reque
 	}
 	w.WriteHeader(response.StatusCode)
 	w.Write(data)
+}
+
+func (installed *installation) requestOAuth(ctx context.Context, client *http.Client, path string, form url.Values) (*http.Response, []byte, error) {
+	target := installed.upstream.ResolveReference(&url.URL{Path: path})
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, nil, err
+	}
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 300 && response.StatusCode < 400 {
+		return nil, nil, errInvalidOAuthResponse
+	}
+	const maxBody = 1 << 20
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxBody+1))
+	if err != nil || len(data) > maxBody {
+		return nil, nil, errInvalidOAuthResponse
+	}
+	return response, data, nil
 }

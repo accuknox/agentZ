@@ -138,7 +138,7 @@ func (installed *installation) claudeDesktop(ctx context.Context, command *cli.C
 		return err
 	}
 	if err == nil {
-		if _, err := installed.accessToken(ctx, "mcp"); err != nil {
+		if _, err := installed.accessToken(ctx, "mcp", ""); err != nil {
 			return err
 		}
 		executable, err := os.Executable()

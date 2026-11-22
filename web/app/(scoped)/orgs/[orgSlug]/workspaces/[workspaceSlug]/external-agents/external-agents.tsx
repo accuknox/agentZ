@@ -118,7 +118,7 @@ import {
 const agentKinds = {
   codex: "Codex CLI",
   "chatgpt-desktop": "ChatGPT desktop",
-  claude: "Claude code CLI",
+  claude: "Claude Code",
   "claude-desktop": "Claude desktop",
   "github-copilot-cli": "GitHub copilot CLI",
   "github-copilot-desktop": "GitHub copilot desktop",
@@ -1377,6 +1377,8 @@ function AgentSetup({ agent }: { agent: ExternalAgent }) {
   const separateLogin = desktop || agent.kind === "github-copilot-cli"
   const reconnect = agent.previouslyConnected && !agent.connected
   let modelInstructions = "Sign in and choose models. Skip this step if you only need MCP."
+  if (agent.kind === "claude")
+    modelInstructions = "Run /login in Claude Code to choose models. Skip if you only need MCP."
   if (agent.kind === "github-copilot-cli")
     modelInstructions = "Copilot conversations require a model grant. MCP access is separate."
   if (desktop)

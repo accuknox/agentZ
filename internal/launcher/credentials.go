@@ -2,10 +2,15 @@ package launcher
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,11 +18,27 @@ import (
 
 	"github.com/cli/browser"
 	"github.com/gofrs/flock"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/oauth2"
 
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
+
+var errCredentialRequired = errors.New("AgentZ sign-in required")
+var errInvalidOAuthResponse = errors.New("invalid AgentZ authentication response")
+
+const (
+	oauthRequestTimeout = 20 * time.Second
+	oauthRefreshTimeout = 15 * time.Second
+	claudeRefreshPrefix = "azr_"
+)
+
+type profileCredential struct {
+	oauth2.Token
+	GatewayRefreshToken string `json:"gateway_refresh_token,omitempty"`
+	Revoking            bool   `json:"revoking,omitempty"`
+}
 
 func (installed *installation) loginDevice(ctx context.Context, command *cli.Command, resource string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
@@ -62,53 +83,95 @@ func (installed *installation) loginDevice(ctx context.Context, command *cli.Com
 	if !token.Valid() || token.Expiry.IsZero() || !strings.EqualFold(token.TokenType, "Bearer") {
 		return errors.New("AgentZ returned an invalid OAuth credential")
 	}
-	lock := flock.New(filepath.Join(installed.profile, resource+"-oauth.lock"))
-	locked, err := lock.TryLockContext(ctx, 50*time.Millisecond)
-	if err != nil || !locked {
-		return fmt.Errorf("lock AgentZ credential: %w", errors.Join(err, ctx.Err()))
-	}
-	defer lock.Close()
-	data, err := json.Marshal(token)
+	lock, err := installed.lockCredential(ctx, resource)
 	if err != nil {
 		return err
 	}
-	err = writeProfileFile(filepath.Join(installed.profile, resource+"-oauth.json"), data)
-	if err != nil {
+	defer lock.Close()
+	if err := installed.saveCredential(resource, profileCredential{Token: *token}); err != nil {
 		return err
 	}
 	fmt.Fprintf(command.ErrWriter, "AgentZ %s connected.\n", resource)
 	return nil
 }
 
-func (installed *installation) accessToken(ctx context.Context, resource string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-	login := "agentz login " + installed.Provider + " --profile NAME"
-	if resource == "mcp" {
-		login += " --mcp"
-	}
+func (installed *installation) lockCredential(ctx context.Context, resource string) (*flock.Flock, error) {
 	lock := flock.New(filepath.Join(installed.profile, resource+"-oauth.lock"))
 	locked, err := lock.TryLockContext(ctx, 50*time.Millisecond)
 	if err != nil || !locked {
-		return "", fmt.Errorf("lock AgentZ credential: %w", errors.Join(err, ctx.Err()))
+		lock.Close()
+		return nil, fmt.Errorf("lock AgentZ credential: %w", errors.Join(err, ctx.Err()))
+	}
+	return lock, nil
+}
+
+func (installed *installation) saveCredential(resource string, credential profileCredential) error {
+	data, err := json.Marshal(credential)
+	if err != nil {
+		return err
+	}
+	return writeProfileFile(filepath.Join(installed.profile, resource+"-oauth.json"), data)
+}
+
+func (installed *installation) readCredential(resource string) (profileCredential, error) {
+	var credential profileCredential
+	data, err := os.ReadFile(filepath.Join(installed.profile, resource+"-oauth.json"))
+	if err != nil {
+		return credential, err
+	}
+	err = json.Unmarshal(data, &credential)
+	return credential, err
+}
+
+// accessToken uses a verified session ID for Claude Code. Other launchers
+// authenticate at the relay boundary with their local client key.
+func (installed *installation) accessToken(ctx context.Context, resource, sessionID string) (string, error) {
+	lockCtx, cancel := context.WithTimeout(ctx, oauthRequestTimeout)
+	defer cancel()
+	lock, err := installed.lockCredential(lockCtx, resource)
+	if err != nil {
+		return "", err
 	}
 	defer lock.Close()
-	path := filepath.Join(installed.profile, resource+"-oauth.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("sign in for %s with %s", resource, login)
+
+	stored, err := installed.readCredential(resource)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("read AgentZ credential: %w", err)
 	}
-	var stored oauth2.Token
-	err = json.Unmarshal(data, &stored)
-	invalid := err != nil || stored.Expiry.IsZero() || !strings.EqualFold(stored.TokenType, "Bearer")
+	invalid := err != nil || stored.Revoking || stored.Expiry.IsZero() || !strings.EqualFold(stored.TokenType, "Bearer")
+	claude := installed.Provider == "claude"
+	login := "agentz login " + installed.Provider + " --profile NAME"
+	switch {
+	case claude:
+		login = "/login in Claude Code"
+		if !invalid {
+			id := claudeSessionID(stored.GatewayRefreshToken)
+			matches := hmac.Equal([]byte(id), []byte(sessionID))
+			invalid = stored.GatewayRefreshToken == "" || !matches
+		}
+	case resource == "mcp":
+		login += " --mcp"
+	}
 	if invalid {
-		return "", fmt.Errorf("invalid AgentZ OAuth credential. Reconnect with %s", login)
+		return "", fmt.Errorf("%w. Run %s", errCredentialRequired, login)
+	}
+	if stored.AccessToken != "" && time.Until(stored.Expiry) > 30*time.Second {
+		return stored.AccessToken, nil
+	}
+	if stored.RefreshToken == "" {
+		return "", fmt.Errorf("%w. Run %s", errCredentialRequired, login)
+	}
+
+	refreshCtx := lockCtx
+	if claude {
+		// Once committed to the exchange, save the rotation even if Claude exits.
+		refreshCtx = context.WithoutCancel(ctx)
 	}
 	client := &http.Client{
-		Timeout:       15 * time.Second,
+		Timeout:       oauthRefreshTimeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
+	refreshCtx = context.WithValue(refreshCtx, oauth2.HTTPClient, client)
 	config := oauth2.Config{
 		ClientID: installed.ClientID,
 		Endpoint: oauth2.Endpoint{
@@ -119,27 +182,121 @@ func (installed *installation) accessToken(ctx context.Context, resource string)
 	// Each grant contains exactly one resource. Better Auth retains that
 	// resource on refresh when the OAuth client omits the resource parameter.
 	refresh := &oauth2.Token{RefreshToken: stored.RefreshToken}
-	source := oauth2.ReuseTokenSourceWithExpiry(&stored, config.TokenSource(ctx, refresh), 30*time.Second)
-	token, err := source.Token()
+	token, err := config.TokenSource(refreshCtx, refresh).Token()
 	if err != nil {
-		return "", fmt.Errorf("AgentZ authorization expired or was revoked. Reconnect with %s", login)
+		oauthErr, ok := errors.AsType[*oauth2.RetrieveError](err)
+		if ok && oauthErr.ErrorCode == "invalid_grant" {
+			if claude {
+				path := filepath.Join(installed.profile, resource+"-oauth.json")
+				if err := os.Remove(path); err != nil {
+					return "", fmt.Errorf("remove expired AgentZ credential: %w", err)
+				}
+			}
+			return "", fmt.Errorf("%w. Run %s", errCredentialRequired, login)
+		}
+		if claude && stored.AccessToken != "" && time.Now().Before(stored.Expiry) {
+			return stored.AccessToken, nil
+		}
+		return "", errors.New("AgentZ could not renew your authorization. Try again shortly")
 	}
-	changed := token.AccessToken != stored.AccessToken || token.RefreshToken != stored.RefreshToken
-	if changed || !token.Expiry.Equal(stored.Expiry) {
-		data, err := json.Marshal(token)
-		if err != nil {
-			return "", err
-		}
-		if err := writeProfileFile(path, data); err != nil {
-			return "", err
-		}
+	stored.Token = *token
+	if err := installed.saveCredential(resource, stored); err != nil {
+		return "", fmt.Errorf("save renewed AgentZ credential: %w", err)
 	}
 	return token.AccessToken, nil
 }
 
+func claudeSessionID(refresh string) string {
+	// The access token can identify the session without disclosing its renewal key.
+	digest := sha256.Sum256([]byte(refresh))
+	return hex.EncodeToString(digest[:])
+}
+
+func (installed *installation) acceptClaudeGrant(ctx context.Context, data []byte) (string, error) {
+	var token oauth2.Token
+	err := json.Unmarshal(data, &token)
+	missingToken := token.AccessToken == "" || token.RefreshToken == ""
+	validExpiry := token.ExpiresIn > 0 && token.ExpiresIn <= (1<<63-1)/int64(time.Second)
+	if err != nil || missingToken || !validExpiry || !strings.EqualFold(token.TokenType, "Bearer") {
+		return "", errInvalidOAuthResponse
+	}
+	token.Expiry = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
+	lock, err := installed.lockCredential(ctx, "inference")
+	if err != nil {
+		return "", err
+	}
+	defer lock.Close()
+	stored := profileCredential{Token: token, GatewayRefreshToken: claudeRefreshPrefix + rand.Text()}
+	if err := installed.saveCredential("inference", stored); err != nil {
+		return "", err
+	}
+	return stored.GatewayRefreshToken, nil
+}
+
+func (installed *installation) revokeClaudeGrant(ctx context.Context, client *http.Client, form url.Values) (*http.Response, []byte, error) {
+	lock, err := installed.lockCredential(ctx, "inference")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer lock.Close()
+
+	stored, err := installed.readCredential("inference")
+	token := form.Get("token")
+	path := "/api/auth/oauth2/revoke"
+	if errors.Is(err, os.ErrNotExist) && !strings.HasPrefix(token, claudeRefreshPrefix) {
+		// Before the relay owned Claude sessions, Claude held the upstream token.
+		return installed.requestOAuth(ctx, client, path, form)
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, nil, err
+	}
+	matches := hmac.Equal([]byte(token), []byte(stored.GatewayRefreshToken))
+	if stored.GatewayRefreshToken == "" || !matches {
+		return nil, nil, nil
+	}
+
+	// Close local sessions immediately and keep the upstream token for retries.
+	if !stored.Revoking {
+		stored.Revoking = true
+		if err := installed.saveCredential("inference", stored); err != nil {
+			return nil, nil, err
+		}
+	}
+	form.Set("token", stored.RefreshToken)
+	form.Set("token_type_hint", "refresh_token")
+	response, data, err := installed.requestOAuth(ctx, client, path, form)
+	if err != nil || response.StatusCode < 200 || response.StatusCode >= 300 {
+		return response, data, err
+	}
+	err = os.Remove(filepath.Join(installed.profile, "inference-oauth.json"))
+	return response, data, err
+}
+
+func (installed *installation) writeClaudeSession(w http.ResponseWriter, refresh string) {
+	const lifetime = time.Hour
+	claims := jwt.RegisteredClaims{
+		Issuer:    installed.address,
+		Subject:   installed.ClientID,
+		ID:        claudeSessionID(refresh),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(lifetime)),
+	}
+	access, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(installed.ownerKey))
+	if err != nil {
+		http.Error(w, "Cannot issue Claude gateway session.", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(oauth2.Token{
+		AccessToken:  access,
+		TokenType:    "Bearer",
+		RefreshToken: refresh,
+		ExpiresIn:    int64(lifetime / time.Second),
+	})
+}
+
 // modelCatalog loads the current grant so launchers never reuse revoked models.
 func (installed *installation) modelCatalog(ctx context.Context) (*gatewayapi.DelegationCatalog, error) {
-	token, err := installed.accessToken(ctx, "inference")
+	token, err := installed.accessToken(ctx, "inference", "")
 	if err != nil {
 		return nil, err
 	}

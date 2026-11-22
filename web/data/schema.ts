@@ -31,15 +31,15 @@ export const externalAgentInput = z.object({
   kind: zLensApp.shape.agent_kind.unwrap(),
 })
 
-/** externalAgentCompatibility selects the protocol the coding agent can use without losing native tools. */
-export function externalAgentCompatibility(
-  kind: NonNullable<LensApp["agent_kind"]>,
-  model: DelegationModel
-) {
+/** Returns a protocol, null if a generic OAuth client can use the model, or undefined if unsupported. */
+export function delegationModelCompatibility(kind: LensApp["agent_kind"], model: DelegationModel) {
+  const isClaudeClient = kind === "claude" || kind === "claude-desktop"
+  if (model.provider_kind === "ClaudeSubscription" && !isClaudeClient) return
+  if (!kind) return null
   const compatibility = model.api_compatibility ?? []
   if (kind !== "claude" && !model.model_info?.capabilities.tool_call) return
   if (kind === "claude-desktop" && !model.model.startsWith("claude-")) return
-  if (kind === "claude" || kind === "claude-desktop") {
+  if (isClaudeClient) {
     return compatibility.find((item) => item.api === "Messages" && item.support !== "unsupported")
   }
   if (kind === "codex" || kind === "chatgpt-desktop")

@@ -125,8 +125,10 @@ export function WorkspaceForm(props: WorkspaceFormProps) {
       value: name,
     })),
     inference_providers: resources.inference_providers.map(
-      ({ catalog_provider, display_name, id }) => ({
-        iconElement: <ProviderIcon className="size-4 shrink-0" provider={catalog_provider} />,
+      ({ catalog_provider, display_name, id, kind }) => ({
+        iconElement: (
+          <ProviderIcon className="size-4 shrink-0" provider={catalog_provider} kind={kind} />
+        ),
         label: `${display_name} (${id})`,
         value: id,
       })

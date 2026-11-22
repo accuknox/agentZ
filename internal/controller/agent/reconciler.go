@@ -527,6 +527,9 @@ func (r *Reconciler) resolveSandbox(ctx context.Context, agt *agentzv1alpha1.Age
 					modelRef.Provider,
 				)
 			}
+			if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+				return sandboxConfig{}, errors.New("claude subscriptions are only available to external Claude agents")
+			}
 			path := inference.SandboxProviderPath(sandbox.Name, modelRef.Provider)
 			path = inference.AgentRoutePath(agt.Namespace, agt.Name, path)
 			npm := "@ai-sdk/openai-compatible"

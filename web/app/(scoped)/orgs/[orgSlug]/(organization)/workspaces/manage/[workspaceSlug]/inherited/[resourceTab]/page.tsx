@@ -1,6 +1,8 @@
 import { RememberRoute, missingRoute } from "@/data/route-memory"
-import { Suspense } from "react"
+import { Suspense, type ReactNode } from "react"
 import { InheritedResourceForm } from "@/app/(scoped)/orgs/[orgSlug]/workspaces/[workspaceSlug]/settings/inherited/inherited-resource-form"
+import { ProviderIcon } from "@/app/(app)/inference/providers/provider-shared"
+import { renderMcpServerIcon } from "@/app/(app)/mcps/catalog"
 import { AdministrationLoadingState, AdministrationState } from "@/components/administration"
 import { listGuardrailConnectionsQuery, listGuardrailPoliciesQuery } from "@/data/guardrail.queries"
 import { listInferenceProvidersCachedQuery } from "@/data/inference-provider.queries"
@@ -71,7 +73,7 @@ async function InheritedResourceContent(
     )
 
   let displayNames: Record<string, string> | undefined
-  const iconSources: Record<string, string> = {}
+  const icons: Record<string, ReactNode> = {}
   if (resource.type === "guardrail_policy" || resource.type === "guardrail_connection") {
     const result =
       resource.type === "guardrail_policy"
@@ -95,7 +97,13 @@ async function InheritedResourceContent(
     displayNames = {}
     for (const provider of providers.providers) {
       displayNames[provider.id] = provider.display_name
-      iconSources[provider.id] = provider.catalog_provider
+      icons[provider.id] = (
+        <ProviderIcon
+          className="size-4 shrink-0"
+          provider={provider.catalog_provider}
+          kind={provider.kind}
+        />
+      )
     }
   }
   if (resource.type === "mcp_connection") {
@@ -105,7 +113,12 @@ async function InheritedResourceContent(
       if (page.error)
         return <RequestError title="Could not load MCP connections" error={page.error} />
       for (const connection of page.mcpConnections) {
-        iconSources[connection.name] = connection.endpoint_url
+        if (connection.endpoint_url) {
+          icons[connection.name] = renderMcpServerIcon(connection.endpoint_url, {
+            "aria-hidden": true,
+            className: "size-4 shrink-0",
+          })
+        }
       }
       pageToken = page.nextPageToken || undefined
     } while (pageToken)
@@ -116,7 +129,7 @@ async function InheritedResourceContent(
       <RememberRoute />
       <InheritedResourceForm
         displayNames={displayNames}
-        iconSources={iconSources}
+        icons={icons}
         label={resource.label}
         orgSlug={orgSlug}
         resources={result.resources}

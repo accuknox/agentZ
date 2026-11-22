@@ -2,6 +2,7 @@ package extauth
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 
 type ownerRevisionCase struct {
 	name, uid, generation, namespace string
+	path                             string
 	want                             codes.Code
 }
 
@@ -82,12 +84,31 @@ func TestDelegationCredentialsRequireProjectedResourceRevision(t *testing.T) {
 					want:       codes.Unavailable,
 				},
 			}
+			if operation == "inference" {
+				cases = append(cases,
+					ownerRevisionCase{
+						name:       "Messages beta query",
+						uid:        "original",
+						generation: "2",
+						path:       "/v1/messages?beta=true",
+						want:       codes.OK,
+					},
+					ownerRevisionCase{
+						name:       "query cannot select an endpoint",
+						uid:        "original",
+						generation: "2",
+						path:       "/v1/unsupported?path=/messages",
+						want:       codes.PermissionDenied,
+					},
+				)
+			}
 			for _, test := range cases {
 				t.Run(test.name, func(t *testing.T) {
 					owner := "owner"
 					if test.namespace != "" {
 						owner = test.namespace
 					}
+					path := cmp.Or(test.path, "/v1/chat/completions")
 					request := &authv3.CheckRequest{
 						Attributes: &authv3.AttributeContext{
 							ContextExtensions: map[string]string{
@@ -101,7 +122,7 @@ func TestDelegationCredentialsRequireProjectedResourceRevision(t *testing.T) {
 							Request: &authv3.AttributeContext_Request{
 								Http: &authv3.AttributeContext_HttpRequest{
 									Method: "POST",
-									Path:   "/v1/chat/completions",
+									Path:   path,
 									Body:   `{"model":"model","messages":[]}`,
 								},
 							},

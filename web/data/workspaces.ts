@@ -211,11 +211,14 @@ export async function getWorkspaceCreation(orgSlug: string) {
       skills: skills.skills.map(({ name }) => name),
       sandboxes: sandboxes.data,
       mcp_connections: mcps.data.map(({ endpoint_url, name }) => ({ endpoint_url, name })),
-      inference_providers: providers.providers.map(({ catalog_provider, display_name, id }) => ({
-        catalog_provider,
-        display_name,
-        id,
-      })),
+      inference_providers: providers.providers.map(
+        ({ catalog_provider, display_name, id, kind }) => ({
+          catalog_provider,
+          display_name,
+          id,
+          kind,
+        })
+      ),
     },
     scope,
   }

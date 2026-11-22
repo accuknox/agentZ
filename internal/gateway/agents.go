@@ -2838,7 +2838,14 @@ func agentModelCatalog(ctx context.Context, reader client.Reader, sandbox *agent
 				if err := reader.Get(ctx, key, &provider); err != nil {
 					return nil, err
 				}
-				brand = provider.Spec.CatalogProvider
+				switch provider.Spec.Kind {
+				case agentzv1alpha1.InferenceProviderKindOpenAICodex:
+					brand = "codex"
+				case agentzv1alpha1.InferenceProviderKindClaudeSubscription:
+					brand = "claude"
+				default:
+					brand = provider.Spec.CatalogProvider
+				}
 				providers[key] = brand
 			}
 			if !slices.Contains(entry.Providers, brand) {

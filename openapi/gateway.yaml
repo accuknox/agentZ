@@ -2461,6 +2461,42 @@ components:
       - ChatSessionStatusIdle
       - ChatSessionStatusBusy
       - ChatSessionStatusRetry
+    ClaudeSubscriptionInferenceProviderRead:
+      properties:
+        kind:
+          enum:
+          - ClaudeSubscription
+          type: string
+      required:
+      - kind
+      type: object
+    ClaudeSubscriptionInferenceProviderWrite:
+      additionalProperties: false
+      properties:
+        catalog_provider:
+          enum:
+          - anthropic
+          type: string
+        display_name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        kind:
+          enum:
+          - ClaudeSubscription
+          type: string
+        models:
+          items:
+            $ref: '#/components/schemas/InferenceModel'
+          maxItems: 500
+          minItems: 1
+          type: array
+      required:
+      - catalog_provider
+      - display_name
+      - models
+      - kind
+      type: object
     CodingAction:
       enum:
       - commit
@@ -3552,6 +3588,7 @@ components:
         kind:
           enum:
           - OpenAICodex
+          - ClaudeSubscription
           type: string
         resource_version:
           minLength: 1
@@ -4421,6 +4458,8 @@ components:
           type: string
         provider_display_name:
           type: string
+        provider_kind:
+          $ref: '#/components/schemas/InferenceProviderKind'
         uid:
           minLength: 1
           type: string
@@ -6381,6 +6420,7 @@ components:
       enum:
       - OpenAI
       - OpenAICodex
+      - ClaudeSubscription
       - Anthropic
       - Gemini
       - OpenAICompatible
@@ -6430,6 +6470,7 @@ components:
           AnthropicCompatible: '#/components/schemas/AnthropicCompatibleInferenceProviderRead'
           Azure: '#/components/schemas/AzureInferenceProviderRead'
           Bedrock: '#/components/schemas/BedrockInferenceProviderRead'
+          ClaudeSubscription: '#/components/schemas/ClaudeSubscriptionInferenceProviderRead'
           Gemini: '#/components/schemas/GeminiInferenceProviderRead'
           OpenAI: '#/components/schemas/OpenAIInferenceProviderRead'
           OpenAICodex: '#/components/schemas/OpenAICodexInferenceProviderRead'
@@ -6439,6 +6480,7 @@ components:
       oneOf:
       - $ref: '#/components/schemas/OpenAIInferenceProviderRead'
       - $ref: '#/components/schemas/OpenAICodexInferenceProviderRead'
+      - $ref: '#/components/schemas/ClaudeSubscriptionInferenceProviderRead'
       - $ref: '#/components/schemas/AnthropicInferenceProviderRead'
       - $ref: '#/components/schemas/GeminiInferenceProviderRead'
       - $ref: '#/components/schemas/VertexAIInferenceProviderRead'
@@ -6501,6 +6543,7 @@ components:
           AnthropicCompatible: '#/components/schemas/AnthropicCompatibleInferenceProviderWrite'
           Azure: '#/components/schemas/AzureInferenceProviderWrite'
           Bedrock: '#/components/schemas/BedrockInferenceProviderWrite'
+          ClaudeSubscription: '#/components/schemas/ClaudeSubscriptionInferenceProviderWrite'
           Gemini: '#/components/schemas/GeminiInferenceProviderWrite'
           OpenAI: '#/components/schemas/OpenAIInferenceProviderWrite'
           OpenAICodex: '#/components/schemas/OpenAICodexInferenceProviderWrite'
@@ -6510,6 +6553,7 @@ components:
       oneOf:
       - $ref: '#/components/schemas/OpenAIInferenceProviderWrite'
       - $ref: '#/components/schemas/OpenAICodexInferenceProviderWrite'
+      - $ref: '#/components/schemas/ClaudeSubscriptionInferenceProviderWrite'
       - $ref: '#/components/schemas/AnthropicInferenceProviderWrite'
       - $ref: '#/components/schemas/GeminiInferenceProviderWrite'
       - $ref: '#/components/schemas/VertexAIInferenceProviderWrite'
@@ -27333,6 +27377,9 @@ components:
       type: object
     Tenant:
       properties:
+        allow_claude_subscription:
+          description: Whether external Claude Code and Desktop agents may use Claude subscriptions.
+          type: boolean
         conditions:
           items:
             $ref: '#/components/schemas/TenantCondition'

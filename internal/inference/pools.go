@@ -126,6 +126,13 @@ func ResolvePool(ctx context.Context, reader client.Reader, pool *agentzv1alpha1
 			providers[key] = provider
 		}
 
+		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+			issues = append(issues, Issue{
+				Field:   field + ".provider",
+				Message: "Claude subscriptions are only available to external Claude agents and cannot join pools",
+			})
+			continue
+		}
 		var model *agentzv1alpha1.InferenceModel
 		for j := range provider.Spec.Models {
 			if provider.Spec.Models[j].ID == ref.Model {
@@ -254,7 +261,7 @@ func ProviderAPI(kind agentzv1alpha1.InferenceProviderKind, model agentzv1alpha1
 	switch kind {
 	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
 		return agentzv1alpha1.InferenceModelAPIResponses
-	case agentzv1alpha1.InferenceProviderKindAnthropic,
+	case agentzv1alpha1.InferenceProviderKindClaudeSubscription, agentzv1alpha1.InferenceProviderKindAnthropic,
 		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
 		return agentzv1alpha1.InferenceModelAPIMessages
 	default:
@@ -286,7 +293,7 @@ func ProviderProtocol(kind agentzv1alpha1.InferenceProviderKind, model agentzv1a
 		return agentzv1alpha1.InferenceProtocolAnthropic
 	}
 	switch kind {
-	case agentzv1alpha1.InferenceProviderKindAnthropic,
+	case agentzv1alpha1.InferenceProviderKindClaudeSubscription, agentzv1alpha1.InferenceProviderKindAnthropic,
 		agentzv1alpha1.InferenceProviderKindAnthropicCompatible:
 		return agentzv1alpha1.InferenceProtocolAnthropic
 	default:

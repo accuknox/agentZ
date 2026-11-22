@@ -1,13 +1,9 @@
 package inference
 
 import (
-	"bytes"
-	"context"
 	"crypto/sha256"
 	_ "embed"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
@@ -16,12 +12,10 @@ import (
 
 	agentgatewayv1alpha1 "github.com/agentgateway/agentgateway/controller/api/v1alpha1/agentgateway"
 	externalsecretsv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
-	"golang.org/x/oauth2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/accuknox/agentz/internal/mcp"
-	"github.com/accuknox/agentz/internal/oauth"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -34,12 +28,6 @@ const (
 	// SubscriptionCredentialPathDir isolates subscription tokens from API-key
 	// credentials so extAuth can receive the narrowest possible OpenBao policy.
 	SubscriptionCredentialPathDir = "inference-subscriptions"
-	// OpenAICodexClientID is OpenAI's public Codex OAuth client identifier.
-	OpenAICodexClientID = "app_EMoamEEZ73f0CkXaXp7hrann"
-	// OpenAICodexTokenEndpoint exchanges and refreshes Codex tokens.
-	OpenAICodexTokenEndpoint = "https://auth.openai.com/oauth/token"
-	// OpenAICodexModelsEndpoint serves the authenticated Codex model catalog.
-	OpenAICodexModelsEndpoint = "https://chatgpt.com/backend-api/codex/models"
 
 	secretAuthorization = "Authorization"
 	secretCredentials   = "credentials.json"
@@ -67,7 +55,7 @@ const SupersededCredentialsAnnotation = "agentz.accuknox.com/superseded-credenti
 // the legacy path until the provider is reauthenticated.
 func CredentialPath(namespace, name string, kind agentzv1alpha1.InferenceProviderKind, revision string) string {
 	dir := credentialPathDir
-	if kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
+	if kind.IsSubscription() {
 		dir = SubscriptionCredentialPathDir
 	}
 	path := namespace + "/" + dir + "/" + name
@@ -75,80 +63,6 @@ func CredentialPath(namespace, name string, kind agentzv1alpha1.InferenceProvide
 		path += "/" + revision
 	}
 	return path
-}
-
-// SubscriptionRecord is the complete credential record retained only in
-// OpenBao for a subscription-backed inference provider.
-type SubscriptionRecord struct {
-	Kind      agentzv1alpha1.InferenceProviderKind `json:"kind"`
-	AccountID string                               `json:"accountId,omitempty"`
-	ClientID  string                               `json:"clientId,omitempty"`
-	Token     *oauth2.Token                        `json:"token"`
-	Scopes    []string                             `json:"scopes,omitempty"`
-	UpdatedAt time.Time                            `json:"updatedAt"`
-}
-
-// SubscriptionRecordData encodes a typed subscription record for OpenBao.
-func SubscriptionRecordData(record SubscriptionRecord) (map[string]any, error) {
-	payload, err := json.Marshal(record)
-	if err != nil {
-		return nil, fmt.Errorf("marshal inference subscription record: %w", err)
-	}
-	data := map[string]any{}
-	if err := json.Unmarshal(payload, &data); err != nil {
-		return nil, fmt.Errorf("encode inference subscription record: %w", err)
-	}
-	return data, nil
-}
-
-// DecodeSubscriptionRecord decodes one controlled OpenBao record strictly.
-func DecodeSubscriptionRecord(data map[string]any) (SubscriptionRecord, error) {
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return SubscriptionRecord{}, fmt.Errorf("marshal inference subscription record: %w", err)
-	}
-	var record SubscriptionRecord
-	dec := json.NewDecoder(bytes.NewReader(payload))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&record); err != nil {
-		return SubscriptionRecord{}, fmt.Errorf("decode inference subscription record: %w", err)
-	}
-	return record, nil
-}
-
-// RefreshSubscription returns a usable subscription record, refreshing Codex
-// credentials when they are inside the shared expiry safety window.
-func RefreshSubscription(ctx context.Context, client *http.Client, record SubscriptionRecord) (SubscriptionRecord, bool, error) {
-	now := time.Now().UTC()
-	if oauth.TokenUsable(record.Token, now) {
-		return record, false, nil
-	}
-	if record.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
-		return SubscriptionRecord{}, false, fmt.Errorf("subscription access token is unavailable")
-	}
-	token, scopes, err := oauth.Refresh(
-		ctx,
-		client,
-		oauth.AuthConfig{
-			TokenEndpoint:           OpenAICodexTokenEndpoint,
-			TokenEndpointAuthMethod: "none",
-		},
-		oauth.Record{
-			ClientID:  record.ClientID,
-			Token:     record.Token,
-			Scopes:    record.Scopes,
-			UpdatedAt: record.UpdatedAt,
-		},
-	)
-	if err != nil {
-		return SubscriptionRecord{}, true, fmt.Errorf("refresh openai codex token: %w", err)
-	}
-	record.Token = token
-	if len(scopes) > 0 {
-		record.Scopes = scopes
-	}
-	record.UpdatedAt = now
-	return record, true, nil
 }
 
 // Runtime contains the resources needed to route and authenticate a provider.
@@ -211,7 +125,7 @@ func RenderRuntime(provider *agentzv1alpha1.InferenceProvider, storeName string,
 	}
 	if len(target.secretKeys) == 0 {
 		runtime := Runtime{Backend: backend, SecretKeys: []string{}}
-		if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
+		if provider.Spec.Kind.IsSubscription() {
 			runtime.AuthPolicy = RenderInferenceAuthPolicy(
 				provider.Namespace,
 				provider.Name,
@@ -350,6 +264,22 @@ func RenderProviderTarget(provider *agentzv1alpha1.InferenceProvider, model stri
 	}
 
 	switch provider.Spec.Kind {
+	case agentzv1alpha1.InferenceProviderKindClaudeSubscription:
+		target.LLM.Custom = &agentgatewayv1alpha1.CustomProvider{
+			CustomProviderSettings: agentgatewayv1alpha1.CustomProviderSettings{
+				Formats: []agentgatewayv1alpha1.ProviderFormatConfig{
+					{Type: agentgatewayv1alpha1.ProviderFormatMessages, Path: "/v1/messages"},
+					{
+						Type: agentgatewayv1alpha1.ProviderFormatAnthropicTokenCount,
+						Path: "/v1/messages/count_tokens",
+					},
+				},
+			},
+			Model: modelRef,
+		}
+		target.LLM.Host = "api.anthropic.com"
+		target.LLM.Port = 443
+		target.Policies.TLS = &agentgatewayv1alpha1.BackendTLS{}
 	case agentzv1alpha1.InferenceProviderKindOpenAICodex:
 		target.Policies.Transformation = &agentgatewayv1alpha1.Transformation{
 			Request: &agentgatewayv1alpha1.Transform{Body: &codexInput},

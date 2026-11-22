@@ -29,7 +29,6 @@ import (
 	gatewaydb "github.com/accuknox/agentz/internal/gateway/db"
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 	"github.com/accuknox/agentz/internal/inference"
-	"github.com/accuknox/agentz/internal/oauth"
 	agentzv1alpha1 "github.com/accuknox/agentz/pkg/apis/agentz/v1alpha1"
 )
 
@@ -533,7 +532,7 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 	}
 
 	kind := agentzv1alpha1.InferenceProviderKind(req.Kind)
-	if kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
+	if !kind.IsSubscription() {
 		writeProviderInputError(
 			w,
 			r,
@@ -543,6 +542,12 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 			},
 		)
 		return
+	}
+	if kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+		if err := inference.AuthorizeClaudeSubscription(r.Context(), s.k8sClient, ns); err != nil {
+			writeProviderInputError(w, r, &inference.InputError{Field: "kind", Message: err.Error()})
+			return
+		}
 	}
 	if req.Credentials.AccessToken == nil || strings.TrimSpace(*req.Credentials.AccessToken) == "" {
 		writeProviderInputError(
@@ -555,12 +560,7 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 		)
 		return
 	}
-	accessToken := strings.TrimSpace(*req.Credentials.AccessToken)
-	var refreshToken string
-	if req.Credentials.RefreshToken != nil {
-		refreshToken = strings.TrimSpace(*req.Credentials.RefreshToken)
-	}
-	if refreshToken == "" {
+	if req.Credentials.RefreshToken == nil || strings.TrimSpace(*req.Credentials.RefreshToken) == "" {
 		writeProviderInputError(
 			w,
 			r,
@@ -571,9 +571,10 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 		)
 		return
 	}
+	accessToken := strings.TrimSpace(*req.Credentials.AccessToken)
 	token := &oauth2.Token{
 		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		RefreshToken: strings.TrimSpace(*req.Credentials.RefreshToken),
 		TokenType:    "Bearer",
 	}
 	if req.Credentials.ExpiresAt != nil {
@@ -594,28 +595,27 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 		Kind:      kind,
 		Token:     token,
 		UpdatedAt: time.Now().UTC(),
-		ClientID:  inference.OpenAICodexClientID,
 	}
-	var idToken string
-	if req.Credentials.IdToken != nil {
-		idToken = *req.Credentials.IdToken
+	if kind == agentzv1alpha1.InferenceProviderKindOpenAICodex {
+		record.ClientID = inference.OpenAICodexClientID
+		var idToken string
+		if req.Credentials.IdToken != nil {
+			idToken = *req.Credentials.IdToken
+		}
+		record.AccountID = openAIAccountID(idToken, accessToken)
+		if record.AccountID == "" {
+			writeProviderInputError(
+				w,
+				r,
+				&inference.InputError{
+					Field:   "credentials.id_token",
+					Message: "account id claim is required",
+				},
+			)
+			return
+		}
 	}
-	record.AccountID = openAIAccountID(idToken, accessToken)
-	if record.AccountID == "" {
-		writeProviderInputError(
-			w,
-			r,
-			&inference.InputError{
-				Field:   "credentials.id_token",
-				Message: "account id claim is required",
-			},
-		)
-		return
-	}
-	models, provenance, discoveryErr := s.catalog.SubscriptionModels(
-		r.Context(),
-		record,
-	)
+	models, provenance, discoveryErr := s.catalog.SubscriptionModels(r.Context(), record)
 	if len(models) == 0 {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadGateway,
@@ -628,7 +628,7 @@ func (s *Service) createInferenceOAuthTicket(w http.ResponseWriter, r *http.Requ
 	if discoveryErr != nil {
 		slog.WarnContext(
 			r.Context(),
-			"using embedded inference model metadata with authenticated entitlement",
+			"using embedded subscription model metadata",
 			slog.String("providerKind", string(kind)),
 			slog.Any("err", discoveryErr),
 		)
@@ -793,7 +793,7 @@ func (s *Service) CreateInferenceProvider(w http.ResponseWriter, r *http.Request
 		writeInferenceIssues(w, r, fields)
 		return
 	}
-	isSubscription := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
+	isSubscription := provider.Spec.Kind.IsSubscription()
 	var record map[string]any
 	var ticketPath string
 	if isSubscription {
@@ -981,7 +981,7 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 		apiutil.WriteError(w, r, mapKubeHTTPError("get inference provider", err))
 		return
 	}
-	if provider.Spec.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
+	if !provider.Spec.Kind.IsSubscription() {
 		writeProviderInputError(
 			w,
 			r,
@@ -992,82 +992,28 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 		)
 		return
 	}
-	path := inference.CredentialPath(
-		provider.Namespace,
-		provider.Name,
-		provider.Spec.Kind,
-		provider.Spec.CredentialRevision,
-	)
-	secretRecord, err := s.baoKV.Get(r.Context(), path)
-	if err != nil && !errors.Is(err, baoapi.ErrSecretNotFound) {
-		apiutil.WriteError(w, r, mapOpenBaoError(err))
-		return
+	if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+		if err := inference.AuthorizeClaudeSubscription(r.Context(), s.k8sClient, provider.Namespace); err != nil {
+			writeProviderInputError(w, r, &inference.InputError{Field: "kind", Message: err.Error()})
+			return
+		}
 	}
-	var record inference.SubscriptionRecord
-	if err == nil {
-		record, err = inference.DecodeSubscriptionRecord(secretRecord.Data)
-	}
-	if err != nil || record.Kind != provider.Spec.Kind {
+	record, _, err := inference.ResolveSubscription(r.Context(), s.outboundHTTP, s.baoKV, provider)
+	if errors.Is(err, inference.ErrSubscriptionRefresh) {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusServiceUnavailable,
-			"credentials_unavailable",
-			"Subscription credentials are unavailable. Re-authenticate and save this provider.",
-			err,
+			http.StatusBadGateway, "oauth_refresh_failed",
+			"Subscription credentials could not be refreshed.", err,
 		))
 		return
 	}
-	record, changed, err := inference.RefreshSubscription(
-		r.Context(),
-		s.outboundHTTP,
-		record,
-	)
 	if err != nil {
 		apiutil.WriteError(w, r, apiutil.NewError(
-			http.StatusBadGateway,
-			"oauth_refresh_failed",
-			"subscription credentials could not be refreshed",
-			err,
+			http.StatusServiceUnavailable, "credentials_unavailable",
+			"Subscription credentials could not be refreshed. Retry shortly or re-authenticate this provider.", err,
 		))
 		return
 	}
-	if changed {
-		data, err := inference.SubscriptionRecordData(record)
-		if err != nil {
-			apiutil.WriteInternalError(w, r, err)
-			return
-		}
-		if secretRecord.VersionMetadata == nil {
-			apiutil.WriteInternalError(w, r, errors.New("subscription credential version is missing"))
-			return
-		}
-		_, err = s.baoKV.Put(
-			r.Context(),
-			path,
-			data,
-			baoapi.WithCheckAndSet(secretRecord.VersionMetadata.Version),
-		)
-		if err != nil {
-			latest, readErr := s.baoKV.Get(r.Context(), path)
-			if readErr != nil {
-				apiutil.WriteError(w, r, mapOpenBaoError(errors.Join(err, readErr)))
-				return
-			}
-			record, readErr = inference.DecodeSubscriptionRecord(latest.Data)
-			if readErr != nil {
-				apiutil.WriteError(w, r, mapOpenBaoError(errors.Join(err, readErr)))
-				return
-			}
-			kindChanged := record.Kind != provider.Spec.Kind
-			if kindChanged || !oauth.TokenUsable(record.Token, time.Now().UTC()) {
-				apiutil.WriteError(w, r, mapOpenBaoError(errors.Join(err, readErr)))
-				return
-			}
-		}
-	}
-	models, provenance, discoveryErr := s.catalog.SubscriptionModels(
-		r.Context(),
-		record,
-	)
+	models, provenance, discoveryErr := s.catalog.SubscriptionModels(r.Context(), record)
 	if len(models) == 0 {
 		apiutil.WriteError(w, r, apiutil.NewError(
 			http.StatusBadGateway,
@@ -1080,7 +1026,7 @@ func (s *Service) RefreshInferenceProviderModels(w http.ResponseWriter, r *http.
 	if discoveryErr != nil {
 		slog.WarnContext(
 			r.Context(),
-			"using embedded inference model metadata with authenticated entitlement",
+			"using embedded subscription model metadata",
 			slog.String("provider", provider.Name),
 			slog.Any("err", discoveryErr),
 		)
@@ -1229,7 +1175,7 @@ func (s *Service) UpdateInferenceProvider(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if req.OauthTicket != nil {
-		if current.Spec.Kind != agentzv1alpha1.InferenceProviderKindOpenAICodex {
+		if !current.Spec.Kind.IsSubscription() {
 			writeProviderInputError(w, r, &inference.InputError{
 				Field:   "oauth_ticket",
 				Message: "only valid for subscription providers",
@@ -1530,8 +1476,13 @@ func (s *Service) ListInferenceProviderCatalog(w http.ResponseWriter, r *http.Re
 		query = *params.Q
 	}
 	commit, entries := s.catalog.Entries(query)
+	tenant, err := tenantObject(r.Context())
+	allowClaudeSubscription := err == nil && tenant.Spec.AllowClaudeSubscription
 	providers := make([]gatewayapi.InferenceProviderCatalogEntry, 0, len(entries))
 	for _, entry := range entries {
+		if entry.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription && !allowClaudeSubscription {
+			continue
+		}
 		provider := gatewayapi.InferenceProviderCatalogEntry{
 			Name:         entry.Name,
 			ProviderId:   entry.ProviderID,
@@ -1701,6 +1652,18 @@ func providerInputFromWrite(req gatewayapi.InferenceProviderWriteDiscriminator) 
 		input.DisplayName = value.DisplayName
 		input.CatalogProvider = string(value.CatalogProvider)
 		input.Kind = gatewayapi.InferenceProviderKindOpenAICodex
+		input.Models = value.Models
+	case "ClaudeSubscription":
+		value, err := req.AsClaudeSubscriptionInferenceProviderWrite()
+		if err != nil {
+			return input, &inference.InputError{
+				Field:   "kind",
+				Message: "Claude subscription configuration does not match provider kind",
+			}
+		}
+		input.DisplayName = value.DisplayName
+		input.CatalogProvider = string(value.CatalogProvider)
+		input.Kind = gatewayapi.InferenceProviderKindClaudeSubscription
 		input.Models = value.Models
 	case "Anthropic":
 		value, err := req.AsAnthropicInferenceProviderWrite()
@@ -1996,6 +1959,15 @@ func providerToAPI(provider *agentzv1alpha1.InferenceProvider, usage int, access
 		if err != nil {
 			return out, fmt.Errorf("render openai codex provider response: %w", err)
 		}
+	case agentzv1alpha1.InferenceProviderKindClaudeSubscription:
+		err := out.FromClaudeSubscriptionInferenceProviderRead(
+			gatewayapi.ClaudeSubscriptionInferenceProviderRead{
+				Kind: gatewayapi.ClaudeSubscriptionInferenceProviderReadKindClaudeSubscription,
+			},
+		)
+		if err != nil {
+			return out, fmt.Errorf("render Claude subscription provider response: %w", err)
+		}
 	case agentzv1alpha1.InferenceProviderKindOpenAI:
 		config := gatewayapi.OpenAIProviderConfig{}
 		if provider.Spec.OpenAI.BaseURL != "" {
@@ -2159,6 +2131,11 @@ func decodeInferenceOAuthTicket(data map[string]any) (inferenceOAuthTicketRecord
 }
 
 func (s *Service) consumeInferenceOAuthTicket(ctx context.Context, namespace, raw string, provider *agentzv1alpha1.InferenceProvider) (inference.SubscriptionRecord, string, error) {
+	if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
+		if err := inference.AuthorizeClaudeSubscription(ctx, s.k8sClient, namespace); err != nil {
+			return inference.SubscriptionRecord{}, "", &inference.InputError{Field: "kind", Message: err.Error()}
+		}
+	}
 	id, secret, ok := strings.Cut(strings.TrimSpace(raw), ".")
 	if !ok {
 		return inference.SubscriptionRecord{}, "", &inference.InputError{

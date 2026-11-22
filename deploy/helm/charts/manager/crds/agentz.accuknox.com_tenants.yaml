@@ -152,6 +152,11 @@ spec:
                 x-kubernetes-validations:
                 - message: count cannot decrease
                   rule: self.count >= oldSelf.count
+              allowClaudeSubscription:
+                description: |-
+                  AllowClaudeSubscription permits subscription inference through external Claude Code and Desktop agents.
+                  Disabled by default. Revocation applies to existing grants.
+                type: boolean
               dashboardQuota:
                 description: |-
                   DashboardQuota configures dashboard definition, ingestion, and query

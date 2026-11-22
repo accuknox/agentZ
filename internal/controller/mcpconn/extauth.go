@@ -165,9 +165,7 @@ func (r *ExtAuthRuntimeReconciler) runtimeNeeded(ctx context.Context, ns string)
 		if !provider.DeletionTimestamp.IsZero() {
 			continue
 		}
-		requiresExtAuth := provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex ||
-			r.DelegationNamespace != ""
-		if requiresExtAuth {
+		if provider.Spec.Kind.IsSubscription() || r.DelegationNamespace != "" {
 			return true, nil
 		}
 	}
@@ -877,16 +875,19 @@ func (r *ExtAuthRuntimeReconciler) reconcileExtAuthPolicy(ctx context.Context, s
 	if err := r.List(ctx, providers, client.InNamespace(ns)); err != nil {
 		return fmt.Errorf("list ext auth inference providers: %w", err)
 	}
-	hasCodexProvider := slices.ContainsFunc(
-		providers.Items,
-		func(provider agentzv1alpha1.InferenceProvider) bool {
-			return provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindOpenAICodex
-		},
-	)
-	if hasCodexProvider {
-		target, err := networkpolicy.URLTarget(inference.OpenAICodexTokenEndpoint)
+	for _, provider := range providers.Items {
+		var endpoint string
+		switch provider.Spec.Kind {
+		case agentzv1alpha1.InferenceProviderKindOpenAICodex:
+			endpoint = inference.OpenAICodexTokenEndpoint
+		case agentzv1alpha1.InferenceProviderKindClaudeSubscription:
+			endpoint = inference.ClaudeTokenEndpoint
+		default:
+			continue
+		}
+		target, err := networkpolicy.URLTarget(endpoint)
 		if err != nil {
-			return fmt.Errorf("resolve OpenAI Codex token target: %w", err)
+			return fmt.Errorf("resolve subscription token target: %w", err)
 		}
 		targets = append(targets, target)
 	}

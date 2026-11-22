@@ -1,8 +1,14 @@
 package inference
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"net/http"
 	"testing"
+
+	"github.com/andybalholm/brotli"
+	"golang.org/x/oauth2"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,6 +32,14 @@ func TestValidateProvider(t *testing.T) {
 			name:  "valid openai",
 			spec:  providerSpec(agentzv1alpha1.InferenceProviderKindOpenAI),
 			valid: true,
+		},
+		{
+			name: "Claude subscription rejects the Responses API",
+			spec: func() agentzv1alpha1.InferenceProviderSpec {
+				spec := providerSpec(agentzv1alpha1.InferenceProviderKindClaudeSubscription)
+				spec.Models[0].API = new(agentzv1alpha1.InferenceModelAPIResponses)
+				return spec
+			}(),
 		},
 		{
 			name: "valid custom authorization header",
@@ -326,6 +340,9 @@ func providerSpec(providerKind agentzv1alpha1.InferenceProviderKind) agentzv1alp
 	case agentzv1alpha1.InferenceProviderKindAnthropic:
 		spec.CatalogProvider = "anthropic"
 		spec.Anthropic = &agentzv1alpha1.AnthropicProviderConfig{}
+	case agentzv1alpha1.InferenceProviderKindClaudeSubscription:
+		spec.CatalogProvider = "anthropic"
+		spec.Models[0].API = new(agentzv1alpha1.InferenceModelAPIMessages)
 	case agentzv1alpha1.InferenceProviderKindGemini:
 		spec.CatalogProvider = "google"
 		spec.Gemini = &agentzv1alpha1.GeminiProviderConfig{}
@@ -624,6 +641,21 @@ func TestDelegatedMessagesRejectsProviderResourceBypasses(t *testing.T) {
 			false,
 			true,
 		},
+		{"stored thread", `{"model":"selected","thread":{"type":"continue","previous_message_id":"private"}}`, false, false},
+		{"inline local tool", `{"model":"selected","messages":[{"role":"system","content":[{"type":"tool_addition","tool":{"type":"tool_definition","definition":{"name":"Read","input_schema":{"type":"object"}}}}]}]}`, false, true},
+		{"inline hosted tool", `{"model":"selected","messages":[{"role":"system","content":[{"type":"tool_addition","tool":{"type":"tool_definition","definition":{"type":"web_search_20250305"}}}]}]}`, false, false},
+		{
+			"tool search with a deferred local tool",
+			`{"model":"selected","tools":[{"type":"tool_search_tool_bm25_20251119"},{"name":"Read","defer_loading":true,"input_schema":{"type":"object"}}]}`,
+			false,
+			true,
+		},
+		{
+			"tool search cannot defer hosted tools",
+			`{"model":"selected","tools":[{"type":"tool_search_tool_regex_20251119"},{"type":"web_search_20250305","defer_loading":true}]}`,
+			false,
+			false,
+		},
 		{"container", `{"model":"selected","container":"private"}`, false, false},
 		{
 			"hosted MCP",
@@ -736,5 +768,62 @@ func TestDelegatedResponsesClientTools(t *testing.T) {
 	)
 	if _, err := ValidateDelegatedRequest(file, true); err == nil {
 		t.Fatal("accepted a stored file in custom tool output")
+	}
+}
+
+type oauthResponse struct {
+	body     []byte
+	encoding string
+}
+
+func (response oauthResponse) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Encoding": {response.encoding}},
+		Body:       io.NopCloser(bytes.NewReader(response.body)),
+	}, nil
+}
+
+// TestClaudeRefreshBounds checks both encoded and decoded response size limits.
+func TestClaudeRefreshBounds(t *testing.T) {
+	record := SubscriptionRecord{
+		Kind:  agentzv1alpha1.InferenceProviderKindClaudeSubscription,
+		Token: &oauth2.Token{RefreshToken: "original"},
+	}
+	var compressed bytes.Buffer
+	writer := brotli.NewWriter(&compressed)
+	_, err := io.WriteString(writer, `{"access_token":"renewed","refresh_token":"rotated","expires_in":3600}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Transport: oauthResponse{body: compressed.Bytes(), encoding: "br"}}
+	updated, err := refreshSubscription(t.Context(), client, record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Token.AccessToken != "renewed" || updated.Token.RefreshToken != "rotated" {
+		t.Fatal("compressed response did not rotate both tokens")
+	}
+
+	oversized := bytes.Repeat([]byte("x"), (1<<20)+1)
+	client.Transport = oauthResponse{body: oversized}
+	if _, err := refreshSubscription(t.Context(), client, record); err == nil {
+		t.Fatal("unbounded OAuth response accepted")
+	}
+
+	compressed.Reset()
+	writer.Reset(&compressed)
+	if _, err := writer.Write(oversized); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	client.Transport = oauthResponse{body: compressed.Bytes(), encoding: "br"}
+	if _, err := refreshSubscription(t.Context(), client, record); err == nil {
+		t.Fatal("unbounded decompressed OAuth response accepted")
 	}
 }

@@ -74,6 +74,11 @@ const (
 
 // TenantSpec defines the desired state of Tenant.
 type TenantSpec struct {
+	// AllowClaudeSubscription permits subscription inference through external Claude Code and Desktop agents.
+	// Disabled by default. Revocation applies to existing grants.
+	// +optional
+	AllowClaudeSubscription bool `json:"allowClaudeSubscription,omitempty"`
+
 	// Guardrails configures the mandatory organization baseline and audit controls.
 	// +optional
 	Guardrails GuardrailSettings `json:"guardrails,omitempty"`

@@ -230,6 +230,7 @@ spec:
                 enum:
                 - OpenAI
                 - OpenAICodex
+                - ClaudeSubscription
                 - Anthropic
                 - Gemini
                 - OpenAICompatible

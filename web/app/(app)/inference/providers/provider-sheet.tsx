@@ -3,6 +3,7 @@
 import { LoadingButton } from "@/components/interior/loading-button"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { queryOptions, useQuery } from "@tanstack/react-query"
+import { defaultFilter } from "cmdk"
 import {
   Brain,
   Cable,
@@ -11,7 +12,6 @@ import {
   CircleAlert,
   Cloud,
   ExternalLink,
-  FingerprintPattern,
   KeyRound,
   Pencil,
   Plus,
@@ -90,6 +90,7 @@ import {
   refreshInferenceProviderModelsAction,
   saveInferenceProviderAction,
   startInferenceProviderOAuthAction,
+  completeClaudeSubscriptionOAuthAction,
   suggestInferenceModelsAction,
   type InferenceProviderActionScope,
 } from "@/data/inference-provider.actions"
@@ -97,6 +98,7 @@ import { formatCompactNumber } from "@/lib/format"
 import {
   type InferenceModel,
   type InferenceProvider,
+  type InferenceProviderKind,
   type InferenceProviderWriteDiscriminatorWritable,
 } from "@/lib/gateway/client"
 import {
@@ -123,10 +125,14 @@ const capabilities = zInferenceModelCapabilities.keyof().options
 const limitFields = zInferenceModelLimits.keyof().options
 const modalityFields = zInferenceModelModalities.keyof().options
 
+function isSubscriptionProvider(kind: InferenceProviderKind) {
+  return kind === "OpenAICodex" || kind === "ClaudeSubscription"
+}
+
 type SubscriptionOAuthState =
   | { status: "idle" | "starting" }
   | Awaited<ReturnType<typeof startInferenceProviderOAuthAction>>
-  | Exclude<Awaited<ReturnType<typeof pollInferenceProviderOAuthAction>>, { status: "pending" }>
+  | Awaited<ReturnType<typeof completeClaudeSubscriptionOAuthAction>>
 
 const gatewayControlledHeaders = new Set([
   "connection",
@@ -475,6 +481,15 @@ const providerFormSchema = z
       }),
       z.object({
         ...providerFields,
+        catalog_provider: z.literal("anthropic", {
+          error: "Select Claude subscription from the provider list",
+        }),
+        kind: z.literal("ClaudeSubscription", {
+          error: "Select Claude subscription as the provider kind",
+        }),
+      }),
+      z.object({
+        ...providerFields,
         kind: z.literal("Anthropic", { error: "Select Anthropic as the provider kind" }),
         anthropic: z.object({ base_url: baseURLSchema }),
         credentials: apiKeyCredentialsSchema,
@@ -693,7 +708,7 @@ export function ProviderSheet({
 }) {
   const defaults = provider
     ? zInferenceProviderWriteDiscriminatorWritable.parse(
-        provider.kind === "OpenAICodex" ? provider : { ...provider, credentials: {} }
+        isSubscriptionProvider(provider.kind) ? provider : { ...provider, credentials: {} }
       )
     : ({
         display_name: "",
@@ -707,7 +722,7 @@ export function ProviderSheet({
     () =>
       providerFormSchema.superRefine((values, ctx) => {
         const isCreate = provider === undefined
-        if (values.kind === "OpenAICodex") {
+        if (values.kind === "OpenAICodex" || values.kind === "ClaudeSubscription") {
           return
         }
         if (values.kind === "OpenAI" || values.kind === "Anthropic" || values.kind === "Gemini") {
@@ -844,7 +859,7 @@ export function ProviderSheet({
     keyName: "key",
   })
   const kind = useWatch({ control: form.control, name: "kind", defaultValue: defaults.kind })
-  const isSubscription = kind === "OpenAICodex"
+  const isSubscription = isSubscriptionProvider(kind)
   const compatibleField =
     kind === "AnthropicCompatible" ? "anthropic_compatible" : "openai_compatible"
   const isCompatibleKind = kind === "OpenAICompatible" || kind === "AnthropicCompatible"
@@ -871,9 +886,15 @@ export function ProviderSheet({
   const [editingModel, setEditingModel] = React.useState<number>()
   const [submitError, setSubmitError] = React.useState("")
   const [submitErrors, setSubmitErrors] = React.useState<string[]>([])
+  const [claudeCallback, setClaudeCallback] = React.useState("")
+  const [claudeCallbackError, setClaudeCallbackError] = React.useState("")
   const [subscriptionOAuth, setSubscriptionOAuth] = React.useState<SubscriptionOAuthState>({
     status: "idle",
   })
+  const connected =
+    subscriptionOAuth.status === "connected" ? subscriptionOAuth.connection : undefined
+  const signingIn =
+    subscriptionOAuth.status === "authorization" || subscriptionOAuth.status === "challenge"
   const [impact, setImpact] = React.useState<{
     values: InferenceProviderWriteDiscriminatorWritable
     pools: string[]
@@ -895,7 +916,7 @@ export function ProviderSheet({
       gcTime: 0,
     })
   )
-  const catalog = providerCatalog.data ?? []
+  const catalog = providerCatalog.isSuccess ? providerCatalog.data : []
 
   const providerID = provider?.id
   const modelCatalog = useQuery(
@@ -909,13 +930,10 @@ export function ProviderSheet({
         provider?.resource_version,
       ],
       enabled:
-        open &&
-        Boolean(catalogProvider) &&
-        (!isSubscription || Boolean(providerID)) &&
-        subscriptionOAuth.status !== "connected",
+        open && Boolean(catalogProvider) && (!isSubscription || Boolean(providerID)) && !connected,
       queryFn: async () => {
         const result =
-          kind === "OpenAICodex" && providerID
+          isSubscriptionProvider(kind) && providerID
             ? await refreshInferenceProviderModelsAction(scope, providerID)
             : await suggestInferenceModelsAction(scope, catalogProvider, kind)
         if (result.error) throw new Error(result.error.message)
@@ -926,14 +944,25 @@ export function ProviderSheet({
       gcTime: 0,
     })
   )
-  const suggestions =
-    subscriptionOAuth.status === "connected"
-      ? subscriptionOAuth.connection.models
-      : (modelCatalog.data?.models ?? [])
-  const unavailableModels =
-    subscriptionOAuth.status === "connected"
-      ? modelFields.filter((model) => !suggestions.some((available) => available.id === model.id))
-      : []
+  const suggestions = connected?.models ?? modelCatalog.data?.models ?? []
+  const availableIDs = new Set(connected?.models.map((model) => model.id))
+  const unavailableModels = connected
+    ? modelFields.filter((model) => !availableIDs.has(model.id))
+    : []
+
+  const applySubscriptionConnection = React.useCallback(
+    (result: Extract<SubscriptionOAuthState, { status: "connected" }>) => {
+      setSubscriptionOAuth(result)
+      setSubmitError("")
+      setSubmitErrors([])
+      // Tickets validate full model metadata. Keep selected IDs and leave
+      // unavailable models visible so the user can remove them explicitly.
+      const available = new Map(result.connection.models.map((model) => [model.id, model]))
+      const selected = provider ? getValues("models") : result.connection.models
+      replaceModels(selected.map((model) => available.get(model.id) ?? model))
+    },
+    [getValues, provider, replaceModels]
+  )
 
   React.useEffect(() => {
     if (!open || subscriptionOAuth.status !== "challenge") {
@@ -956,14 +985,7 @@ export function ProviderSheet({
             setSubscriptionOAuth(result)
             return
           }
-          setSubscriptionOAuth(result)
-          setSubmitError("")
-          setSubmitErrors([])
-          // Ticket validation compares complete models. Refresh selected
-          // metadata while retaining unavailable IDs for explicit removal.
-          const available = new Map(result.connection.models.map((model) => [model.id, model]))
-          const selected = provider ? getValues("models") : result.connection.models
-          replaceModels(selected.map((model) => available.get(model.id) ?? model))
+          applySubscriptionConnection(result)
         })
       }, interval * 1000)
     }
@@ -973,16 +995,16 @@ export function ProviderSheet({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [getValues, open, provider, replaceModels, scope, subscriptionOAuth])
+  }, [applySubscriptionConnection, open, scope, subscriptionOAuth])
 
   const selectedCatalogEntry = catalog.find(
     (entry) => entry.provider_id === catalogProvider && entry.provider_kind === kind
   )
 
   function connectSubscription() {
-    if (kind !== "OpenAICodex") {
-      return
-    }
+    if (!isSubscription) return
+    setClaudeCallback("")
+    setClaudeCallbackError("")
     setSubscriptionOAuth({ status: "starting" })
     setSubmitError("")
     startTransition(async () => {
@@ -992,10 +1014,23 @@ export function ProviderSheet({
         provider ? { id: provider.id, resourceVersion: provider.resource_version } : undefined
       )
       setSubscriptionOAuth(result)
-      if (result.status !== "challenge") {
+      if (result.status !== "challenge" && result.status !== "authorization") {
         return
       }
       window.open(result.verificationUri, "_blank", "noopener,noreferrer")
+    })
+  }
+
+  function completeClaudeSignIn() {
+    startTransition(async () => {
+      const result = await completeClaudeSubscriptionOAuthAction(scope, claudeCallback)
+      if (result.status === "error") {
+        setClaudeCallbackError(result.message)
+        return
+      }
+      setClaudeCallback("")
+      setClaudeCallbackError("")
+      applySubscriptionConnection(result)
     })
   }
 
@@ -1004,27 +1039,16 @@ export function ProviderSheet({
     setSubmitErrors([])
     form.clearErrors()
     startTransition(async () => {
-      const result = provider
-        ? await saveInferenceProviderAction(scope, {
-            providerName: provider.id,
-            body: {
-              provider: values,
-              resource_version: provider.resource_version,
-              oauth_ticket:
-                subscriptionOAuth.status === "connected"
-                  ? subscriptionOAuth.connection.ticket
-                  : undefined,
-            },
-          })
-        : await saveInferenceProviderAction(scope, {
-            body: {
-              provider: values,
-              oauth_ticket:
-                subscriptionOAuth.status === "connected"
-                  ? subscriptionOAuth.connection.ticket
-                  : undefined,
-            },
-          })
+      const body = { provider: values, oauth_ticket: connected?.ticket }
+      const result = await saveInferenceProviderAction(
+        scope,
+        provider
+          ? {
+              providerName: provider.id,
+              body: { ...body, resource_version: provider.resource_version },
+            }
+          : { body }
+      )
       if (result.error) {
         const details: string[] = []
         const oauthErrors: string[] = []
@@ -1072,7 +1096,7 @@ export function ProviderSheet({
 
   function handleSubmit(values: InferenceProviderWriteDiscriminatorWritable) {
     if (!provider) {
-      if (isSubscription && subscriptionOAuth.status !== "connected") {
+      if (isSubscription && !connected) {
         setSubmitError("Connect the subscription before adding this provider")
         return
       }
@@ -1122,7 +1146,11 @@ export function ProviderSheet({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             {provider ? (
-              <ProviderIcon provider={provider.catalog_provider} className="size-4" />
+              <ProviderIcon
+                provider={provider.catalog_provider}
+                kind={provider.kind}
+                className="size-4"
+              />
             ) : null}
             {provider ? "Edit inference provider" : "Add inference provider"}
           </SheetTitle>
@@ -1182,11 +1210,15 @@ export function ProviderSheet({
                           aria-invalid={Boolean(
                             formState.errors.catalog_provider || formState.errors.kind
                           )}
-                          disabled={Boolean(provider) || providerCatalog.isLoading}
+                          disabled={Boolean(provider) || providerCatalog.isFetching || pending}
                           className="w-full justify-between font-normal"
                         >
                           <span className="flex min-w-0 items-center gap-2">
-                            <ProviderIcon provider={catalogProvider} className="size-4 shrink-0" />
+                            <ProviderIcon
+                              provider={catalogProvider}
+                              kind={kind}
+                              className="size-4 shrink-0"
+                            />
                             <span className="truncate">
                               {selectedCatalogEntry?.name ?? provider?.display_name ?? field.value}
                             </span>
@@ -1201,7 +1233,11 @@ export function ProviderSheet({
                         align="start"
                         className="w-(--radix-popover-trigger-width) p-0"
                       >
-                        <Command>
+                        <Command
+                          filter={(value, search, keywords) =>
+                            defaultFilter(value, search, keywords) > 0 ? 1 : 0
+                          }
+                        >
                           <CommandInput placeholder="Search providers..." />
                           <CommandList>
                             <CommandEmpty>No provider found.</CommandEmpty>
@@ -1215,10 +1251,10 @@ export function ProviderSheet({
                                     const displayName = getFieldState("display_name").isDirty
                                       ? form.getValues("display_name")
                                       : entry.name
+                                    const modelDefaults = { display_name: displayName, models: [] }
                                     const common = {
+                                      ...modelDefaults,
                                       catalog_provider: entry.provider_id,
-                                      display_name: displayName,
-                                      models: [],
                                       credentials: {},
                                     }
                                     switch (entry.provider_kind) {
@@ -1231,10 +1267,16 @@ export function ProviderSheet({
                                         break
                                       case "OpenAICodex":
                                         form.reset({
-                                          catalog_provider: "openai",
-                                          display_name: displayName,
-                                          models: [],
+                                          ...modelDefaults,
                                           kind: "OpenAICodex",
+                                          catalog_provider: "openai",
+                                        })
+                                        break
+                                      case "ClaudeSubscription":
+                                        form.reset({
+                                          ...modelDefaults,
+                                          kind: "ClaudeSubscription",
+                                          catalog_provider: "anthropic",
                                         })
                                         break
                                       case "Anthropic":
@@ -1305,7 +1347,11 @@ export function ProviderSheet({
                                     setProviderPickerOpen(false)
                                   }}
                                 >
-                                  <ProviderIcon provider={entry.provider_id} className="size-4" />
+                                  <ProviderIcon
+                                    provider={entry.provider_id}
+                                    kind={entry.provider_kind}
+                                    className="size-4"
+                                  />
                                   <span className="min-w-0 flex-1 truncate">{entry.name}</span>
                                   <span className="text-xs text-muted-foreground">
                                     {providerKindLabels[entry.provider_kind]}
@@ -1898,95 +1944,160 @@ export function ProviderSheet({
               icon={KeyRound}
               title={isSubscription ? "Subscription" : "Credentials"}
               description={
-                isSubscription
-                  ? provider || subscriptionOAuth.status === "connected"
-                    ? undefined
-                    : "Sign in to use your existing subscription."
-                  : provider
-                    ? "Leave blank to keep the current credentials."
-                    : undefined
+                !isSubscription && provider
+                  ? "Leave blank to keep the current credentials."
+                  : undefined
               }
             >
               {isSubscription ? (
-                <div className="flex flex-col gap-4 rounded-lg border p-4">
-                  {subscriptionOAuth.status === "connected" ? (
-                    <div role="status" className="flex items-start gap-3">
-                      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
+                <div className="overflow-hidden rounded-xl border bg-card">
+                  {connected ? (
+                    <div role="status" className="flex items-center gap-3 bg-success/5 p-4">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
                         <Check aria-hidden className="size-4" />
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <p className="text-sm font-medium text-success">
-                          Connected to {providerKindLabels[kind]}
-                        </p>
-                      </div>
+                      <p className="text-sm font-medium text-success">
+                        Connected to {providerKindLabels[kind]}
+                      </p>
                     </div>
                   ) : (
                     <>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex flex-col gap-1">
-                          <p className="text-sm font-medium">
-                            {provider ? "Re-authenticate" : "Connect"} {providerKindLabels[kind]}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Complete sign-in in a new tab. We will detect when it finishes.
-                          </p>
+                      <div className="flex flex-wrap items-center gap-3 bg-muted/30 p-4">
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-background">
+                            <ProviderIcon provider={catalogProvider} kind={kind} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold">{providerKindLabels[kind]}</p>
+                            <p className="text-xs leading-relaxed text-muted-foreground">
+                              {kind === "ClaudeSubscription"
+                                ? "Only for external Claude Code and Claude Desktop agents."
+                                : "Sign in with your ChatGPT account."}
+                            </p>
+                          </div>
                         </div>
-                        {subscriptionOAuth.status !== "challenge" ? (
+                        {!signingIn && (
                           <LoadingButton
                             className="ml-auto"
                             pending={subscriptionOAuth.status === "starting"}
-                            pendingLabel={"Connecting..."}
+                            pendingLabel="Connecting..."
                             type="button"
                             onClick={connectSubscription}
                             disabled={pending || subscriptionOAuth.status === "starting"}
                           >
-                            {provider ? (
-                              <FingerprintPattern data-icon="inline-start" />
-                            ) : (
-                              <Cable data-icon="inline-start" />
-                            )}
-                            {provider ? "Re-authenticate" : "Connect"}
+                            {provider ? "Sign in again" : "Connect"}
                           </LoadingButton>
-                        ) : null}
+                        )}
                       </div>
-                      {subscriptionOAuth.status === "challenge" ? (
-                        <div className="flex flex-col items-start gap-3">
-                          <p className="text-sm text-muted-foreground">
-                            Enter this one-time code on the provider sign-in page.
-                          </p>
-                          <div className="flex items-center gap-3 rounded-md bg-muted/50 px-3 py-2">
-                            <code className="text-lg font-semibold tracking-widest">
-                              {subscriptionOAuth.userCode}
-                            </code>
-                            <CopyButton
-                              content={subscriptionOAuth.userCode}
-                              label="Copy sign-in code"
-                            />
-                          </div>
-                          <Button type="button" variant="outline" asChild>
-                            <a
-                              href={subscriptionOAuth.verificationUri}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Continue to {providerKindLabels[kind]} <ExternalLink />
-                            </a>
-                          </Button>
-                          <p
-                            role="status"
-                            className="flex items-center gap-2 text-xs text-muted-foreground"
+                      {signingIn && (
+                        <ol className="divide-y border-t">
+                          {subscriptionOAuth.status === "challenge" && (
+                            <SubscriptionStep number={1} title="Copy your one-time code">
+                              <div className="inline-flex items-center gap-3 rounded-lg border bg-muted/40 px-3 py-1.5">
+                                <code className="text-base font-semibold tracking-widest">
+                                  {subscriptionOAuth.userCode}
+                                </code>
+                                <CopyButton
+                                  content={subscriptionOAuth.userCode}
+                                  label="Copy sign-in code"
+                                />
+                              </div>
+                            </SubscriptionStep>
+                          )}
+                          <SubscriptionStep
+                            number={subscriptionOAuth.status === "challenge" ? 2 : 1}
+                            title={
+                              subscriptionOAuth.status === "challenge"
+                                ? "Enter the code in Codex"
+                                : "Approve access in Claude"
+                            }
                           >
-                            <Spinner aria-hidden className="size-3" /> Waiting for you to finish
-                            signing in...
-                          </p>
+                            <Button type="button" size="sm" variant="outline" asChild>
+                              <a
+                                href={subscriptionOAuth.verificationUri}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {subscriptionOAuth.status === "challenge"
+                                  ? "Open Codex"
+                                  : "Open Claude"}
+                                <ExternalLink data-icon="inline-end" />
+                              </a>
+                            </Button>
+                          </SubscriptionStep>
+                          {subscriptionOAuth.status === "authorization" && (
+                            <SubscriptionStep number={2} title="Return to AgentZ">
+                              <Field data-invalid={Boolean(claudeCallbackError)}>
+                                <FieldLabel htmlFor="claude-callback">
+                                  Sign-in callback URL
+                                </FieldLabel>
+                                <Input
+                                  id="claude-callback"
+                                  type="password"
+                                  autoComplete="off"
+                                  spellCheck={false}
+                                  aria-invalid={Boolean(claudeCallbackError)}
+                                  aria-describedby="claude-callback-help claude-callback-error"
+                                  value={claudeCallback}
+                                  onChange={(event) => setClaudeCallback(event.target.value)}
+                                  placeholder="http://localhost:54545/callback?…"
+                                />
+                                <FieldDescription id="claude-callback-help">
+                                  After approving, copy the full localhost URL from your
+                                  browser&apos;s address bar.
+                                </FieldDescription>
+                                <FieldError
+                                  id="claude-callback-error"
+                                  errors={
+                                    claudeCallbackError ? [{ message: claudeCallbackError }] : []
+                                  }
+                                />
+                              </Field>
+                            </SubscriptionStep>
+                          )}
+                        </ol>
+                      )}
+                      {signingIn && (
+                        <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-muted/30 px-4 py-3">
+                          {subscriptionOAuth.status === "challenge" && (
+                            <p
+                              role="status"
+                              className="mr-auto flex items-center gap-2 text-xs text-muted-foreground"
+                            >
+                              <Spinner aria-hidden className="size-3" /> Waiting for Codex sign-in
+                            </p>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={pending}
+                            onClick={connectSubscription}
+                          >
+                            Start again
+                          </Button>
+                          {subscriptionOAuth.status === "authorization" && (
+                            <LoadingButton
+                              type="button"
+                              size="sm"
+                              pending={pending}
+                              pendingLabel="Completing sign-in..."
+                              disabled={pending || !claudeCallback.trim()}
+                              onClick={completeClaudeSignIn}
+                            >
+                              Complete sign-in
+                            </LoadingButton>
+                          )}
                         </div>
-                      ) : null}
+                      )}
                       {subscriptionOAuth.status === "error" ? (
-                        <Alert variant="destructive">
-                          <CircleAlert aria-hidden="true" />
-                          <AlertTitle>Connection failed</AlertTitle>
-                          <AlertDescription>{subscriptionOAuth.message}</AlertDescription>
-                        </Alert>
+                        <div className="border-t p-4">
+                          <Alert variant="destructive">
+                            <CircleAlert aria-hidden="true" />
+                            <AlertTitle>Connection failed</AlertTitle>
+                            <AlertDescription>{subscriptionOAuth.message}</AlertDescription>
+                          </Alert>
+                        </div>
                       ) : null}
                     </>
                   )}
@@ -2132,7 +2243,7 @@ export function ProviderSheet({
                 </FieldLabel>
                 <MultiSelectDropdown
                   allowCustomValues={!isSubscription}
-                  disabled={isSubscription && !provider && subscriptionOAuth.status !== "connected"}
+                  disabled={isSubscription && !provider && !connected}
                   id="provider-models"
                   invalid={Boolean(formState.errors.models) || unavailableModels.length > 0}
                   options={[
@@ -2183,7 +2294,7 @@ export function ProviderSheet({
                     : undefined}
                 </FieldError>
               </Field>
-              {modelCatalog.isFetching && subscriptionOAuth.status !== "connected" && (
+              {modelCatalog.isFetching && !connected && (
                 <p
                   aria-live="polite"
                   className="flex items-center gap-2 text-sm text-muted-foreground"
@@ -2192,7 +2303,7 @@ export function ProviderSheet({
                   Loading model catalog...
                 </p>
               )}
-              {modelCatalog.isError && subscriptionOAuth.status !== "connected" && (
+              {modelCatalog.isError && !connected && (
                 <Alert variant="warning">
                   <TriangleAlert aria-hidden="true" />
                   <AlertTitle>Model catalog unavailable</AlertTitle>
@@ -2300,7 +2411,7 @@ export function ProviderSheet({
                 disabled={
                   pending ||
                   unavailableModels.length > 0 ||
-                  (!provider && isSubscription && subscriptionOAuth.status !== "connected")
+                  (!provider && isSubscription && !connected)
                 }
               >
                 <Save data-icon="inline-start" />
@@ -2361,7 +2472,32 @@ export function ProviderSheet({
   )
 }
 
-/** FormSection renders a titled, iconed block of related fields. */
+function SubscriptionStep({
+  number,
+  title,
+  children,
+}: {
+  number: number
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <li className="flex items-start gap-3 p-4">
+      <span
+        aria-hidden="true"
+        className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium"
+      >
+        {number}
+      </span>
+      <div className="min-w-0 flex-1 space-y-2">
+        <p className="text-sm leading-6 font-medium">{title}</p>
+        {children}
+      </div>
+    </li>
+  )
+}
+
+/** FormSection renders a titled block of related fields. */
 function FormSection({
   icon: Icon,
   title,

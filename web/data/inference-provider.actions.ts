@@ -1,9 +1,11 @@
 "use server"
 
+import { randomBytes, createHash } from "node:crypto"
 import { cookies } from "next/headers"
 import { updateTag } from "next/cache"
 import * as z from "zod"
 import {
+  ensureTenant,
   createInferenceProviderOAuthTicket,
   reauthenticateInferenceProviderOAuthTicket,
   createInferenceProvider,
@@ -20,6 +22,7 @@ import {
   type InferenceModelSuggestions,
   type InferenceProviderCatalog,
   type InferenceProviderKind,
+  type InferenceProviderOAuthCredentials,
   type InferenceProviderUsage,
   type UpdateInferenceProviderRequestWritable,
 } from "@/lib/gateway/client"
@@ -40,21 +43,39 @@ import { openOAuthState, sealOAuthState } from "@/lib/oauth-state"
 import { dayjs } from "@/lib/format"
 
 const inferenceOAuthCookieName = "agentz_inference_provider_oauth"
+const inferenceOAuthLifetime = 600
 const openAICodexClientID = "app_EMoamEEZ73f0CkXaXp7hrann"
+const claudeClientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+const claudeRedirectURI = "http://localhost:54545/callback"
+const claudeTokenEndpoint = "https://platform.claude.com/v1/oauth/token"
 const oauthUserAgent = "agentz/1.0"
-const pendingInferenceOAuthSchema = z.object({
+const inferenceOAuthContextSchema = z.object({
   provider: z.object({ id: z.string().min(1), resourceVersion: z.string().min(1) }).optional(),
-  kind: zCreateInferenceProviderOAuthTicketRequest.shape.kind,
   initiator: z.object({
     organizationId: z.string().min(1),
     sessionId: z.string().min(1),
     userId: z.string().min(1),
   }),
   workspaceId: z.string().min(1).optional(),
-  deviceAuthId: z.string().min(1),
-  userCode: z.string().min(1),
-  interval: z.number().int().positive(),
   expiresAt: z.number().int().positive(),
+})
+const pendingInferenceOAuthSchema = z.discriminatedUnion("kind", [
+  inferenceOAuthContextSchema.extend({
+    kind: z.literal("OpenAICodex"),
+    deviceAuthId: z.string().min(1),
+    userCode: z.string().min(1),
+    interval: z.number().int().positive(),
+  }),
+  inferenceOAuthContextSchema.extend({
+    kind: z.literal("ClaudeSubscription"),
+    verifier: z.string().min(43),
+    state: z.string().min(32),
+  }),
+])
+const claudeTokenResponseSchema = z.object({
+  access_token: z.string().min(1),
+  refresh_token: z.string().min(1),
+  expires_in: z.number().int().positive().max(31536000),
 })
 const openAIDeviceResponseSchema = z.object({
   device_auth_id: z.string().min(1),
@@ -72,15 +93,9 @@ const openAITokenResponseSchema = z.object({
   expires_in: z.number().int().positive().optional(),
 })
 
-type InferenceOAuthChallenge = {
-  status: "challenge"
-  verificationUri: string
-  userCode: string
-  interval: number
-}
+type PendingInferenceOAuth = z.infer<typeof pendingInferenceOAuthSchema>
 
-type InferenceOAuthPoll =
-  | { status: "pending"; interval: number }
+type InferenceOAuthResult =
   | { status: "connected"; connection: CreateInferenceProviderOAuthTicketResponse }
   | { status: "error"; message: string }
 
@@ -102,15 +117,54 @@ export type InferenceProviderActionScope = { workspaceId?: string }
 export async function startInferenceProviderOAuthAction(
   scope: InferenceProviderActionScope,
   value: InferenceProviderKind,
-  provider?: z.infer<typeof pendingInferenceOAuthSchema>["provider"]
-): Promise<InferenceOAuthChallenge | { status: "error"; message: string }> {
-  const kind = pendingInferenceOAuthSchema.shape.kind.safeParse(value)
+  provider?: PendingInferenceOAuth["provider"]
+): Promise<
+  | { status: "challenge"; verificationUri: string; userCode: string; interval: number }
+  | { status: "authorization"; verificationUri: string }
+  | { status: "error"; message: string }
+> {
+  const kind = zCreateInferenceProviderOAuthTicketRequest.shape.kind.safeParse(value)
   if (!kind.success) {
     return { status: "error", message: "Select a subscription provider" }
   }
 
   const initiator = await currentGatewayAuthContext()
+  const context = { provider, initiator, workspaceId: scope.workspaceId }
   try {
+    if (kind.data === "ClaudeSubscription") {
+      const tenant = await ensureTenant({ client: getGatewayServerClient(scope.workspaceId) })
+      if (tenant.error || !tenant.data.allow_claude_subscription) {
+        return {
+          status: "error",
+          message:
+            "Your organization has not enabled Claude subscriptions. Contact your administrator.",
+        }
+      }
+      const verifier = randomBytes(32).toString("base64url")
+      const state = randomBytes(32).toString("base64url")
+      await saveInferenceOAuth({
+        ...context,
+        kind: kind.data,
+        verifier,
+        state,
+        expiresAt: Date.now() + inferenceOAuthLifetime * 1000,
+      })
+      const params = new URLSearchParams({
+        code: "true",
+        client_id: claudeClientID,
+        response_type: "code",
+        redirect_uri: claudeRedirectURI,
+        scope:
+          "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload",
+        code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+        code_challenge_method: "S256",
+        state,
+      })
+      return {
+        status: "authorization",
+        verificationUri: `https://claude.ai/oauth/authorize?${params}`,
+      }
+    }
     const response = await fetch("https://auth.openai.com/api/accounts/deviceauth/usercode", {
       method: "POST",
       headers: {
@@ -126,31 +180,14 @@ export async function startInferenceProviderOAuthAction(
     }
     const device = openAIDeviceResponseSchema.parse(await response.json())
     const interval = Number.parseInt(device.interval, 10)
-    const expiresAt = dayjs().add(10, "minutes").valueOf()
-    const cookieStore = await cookies()
-    cookieStore.set(
-      inferenceOAuthCookieName,
-      await sealOAuthState(
-        {
-          kind: kind.data,
-          provider,
-          initiator,
-          workspaceId: scope.workspaceId,
-          deviceAuthId: device.device_auth_id,
-          userCode: device.user_code,
-          interval,
-          expiresAt,
-        },
-        "inference-provider"
-      ),
-      {
-        httpOnly: true,
-        sameSite: "strict",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 10 * 60,
-      }
-    )
+    await saveInferenceOAuth({
+      ...context,
+      kind: kind.data,
+      deviceAuthId: device.device_auth_id,
+      userCode: device.user_code,
+      interval,
+      expiresAt: Date.now() + inferenceOAuthLifetime * 1000,
+    })
     return {
       status: "challenge",
       verificationUri: "https://auth.openai.com/codex/device",
@@ -162,39 +199,28 @@ export async function startInferenceProviderOAuthAction(
   }
 }
 
+async function saveInferenceOAuth(pending: PendingInferenceOAuth) {
+  const sealed = await sealOAuthState(pending, "inference-provider")
+  const cookieStore = await cookies()
+  cookieStore.set(inferenceOAuthCookieName, sealed, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: inferenceOAuthLifetime,
+  })
+}
+
 export async function pollInferenceProviderOAuthAction(
   scope: InferenceProviderActionScope
-): Promise<InferenceOAuthPoll> {
-  const cookieStore = await cookies()
-  const sealed = cookieStore.get(inferenceOAuthCookieName)?.value
-  if (!sealed) {
-    return { status: "error", message: "Sign-in expired. Start again." }
-  }
-
-  let pending: z.infer<typeof pendingInferenceOAuthSchema>
+): Promise<InferenceOAuthResult | { status: "pending"; interval: number }> {
   try {
-    pending = pendingInferenceOAuthSchema.parse(await openOAuthState(sealed, "inference-provider"))
-  } catch {
-    cookieStore.delete(inferenceOAuthCookieName)
-    return { status: "error", message: "We couldn't complete sign-in. Start again." }
-  }
-
-  const initiator = await currentGatewayAuthContext()
-  if (
-    pending.initiator.organizationId !== initiator.organizationId ||
-    pending.initiator.sessionId !== initiator.sessionId ||
-    pending.initiator.userId !== initiator.userId ||
-    pending.workspaceId !== scope.workspaceId
-  ) {
-    cookieStore.delete(inferenceOAuthCookieName)
-    return { status: "error", message: "This sign-in is no longer valid. Start again." }
-  }
-  if (!dayjs(pending.expiresAt).isAfter(dayjs())) {
-    cookieStore.delete(inferenceOAuthCookieName)
-    return { status: "error", message: "Sign-in expired. Start again." }
-  }
-
-  try {
+    const cookieStore = await cookies()
+    const pending = await readInferenceOAuth(cookieStore, scope)
+    if ("status" in pending) return pending
+    if (pending.kind !== "OpenAICodex") {
+      return { status: "error", message: "Complete Claude sign-in using the callback URL." }
+    }
     const response = await fetch("https://auth.openai.com/api/accounts/deviceauth/token", {
       method: "POST",
       headers: {
@@ -234,35 +260,134 @@ export async function pollInferenceProviderOAuthAction(
       return { status: "error", message: "OpenAI sign-in could not be completed" }
     }
     const tokens = openAITokenResponseSchema.parse(await tokenResponse.json())
-    const options = {
-      body: {
-        kind: pending.kind,
-        resource_version: pending.provider?.resourceVersion,
-        credentials: {
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          id_token: tokens.id_token,
-          expires_at: dayjs()
-            .add(tokens.expires_in ?? 3600, "seconds")
-            .toISOString(),
-        },
-      },
-      client: getGatewayServerClient(scope.workspaceId),
-      headers: scope.workspaceId ? { "X-AgentZ-Workspace-ID": scope.workspaceId } : undefined,
-    }
-    const result = pending.provider
-      ? await reauthenticateInferenceProviderOAuthTicket({
-          ...options,
-          path: { providerName: pending.provider.id },
-        })
-      : await createInferenceProviderOAuthTicket(options)
-    if (result.error) {
-      return { status: "error", message: "Your subscription could not be connected" }
-    }
-    cookieStore.delete(inferenceOAuthCookieName)
-    return { status: "connected", connection: result.data }
+    const result = await connectInferenceOAuth(pending, {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      id_token: tokens.id_token,
+      expires_at: dayjs()
+        .add(tokens.expires_in ?? 3600, "seconds")
+        .toISOString(),
+    })
+    if (result.status === "connected") cookieStore.delete(inferenceOAuthCookieName)
+    return result
   } catch {
     return { status: "error", message: "We couldn't complete sign-in. Start again." }
+  }
+}
+
+async function readInferenceOAuth(
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+  scope: InferenceProviderActionScope
+): Promise<PendingInferenceOAuth | Extract<InferenceOAuthResult, { status: "error" }>> {
+  const sealed = cookieStore.get(inferenceOAuthCookieName)?.value
+  if (!sealed) {
+    return { status: "error", message: "Sign-in expired. Start again." }
+  }
+
+  const parsed = pendingInferenceOAuthSchema.safeParse(
+    await openOAuthState(sealed, "inference-provider").catch(() => undefined)
+  )
+  if (!parsed.success) {
+    cookieStore.delete(inferenceOAuthCookieName)
+    return { status: "error", message: "We couldn't complete sign-in. Start again." }
+  }
+  const pending = parsed.data
+
+  const initiator = await currentGatewayAuthContext()
+  if (
+    pending.initiator.organizationId !== initiator.organizationId ||
+    pending.initiator.sessionId !== initiator.sessionId ||
+    pending.initiator.userId !== initiator.userId ||
+    pending.workspaceId !== scope.workspaceId
+  ) {
+    cookieStore.delete(inferenceOAuthCookieName)
+    return { status: "error", message: "This sign-in is no longer valid. Start again." }
+  }
+  if (pending.expiresAt <= Date.now()) {
+    cookieStore.delete(inferenceOAuthCookieName)
+    return { status: "error", message: "Sign-in expired. Start again." }
+  }
+
+  return pending
+}
+
+async function connectInferenceOAuth(
+  pending: PendingInferenceOAuth,
+  credentials: InferenceProviderOAuthCredentials
+): Promise<InferenceOAuthResult> {
+  const { workspaceId } = pending
+  const options = {
+    body: { kind: pending.kind, resource_version: pending.provider?.resourceVersion, credentials },
+    client: getGatewayServerClient(workspaceId),
+    headers: workspaceId ? { "X-AgentZ-Workspace-ID": workspaceId } : undefined,
+  }
+  const result = pending.provider
+    ? await reauthenticateInferenceProviderOAuthTicket({
+        ...options,
+        path: { providerName: pending.provider.id },
+      })
+    : await createInferenceProviderOAuthTicket(options)
+  if (result.error) {
+    return { status: "error", message: result.error.message }
+  }
+  return { status: "connected", connection: result.data }
+}
+
+export async function completeClaudeSubscriptionOAuthAction(
+  scope: InferenceProviderActionScope,
+  callback: string
+): Promise<InferenceOAuthResult> {
+  try {
+    const cookieStore = await cookies()
+    const pending = await readInferenceOAuth(cookieStore, scope)
+    if ("status" in pending) return pending
+    if (pending.kind !== "ClaudeSubscription") {
+      return { status: "error", message: "Start Claude sign-in again." }
+    }
+    const url = URL.parse(callback)
+    const code = url?.searchParams.get("code")
+    if (
+      !url ||
+      url.origin + url.pathname !== claudeRedirectURI ||
+      url.searchParams.get("state") !== pending.state ||
+      !code
+    ) {
+      return { status: "error", message: "Paste the full callback URL from this sign-in attempt." }
+    }
+    // Consume the attempt before I/O; a timeout may follow a successful exchange.
+    cookieStore.delete(inferenceOAuthCookieName)
+    const response = await fetch(claudeTokenEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/plain, */*",
+        "User-Agent": "axios/1.15.2",
+        "Accept-Encoding": "gzip, deflate, br",
+        Connection: "close",
+      },
+      body: JSON.stringify({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: claudeRedirectURI,
+        client_id: claudeClientID,
+        code_verifier: pending.verifier,
+        state: pending.state,
+      }),
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!response.ok) {
+      return { status: "error", message: "Claude sign-in could not be completed. Start again." }
+    }
+    const tokens = claudeTokenResponseSchema.parse(await response.json())
+    return await connectInferenceOAuth(pending, {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_at: dayjs().add(tokens.expires_in, "seconds").toISOString(),
+    })
+  } catch {
+    return { status: "error", message: "Claude sign-in expired or failed. Start again." }
   }
 }
 

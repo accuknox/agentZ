@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/modelarmor v1.0.0
 	github.com/MicahParks/keyfunc/v3 v3.8.0
 	github.com/agentgateway/agentgateway v1.6.0
+	github.com/andybalholm/brotli v1.2.0
 	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.29
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.28

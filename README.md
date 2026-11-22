@@ -24,9 +24,10 @@ packages your agents have access to.
 
 ![](./.github/assets/building-blocks.png)
 
-1. **Inference Providers**: We support a range of providers (derived from
-   [OpenCode](https://opencode.ai/)), including Amazon Bedrock, GCP Vertex, Azure AI Foundry, OpenAI
-   Codex subscription. We also support configuring custom OpenAI/Anthropic endpoints.
+1. **Inference Providers**. The [OpenCode](https://opencode.ai/) catalog includes Amazon Bedrock,
+   GCP Vertex, and Azure AI Foundry. AgentZ also supports Codex subscriptions and custom OpenAI- and
+   Anthropic-compatible endpoints. Enable `allowClaudeSubscription` on the tenant to use a Claude
+   subscription with external Claude Code and Claude Desktop agents.
 
 2. **Skills**: There are two kinds of skills - mutable and immutable. Mutable skills are those that
    can be modified by the agents, and in fact, are often produced by the agents themselves.

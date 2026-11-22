@@ -120,10 +120,12 @@ const agentKinds = {
   "chatgpt-desktop": "ChatGPT desktop",
   claude: "Claude code CLI",
   "claude-desktop": "Claude desktop",
-  "github-copilot-desktop": "GitHub copilot desktop",
   "github-copilot-cli": "GitHub copilot CLI",
+  "github-copilot-desktop": "GitHub copilot desktop",
   "microsoft-copilot-studio": "Microsoft Copilot Studio",
 } satisfies Record<ExternalAgent["kind"], string>
+
+const agentKindOptions = Object.keys(agentKinds) as (keyof typeof agentKinds)[]
 
 const layout = {
   name: { minWidth: 200, contentMaxWidth: 300 },
@@ -1187,7 +1189,7 @@ function ExternalAgentEditor({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {externalAgentInput.shape.kind.options.map((value) => (
+                          {agentKindOptions.map((value) => (
                             <SelectItem
                               key={value}
                               value={value}

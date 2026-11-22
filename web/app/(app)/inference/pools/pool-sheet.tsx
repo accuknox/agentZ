@@ -159,7 +159,7 @@ export function NewInferencePoolButton({
 
 export function PoolSheet({
   pool,
-  providers,
+  providers: inferenceProviders,
   open,
   onOpenChange,
   scope,
@@ -170,6 +170,7 @@ export function PoolSheet({
   onOpenChange: (open: boolean) => void
   scope: InferencePoolActionScope
 }) {
+  const providers = inferenceProviders.filter((provider) => provider.kind !== "ClaudeSubscription")
   const defaults: InferencePoolWrite = pool
     ? {
         display_name: pool.display_name,
@@ -631,7 +632,13 @@ function SortableMember({
                       ? `${candidate.scope} · ${providerKindLabels[candidate.kind]}`
                       : `${candidate.scope} · ${candidate.state} · unavailable`,
                   disabled: candidate.state !== "Ready",
-                  icon: <ProviderIcon provider={candidate.catalog_provider} className="size-4" />,
+                  icon: (
+                    <ProviderIcon
+                      provider={candidate.catalog_provider}
+                      kind={candidate.kind}
+                      className="size-4"
+                    />
+                  ),
                 }))}
                 onBlur={field.onBlur}
                 invalid={fieldState.invalid}

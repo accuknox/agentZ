@@ -570,16 +570,14 @@ YAML
 ```
 
 For an existing Helm installation, apply the CRDs from the new chart before upgrading. Helm installs
-files in `crds/` on first install and leaves existing CRDs in place during upgrades. The updated
-schemas allow the `ClaudeSubscription` provider kind and the `spec.allowClaudeSubscription` tenant
-setting.
+files in `crds/` on first install and leaves existing CRDs in place during upgrades.
 
 ```bash
-helm show crds /root/agentz/deploy/helm | kubectl apply -f -
+helm show crds deploy/helm | kubectl apply -f -
 ```
 
 ```bash
-helm upgrade --install agentz /root/agentz/deploy/helm \
+helm upgrade --install agentz deploy/helm \
   --namespace agentz-system -f agentz-values.yaml \
   --wait --timeout 10m
 

@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"cmp"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -65,12 +66,18 @@ type discovery struct {
 }
 
 type modelListItem struct {
-	ID          string `json:"id"`
-	DisplayName string `json:"display_name"`
+	ID              string `json:"id"`
+	DisplayName     string `json:"display_name"`
+	Type            string `json:"type"`
+	MaxInputTokens  int32  `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens int32  `json:"max_output_tokens,omitempty"`
 }
 
 type modelList struct {
-	Data []modelListItem `json:"data"`
+	Data    []modelListItem `json:"data"`
+	HasMore bool            `json:"has_more"`
+	FirstID string          `json:"first_id"`
+	LastID  string          `json:"last_id"`
 }
 
 type relayErrorDetail struct {
@@ -152,6 +159,13 @@ func (installed *installation) serve(ctx context.Context) error {
 			})
 		},
 	}
+	// Bound sign-in and metadata calls independently from model requests.
+	// The gateway already applies its own inference deadline.
+	messagesTransport := transport.Clone()
+	messagesTransport.ResponseHeaderTimeout = 0
+	defer messagesTransport.CloseIdleConnections()
+	messagesProxy := *proxy
+	messagesProxy.Transport = messagesTransport
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	mux := http.NewServeMux()
@@ -175,8 +189,8 @@ func (installed *installation) serve(ctx context.Context) error {
 	mux.HandleFunc("POST /oauth/device_authorization", oauth)
 	mux.HandleFunc("POST /oauth/token", oauth)
 	mux.HandleFunc("POST /oauth/revoke", oauth)
-	mux.Handle("POST /v1/messages", proxy)
-	mux.Handle("POST /v1/messages/count_tokens", proxy)
+	mux.Handle("POST /v1/messages", &messagesProxy)
+	mux.Handle("POST /v1/messages/count_tokens", &messagesProxy)
 	mux.Handle("POST /v1/chat/completions", proxy)
 	mux.Handle("POST /v1/responses", proxy)
 	mux.Handle("/mcp", proxy)
@@ -189,6 +203,7 @@ func (installed *installation) serve(ctx context.Context) error {
 	}
 	if !copilot {
 		mux.HandleFunc("GET /v1/models", catalog)
+		mux.HandleFunc("GET /v1/models/{id...}", catalog)
 		mux.HandleFunc("POST /v1/traces", catalog)
 	}
 	mux.HandleFunc("POST /v1/metrics", catalog)
@@ -400,11 +415,8 @@ func (installed *installation) serveCatalog(w http.ResponseWriter, r *http.Reque
 		}
 		option := modelOption{
 			Model:       model.Id,
-			Label:       model.ModelDisplayName,
+			Label:       cmp.Or(model.ModelDisplayName, model.Model),
 			Description: model.ProviderDisplayName,
-		}
-		if option.Label == "" {
-			option.Label = model.Model
 		}
 		if strings.HasPrefix(model.Model, "claude-") {
 			option.BehavesAs = model.Model
@@ -418,17 +430,46 @@ func (installed *installation) serveCatalog(w http.ResponseWriter, r *http.Reque
 		}
 		settings.AvailableModels = append(settings.AvailableModels, option.Model)
 		settings.ModelPicker.Options = append(settings.ModelPicker.Options, option)
-		list.Data = append(list.Data, modelListItem{ID: option.Model, DisplayName: option.Label})
+		entry := modelListItem{ID: option.Model, DisplayName: option.Label, Type: "model"}
+		if model.ModelInfo != nil {
+			limits := model.ModelInfo.Limits
+			entry.MaxInputTokens = limits.Context
+			if limits.Input != nil {
+				entry.MaxInputTokens = *limits.Input
+			}
+			entry.MaxOutputTokens = limits.Output
+		}
+		list.Data = append(list.Data, entry)
+	}
+	if r.URL.Path == "/v1/models" {
+		if len(list.Data) > 0 {
+			list.FirstID = list.Data[0].ID
+			list.LastID = list.Data[len(list.Data)-1].ID
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(list)
+		return
+	}
+	if id := r.PathValue("id"); id != "" {
+		w.Header().Set("Content-Type", "application/json")
+		for _, model := range list.Data {
+			if model.ID == id {
+				json.NewEncoder(w).Encode(model)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(relayError{
+			Type:  "error",
+			Error: relayErrorDetail{Type: "not_found_error", Message: "The requested model is unavailable."},
+		})
+		return
 	}
 	if len(settings.AvailableModels) == 0 {
 		http.Error(w, "No approved model supports Messages. Reconnect and select a supported model.", http.StatusForbidden)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if r.URL.Path == "/v1/models" {
-		json.NewEncoder(w).Encode(list)
-		return
-	}
 	settings.Model = settings.AvailableModels[0]
 	data, err := json.Marshal(settings)
 	if err != nil {

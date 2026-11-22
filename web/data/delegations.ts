@@ -316,10 +316,11 @@ export async function approveDelegation(
     throw new Error("Select an organization.")
   if (organizationId)
     selection = await checkDelegationSelection(organizationId, selection, user, "consent")
-  const hasUnsupportedModel = selection.models.some(
-    (model) => delegationModelCompatibility(agent?.kind, model) === undefined
-  )
-  if (hasUnsupportedModel) throw new Error("A selected model is not supported by this application.")
+  for (const model of selection.models) {
+    if (delegationModelCompatibility(agent?.kind, model) === undefined) {
+      throw new Error("A selected model is not supported by this application.")
+    }
+  }
   // Display names and click order do not change authority. Preserve the stored
   // order when reusing a grant because it identifies the projected routes.
   function matchesSelection(previous: DelegationCatalog) {

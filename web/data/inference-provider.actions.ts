@@ -129,11 +129,7 @@ export async function startInferenceProviderOAuthAction(
   }
 
   const initiator = await currentGatewayAuthContext()
-  const context = {
-    provider,
-    initiator,
-    workspaceId: scope.workspaceId,
-  }
+  const context = { provider, initiator, workspaceId: scope.workspaceId }
   try {
     if (kind.data === "ClaudeSubscription") {
       const tenant = await ensureTenant({ client: getGatewayServerClient(scope.workspaceId) })
@@ -288,13 +284,14 @@ async function readInferenceOAuth(
     return { status: "error", message: "Sign-in expired. Start again." }
   }
 
-  let pending: PendingInferenceOAuth
-  try {
-    pending = pendingInferenceOAuthSchema.parse(await openOAuthState(sealed, "inference-provider"))
-  } catch {
+  const parsed = pendingInferenceOAuthSchema.safeParse(
+    await openOAuthState(sealed, "inference-provider").catch(() => undefined)
+  )
+  if (!parsed.success) {
     cookieStore.delete(inferenceOAuthCookieName)
     return { status: "error", message: "We couldn't complete sign-in. Start again." }
   }
+  const pending = parsed.data
 
   const initiator = await currentGatewayAuthContext()
   if (

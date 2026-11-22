@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -959,39 +960,32 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 			`{"model":%q,"stream":true,"max_tokens":32,"messages":[{"role":"user","content":"hello"}],"thinking":{"type":"adaptive"},"metadata":{"user_id":"native-device"}}`,
 			selection.Models[0].Id,
 		)
-		kinds := []gatewaydb.ExternalAgentKind{
-			gatewaydb.ExternalAgentKindCodex, gatewaydb.ExternalAgentKindGithubCopilotCli,
-			gatewaydb.ExternalAgentKindGithubCopilotDesktop, gatewaydb.ExternalAgentKindChatgptDesktop,
-			gatewaydb.ExternalAgentKindMicrosoftCopilotStudio, gatewaydb.ExternalAgentKindClaude,
-			gatewaydb.ExternalAgentKindClaudeDesktop,
+		queries.externalAgent = &gatewaydb.ExternalAgent{
+			ClientID: "client-1", UserID: testUserID, OrganizationID: testOrganizationID, WorkspaceID: testWorkspaceID,
 		}
+		queries.externalAgent.Kind = gatewaydb.ExternalAgentKindCodex
+		if _, err := service.resolveDelegation(t.Context(), queries.grant, selection); err == nil {
+			t.Fatal("a Codex agent used a Claude subscription")
+		}
+		kinds := []gatewaydb.ExternalAgentKind{gatewaydb.ExternalAgentKindClaude, gatewaydb.ExternalAgentKindClaudeDesktop}
 		for _, kind := range kinds {
-			queries.externalAgent = &gatewaydb.ExternalAgent{
-				ClientID: "client-1", UserID: testUserID, OrganizationID: testOrganizationID, WorkspaceID: testWorkspaceID, Kind: kind,
-			}
+			queries.externalAgent.Kind = kind
 			upstream.request = nil
 			upstream.response = &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"type":"message"}`))}
 			request := httptest.NewRequest(http.MethodPost, "/api/inference/v1/messages", strings.NewReader(body))
 			request.Header.Set("Authorization", "Bearer "+signed)
 			request.Header.Set("Anthropic-Beta", "claude-code-20250219,thinking-display-updates-2026-08-18")
-			request.Header.Set("X-Stainless-Package-Version", "0.128.0")
 			request.Header.Set("X-Claude-Code-Agent-Id", "native-agent")
 			response := httptest.NewRecorder()
 			service.handleDelegatedRequest(response, request)
-			allowed := kind == gatewaydb.ExternalAgentKindClaude || kind == gatewaydb.ExternalAgentKindClaudeDesktop
-			if !allowed {
-				if response.Code != http.StatusForbidden || upstream.request != nil {
-					t.Fatalf("%s used a Claude subscription: HTTP %d", kind, response.Code)
-				}
-				continue
-			}
+
 			if response.Code != http.StatusOK || upstream.request == nil {
 				t.Fatalf("%s could not use a Claude subscription: HTTP %d: %s", kind, response.Code, response.Body.String())
 			}
 			if upstream.request.URL.RawQuery != "beta=true" || !strings.Contains(upstream.request.Header.Get("Anthropic-Beta"), "oauth-2025-04-20") {
 				t.Fatal("Claude subscription request omitted its OAuth beta or query")
 			}
-			if upstream.request.Header.Get("X-Stainless-Package-Version") != "0.128.0" || upstream.request.Header.Get("X-Claude-Code-Agent-Id") != "native-agent" {
+			if upstream.request.Header.Get("X-Claude-Code-Agent-Id") != "native-agent" {
 				t.Fatal("native Claude headers were lost")
 			}
 			forwarded, err := io.ReadAll(upstream.request.Body)
@@ -999,6 +993,96 @@ func TestDelegatedInferenceUsesPrivateGateway(t *testing.T) {
 				t.Fatalf("native Claude parameters changed: %s, %v", forwarded, err)
 			}
 		}
+		t.Run("compressed token count with deferred tools", func(t *testing.T) {
+			body := fmt.Sprintf(
+				`{"model":%q,"messages":[{"role":"user","content":"hello"}],"metadata":{"user_id":"native-device"},"context_management":{},"diagnostics":{},"prompt_cache_options":{},"tools":[{"type":"tool_search_tool_regex_20251119"},{"name":"Read","defer_loading":true,"input_schema":{"type":"object"}}]}`,
+				selection.Models[0].Id,
+			)
+			var compressed bytes.Buffer
+			writer := gzip.NewWriter(&compressed)
+			if _, err := io.WriteString(writer, body); err != nil {
+				t.Fatal(err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			upstream.response = &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"input_tokens":12}`)),
+			}
+			request := httptest.NewRequest(http.MethodPost, "/api/inference/v1/messages/count_tokens", &compressed)
+			request.Header.Set("Authorization", "Bearer "+signed)
+			request.Header.Set("Content-Encoding", "gzip")
+			request.Header.Set("Anthropic-Beta", "claude-code-20250219")
+			response := httptest.NewRecorder()
+			service.handleDelegatedRequest(response, request)
+			if response.Code != http.StatusOK || response.Body.String() != `{"input_tokens":12}` {
+				t.Fatalf("native token count did not reach the private gateway: HTTP %d: %s", response.Code, response.Body)
+			}
+			forwarded, err := io.ReadAll(upstream.request.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload map[string]json.RawMessage
+			if err := json.Unmarshal(forwarded, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload) != 3 || !bytes.Contains(payload["tools"], []byte(`"defer_loading":true`)) {
+				t.Fatalf("token count lost inline tools or kept unsupported fields: %s", forwarded)
+			}
+			if upstream.request.ContentLength != int64(len(forwarded)) || upstream.request.Header.Get("Content-Encoding") != "" {
+				t.Fatal("the decoded body did not match the forwarded encoding and length")
+			}
+			const betas = "claude-code-20250219,oauth-2025-04-20,token-counting-2024-11-01"
+			if got := upstream.request.Header.Get("Anthropic-Beta"); got != betas {
+				t.Fatalf("token-count betas = %q, want %q", got, betas)
+			}
+		})
+		t.Run("compressed message exceeds decoded limit", func(t *testing.T) {
+			var compressed bytes.Buffer
+			writer := gzip.NewWriter(&compressed)
+			chunk := bytes.Repeat([]byte(" "), 1<<20)
+			for range 33 {
+				if _, err := writer.Write(chunk); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			upstream.request = nil
+			request := httptest.NewRequest(http.MethodPost, "/api/inference/v1/messages", &compressed)
+			request.Header.Set("Authorization", "Bearer "+signed)
+			request.Header.Set("Content-Encoding", "gzip")
+			response := httptest.NewRecorder()
+			service.handleDelegatedRequest(response, request)
+			if response.Code != http.StatusRequestEntityTooLarge || upstream.request != nil {
+				t.Fatalf("oversized compressed message was not rejected before routing: HTTP %d", response.Code)
+			}
+		})
+		t.Run("rate limit keeps safe retry metadata", func(t *testing.T) {
+			upstream.response = &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     http.Header{"Retry-After": {"8"}, "X-Diagnostic": {"private-credential"}},
+				Body:       io.NopCloser(strings.NewReader("private-credential")),
+			}
+			request := httptest.NewRequest(http.MethodPost, "/api/inference/v1/messages", strings.NewReader(body))
+			request.Header.Set("Authorization", "Bearer "+signed)
+			response := httptest.NewRecorder()
+			service.handleDelegatedRequest(response, request)
+			var failure inferenceError
+			if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusTooManyRequests || failure.Type != "error" || failure.Error.Type != "rate_limit_error" {
+				t.Fatalf("unexpected Claude rate limit response: HTTP %d: %s", response.Code, response.Body)
+			}
+			leakedDiagnostics := response.Header().Get("X-Diagnostic") != "" || strings.Contains(response.Body.String(), "private-credential")
+			if response.Header().Get("Retry-After") != "8" || leakedDiagnostics {
+				t.Fatal("rate limit response lost its retry delay or exposed provider diagnostics")
+			}
+		})
 		tenant.Spec.AllowClaudeSubscription = false
 		if err := service.k8sClient.Update(t.Context(), tenant); err != nil {
 			t.Fatal(err)

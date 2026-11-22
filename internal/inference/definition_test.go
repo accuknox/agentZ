@@ -34,9 +34,12 @@ func TestValidateProvider(t *testing.T) {
 			valid: true,
 		},
 		{
-			name:  "valid claude subscription",
-			spec:  providerSpec(agentzv1alpha1.InferenceProviderKindClaudeSubscription),
-			valid: true,
+			name: "Claude subscription rejects the Responses API",
+			spec: func() agentzv1alpha1.InferenceProviderSpec {
+				spec := providerSpec(agentzv1alpha1.InferenceProviderKindClaudeSubscription)
+				spec.Models[0].API = new(agentzv1alpha1.InferenceModelAPIResponses)
+				return spec
+			}(),
 		},
 		{
 			name: "valid custom authorization header",
@@ -641,6 +644,18 @@ func TestDelegatedMessagesRejectsProviderResourceBypasses(t *testing.T) {
 		{"stored thread", `{"model":"selected","thread":{"type":"continue","previous_message_id":"private"}}`, false, false},
 		{"inline local tool", `{"model":"selected","messages":[{"role":"system","content":[{"type":"tool_addition","tool":{"type":"tool_definition","definition":{"name":"Read","input_schema":{"type":"object"}}}}]}]}`, false, true},
 		{"inline hosted tool", `{"model":"selected","messages":[{"role":"system","content":[{"type":"tool_addition","tool":{"type":"tool_definition","definition":{"type":"web_search_20250305"}}}]}]}`, false, false},
+		{
+			"tool search with a deferred local tool",
+			`{"model":"selected","tools":[{"type":"tool_search_tool_bm25_20251119"},{"name":"Read","defer_loading":true,"input_schema":{"type":"object"}}]}`,
+			false,
+			true,
+		},
+		{
+			"tool search cannot defer hosted tools",
+			`{"model":"selected","tools":[{"type":"tool_search_tool_regex_20251119"},{"type":"web_search_20250305","defer_loading":true}]}`,
+			false,
+			false,
+		},
 		{"container", `{"model":"selected","container":"private"}`, false, false},
 		{
 			"hosted MCP",

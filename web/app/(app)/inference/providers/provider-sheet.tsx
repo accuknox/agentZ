@@ -891,6 +891,10 @@ export function ProviderSheet({
   const [subscriptionOAuth, setSubscriptionOAuth] = React.useState<SubscriptionOAuthState>({
     status: "idle",
   })
+  const connected =
+    subscriptionOAuth.status === "connected" ? subscriptionOAuth.connection : undefined
+  const signingIn =
+    subscriptionOAuth.status === "authorization" || subscriptionOAuth.status === "challenge"
   const [impact, setImpact] = React.useState<{
     values: InferenceProviderWriteDiscriminatorWritable
     pools: string[]
@@ -926,10 +930,7 @@ export function ProviderSheet({
         provider?.resource_version,
       ],
       enabled:
-        open &&
-        Boolean(catalogProvider) &&
-        (!isSubscription || Boolean(providerID)) &&
-        subscriptionOAuth.status !== "connected",
+        open && Boolean(catalogProvider) && (!isSubscription || Boolean(providerID)) && !connected,
       queryFn: async () => {
         const result =
           isSubscriptionProvider(kind) && providerID
@@ -943,14 +944,11 @@ export function ProviderSheet({
       gcTime: 0,
     })
   )
-  const suggestions =
-    subscriptionOAuth.status === "connected"
-      ? subscriptionOAuth.connection.models
-      : (modelCatalog.data?.models ?? [])
-  const unavailableModels =
-    subscriptionOAuth.status === "connected"
-      ? modelFields.filter((model) => !suggestions.some((available) => available.id === model.id))
-      : []
+  const suggestions = connected?.models ?? modelCatalog.data?.models ?? []
+  const availableIDs = new Set(connected?.models.map((model) => model.id))
+  const unavailableModels = connected
+    ? modelFields.filter((model) => !availableIDs.has(model.id))
+    : []
 
   const applySubscriptionConnection = React.useCallback(
     (result: Extract<SubscriptionOAuthState, { status: "connected" }>) => {
@@ -1004,7 +1002,7 @@ export function ProviderSheet({
   )
 
   function connectSubscription() {
-    if (!isSubscriptionProvider(kind)) return
+    if (!isSubscription) return
     setClaudeCallback("")
     setClaudeCallbackError("")
     setSubscriptionOAuth({ status: "starting" })
@@ -1041,27 +1039,16 @@ export function ProviderSheet({
     setSubmitErrors([])
     form.clearErrors()
     startTransition(async () => {
-      const result = provider
-        ? await saveInferenceProviderAction(scope, {
-            providerName: provider.id,
-            body: {
-              provider: values,
-              resource_version: provider.resource_version,
-              oauth_ticket:
-                subscriptionOAuth.status === "connected"
-                  ? subscriptionOAuth.connection.ticket
-                  : undefined,
-            },
-          })
-        : await saveInferenceProviderAction(scope, {
-            body: {
-              provider: values,
-              oauth_ticket:
-                subscriptionOAuth.status === "connected"
-                  ? subscriptionOAuth.connection.ticket
-                  : undefined,
-            },
-          })
+      const body = { provider: values, oauth_ticket: connected?.ticket }
+      const result = await saveInferenceProviderAction(
+        scope,
+        provider
+          ? {
+              providerName: provider.id,
+              body: { ...body, resource_version: provider.resource_version },
+            }
+          : { body }
+      )
       if (result.error) {
         const details: string[] = []
         const oauthErrors: string[] = []
@@ -1109,7 +1096,7 @@ export function ProviderSheet({
 
   function handleSubmit(values: InferenceProviderWriteDiscriminatorWritable) {
     if (!provider) {
-      if (isSubscription && subscriptionOAuth.status !== "connected") {
+      if (isSubscription && !connected) {
         setSubmitError("Connect the subscription before adding this provider")
         return
       }
@@ -1964,7 +1951,7 @@ export function ProviderSheet({
             >
               {isSubscription ? (
                 <div className="overflow-hidden rounded-xl border bg-card">
-                  {subscriptionOAuth.status === "connected" ? (
+                  {connected ? (
                     <div role="status" className="flex items-center gap-3 bg-success/5 p-4">
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
                         <Check aria-hidden className="size-4" />
@@ -1989,91 +1976,88 @@ export function ProviderSheet({
                             </p>
                           </div>
                         </div>
-                        {subscriptionOAuth.status !== "challenge" &&
-                        subscriptionOAuth.status !== "authorization" ? (
+                        {!signingIn && (
                           <LoadingButton
                             className="ml-auto"
                             pending={subscriptionOAuth.status === "starting"}
-                            pendingLabel={"Connecting..."}
+                            pendingLabel="Connecting..."
                             type="button"
                             onClick={connectSubscription}
                             disabled={pending || subscriptionOAuth.status === "starting"}
                           >
                             {provider ? "Sign in again" : "Connect"}
                           </LoadingButton>
-                        ) : null}
+                        )}
                       </div>
-                      {subscriptionOAuth.status === "authorization" ? (
+                      {signingIn && (
                         <ol className="divide-y border-t">
-                          <SubscriptionStep number={1} title="Approve access in Claude">
+                          {subscriptionOAuth.status === "challenge" && (
+                            <SubscriptionStep number={1} title="Copy your one-time code">
+                              <div className="inline-flex items-center gap-3 rounded-lg border bg-muted/40 px-3 py-1.5">
+                                <code className="text-base font-semibold tracking-widest">
+                                  {subscriptionOAuth.userCode}
+                                </code>
+                                <CopyButton
+                                  content={subscriptionOAuth.userCode}
+                                  label="Copy sign-in code"
+                                />
+                              </div>
+                            </SubscriptionStep>
+                          )}
+                          <SubscriptionStep
+                            number={subscriptionOAuth.status === "challenge" ? 2 : 1}
+                            title={
+                              subscriptionOAuth.status === "challenge"
+                                ? "Enter the code in Codex"
+                                : "Approve access in Claude"
+                            }
+                          >
                             <Button type="button" size="sm" variant="outline" asChild>
                               <a
                                 href={subscriptionOAuth.verificationUri}
                                 target="_blank"
                                 rel="noreferrer"
                               >
-                                Open Claude <ExternalLink data-icon="inline-end" />
+                                {subscriptionOAuth.status === "challenge"
+                                  ? "Open Codex"
+                                  : "Open Claude"}
+                                <ExternalLink data-icon="inline-end" />
                               </a>
                             </Button>
                           </SubscriptionStep>
-                          <SubscriptionStep number={2} title="Return to AgentZ">
-                            <Field data-invalid={Boolean(claudeCallbackError)}>
-                              <FieldLabel htmlFor="claude-callback">
-                                Sign-in callback URL
-                              </FieldLabel>
-                              <Input
-                                id="claude-callback"
-                                type="password"
-                                autoComplete="off"
-                                spellCheck={false}
-                                aria-invalid={Boolean(claudeCallbackError)}
-                                aria-describedby="claude-callback-help claude-callback-error"
-                                value={claudeCallback}
-                                onChange={(event) => setClaudeCallback(event.target.value)}
-                                placeholder="http://localhost:54545/callback?…"
-                              />
-                              <FieldDescription id="claude-callback-help">
-                                After approving, copy the full localhost URL from your
-                                browser&apos;s address bar.
-                              </FieldDescription>
-                              <FieldError
-                                id="claude-callback-error"
-                                errors={
-                                  claudeCallbackError ? [{ message: claudeCallbackError }] : []
-                                }
-                              />
-                            </Field>
-                          </SubscriptionStep>
+                          {subscriptionOAuth.status === "authorization" && (
+                            <SubscriptionStep number={2} title="Return to AgentZ">
+                              <Field data-invalid={Boolean(claudeCallbackError)}>
+                                <FieldLabel htmlFor="claude-callback">
+                                  Sign-in callback URL
+                                </FieldLabel>
+                                <Input
+                                  id="claude-callback"
+                                  type="password"
+                                  autoComplete="off"
+                                  spellCheck={false}
+                                  aria-invalid={Boolean(claudeCallbackError)}
+                                  aria-describedby="claude-callback-help claude-callback-error"
+                                  value={claudeCallback}
+                                  onChange={(event) => setClaudeCallback(event.target.value)}
+                                  placeholder="http://localhost:54545/callback?…"
+                                />
+                                <FieldDescription id="claude-callback-help">
+                                  After approving, copy the full localhost URL from your
+                                  browser&apos;s address bar.
+                                </FieldDescription>
+                                <FieldError
+                                  id="claude-callback-error"
+                                  errors={
+                                    claudeCallbackError ? [{ message: claudeCallbackError }] : []
+                                  }
+                                />
+                              </Field>
+                            </SubscriptionStep>
+                          )}
                         </ol>
-                      ) : null}
-                      {subscriptionOAuth.status === "challenge" ? (
-                        <ol className="divide-y border-t">
-                          <SubscriptionStep number={1} title="Copy your one-time code">
-                            <div className="inline-flex items-center gap-3 rounded-lg border bg-muted/40 px-3 py-1.5">
-                              <code className="text-base font-semibold tracking-widest">
-                                {subscriptionOAuth.userCode}
-                              </code>
-                              <CopyButton
-                                content={subscriptionOAuth.userCode}
-                                label="Copy sign-in code"
-                              />
-                            </div>
-                          </SubscriptionStep>
-                          <SubscriptionStep number={2} title="Enter the code in Codex">
-                            <Button type="button" size="sm" variant="outline" asChild>
-                              <a
-                                href={subscriptionOAuth.verificationUri}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                Open Codex <ExternalLink data-icon="inline-end" />
-                              </a>
-                            </Button>
-                          </SubscriptionStep>
-                        </ol>
-                      ) : null}
-                      {(subscriptionOAuth.status === "authorization" ||
-                        subscriptionOAuth.status === "challenge") && (
+                      )}
+                      {signingIn && (
                         <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-muted/30 px-4 py-3">
                           {subscriptionOAuth.status === "challenge" && (
                             <p
@@ -2259,7 +2243,7 @@ export function ProviderSheet({
                 </FieldLabel>
                 <MultiSelectDropdown
                   allowCustomValues={!isSubscription}
-                  disabled={isSubscription && !provider && subscriptionOAuth.status !== "connected"}
+                  disabled={isSubscription && !provider && !connected}
                   id="provider-models"
                   invalid={Boolean(formState.errors.models) || unavailableModels.length > 0}
                   options={[
@@ -2310,7 +2294,7 @@ export function ProviderSheet({
                     : undefined}
                 </FieldError>
               </Field>
-              {modelCatalog.isFetching && subscriptionOAuth.status !== "connected" && (
+              {modelCatalog.isFetching && !connected && (
                 <p
                   aria-live="polite"
                   className="flex items-center gap-2 text-sm text-muted-foreground"
@@ -2319,7 +2303,7 @@ export function ProviderSheet({
                   Loading model catalog...
                 </p>
               )}
-              {modelCatalog.isError && subscriptionOAuth.status !== "connected" && (
+              {modelCatalog.isError && !connected && (
                 <Alert variant="warning">
                   <TriangleAlert aria-hidden="true" />
                   <AlertTitle>Model catalog unavailable</AlertTitle>
@@ -2427,7 +2411,7 @@ export function ProviderSheet({
                 disabled={
                   pending ||
                   unavailableModels.length > 0 ||
-                  (!provider && isSubscription && subscriptionOAuth.status !== "connected")
+                  (!provider && isSubscription && !connected)
                 }
               >
                 <Save data-icon="inline-start" />
@@ -2488,7 +2472,6 @@ export function ProviderSheet({
   )
 }
 
-/** FormSection renders a titled, iconed block of related fields. */
 function SubscriptionStep({
   number,
   title,
@@ -2514,6 +2497,7 @@ function SubscriptionStep({
   )
 }
 
+/** FormSection renders a titled block of related fields. */
 function FormSection({
   icon: Icon,
   title,

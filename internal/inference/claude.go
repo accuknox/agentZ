@@ -30,15 +30,11 @@ const (
 )
 
 type claudeProfile struct {
-	Account claudeAccount `json:"account"`
+	Account struct {
+		UUID string `json:"uuid"`
+	} `json:"account"`
 }
 
-type claudeAccount struct {
-	UUID string `json:"uuid"`
-}
-
-// Claude's token and control-plane requests use the Axios profile captured by
-// CLIProxyAPI. Keep it separate from native client inference headers.
 type claudeTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -90,6 +86,7 @@ func claudeOAuthRequest(ctx context.Context, client *http.Client, method, endpoi
 	if err != nil {
 		return nil, err
 	}
+	// Match the OAuth client headers independently of Messages requests.
 	req.Header.Set("Accept", "application/json, text/plain, */*")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "axios/1.15.2")

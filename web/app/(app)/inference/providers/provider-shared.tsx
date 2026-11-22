@@ -44,6 +44,11 @@ export const providerKindLabels: Record<InferenceProviderKind, string> = {
   Azure: "Microsoft Azure",
 }
 
+const subscriptionBrands: Partial<Record<InferenceProviderKind, string>> = {
+  OpenAICodex: "codex",
+  ClaudeSubscription: "claude",
+}
+
 /** ProviderIcon renders the subscription or catalog provider brand. */
 export function ProviderIcon({
   provider: catalogProvider,
@@ -57,8 +62,7 @@ export function ProviderIcon({
   inverted?: boolean
 }) {
   const [failedProvider, setFailedProvider] = useState<string | null>(null)
-  const provider =
-    kind === "OpenAICodex" ? "codex" : kind === "ClaudeSubscription" ? "claude" : catalogProvider
+  const provider = (kind && subscriptionBrands[kind]) ?? catalogProvider
   const icons = themedIcons.get(provider)
 
   if (icons) {

@@ -1275,10 +1275,7 @@ function ModelsStep({
   const [invalidSubmit, setInvalidSubmit] = React.useState(false)
   const [submitting, setSubmitting] = React.useState(false)
   const selected = inference?.models ?? []
-  const providers = React.useMemo(
-    () => availableProviders.filter((provider) => provider.kind !== "ClaudeSubscription"),
-    [availableProviders]
-  )
+  const providers = availableProviders.filter((provider) => provider.kind !== "ClaudeSubscription")
 
   const refs = new Map(
     selected.map((ref) => [JSON.stringify([ref.scope, ref.provider, ref.model]), ref] as const)

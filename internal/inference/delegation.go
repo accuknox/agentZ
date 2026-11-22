@@ -240,8 +240,8 @@ type anthropicSource struct {
 	Content json.RawMessage `json:"content"`
 }
 
-// ValidateDelegatedMessages admits inline Anthropic input and client-executed
-// tools. A model grant never authorizes provider files, containers or hosted MCP.
+// ValidateDelegatedMessages admits inline Anthropic input and tools. A model
+// grant never authorizes provider files, containers or hosted MCP.
 func ValidateDelegatedMessages(body []byte, countTokens bool) (*DelegatedRequest, error) {
 	var input anthropicRequest
 	strictErrors, err := kjson.UnmarshalStrict(body, &input, kjson.DisallowDuplicateFields)
@@ -287,9 +287,16 @@ func ValidateDelegatedMessages(body []byte, countTokens bool) (*DelegatedRequest
 		}
 	}
 	for _, tool := range input.Tools {
-		local := tool.Type == "" || tool.Type == "custom" || strings.HasPrefix(tool.Type, "computer_") ||
-			strings.HasPrefix(tool.Type, "bash_") || strings.HasPrefix(tool.Type, "text_editor_")
-		if !local {
+		switch tool.Type {
+		case "tool_search_tool_regex_20251119", "tool_search_tool_bm25_20251119":
+			// Anthropic tool search only discovers definitions in this request.
+			// Every deferred definition still goes through the same checks.
+			continue
+		}
+		clientTool := tool.Type == "" || tool.Type == "custom"
+		builtIn := strings.HasPrefix(tool.Type, "computer_") || strings.HasPrefix(tool.Type, "bash_") ||
+			strings.HasPrefix(tool.Type, "text_editor_")
+		if !clientTool && !builtIn {
 			return nil, errors.New("use client-side tools; provider hosted tools are unavailable")
 		}
 	}

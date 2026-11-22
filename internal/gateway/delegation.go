@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -420,8 +422,7 @@ func (s *Service) resolveDelegation(ctx context.Context, grant gatewaydb.Delegat
 				return nil, err
 			}
 			if provider.Spec.Kind == agentzv1alpha1.InferenceProviderKindClaudeSubscription {
-				isClaude := agent.Kind == gatewaydb.ExternalAgentKindClaude ||
-					agent.Kind == gatewaydb.ExternalAgentKindClaudeDesktop
+				isClaude := agent.Kind == gatewaydb.ExternalAgentKindClaude || agent.Kind == gatewaydb.ExternalAgentKindClaudeDesktop
 				if agentErr != nil || !isClaude {
 					return nil, errors.New("claude subscriptions require an external Claude Code or Desktop agent")
 				}
@@ -484,21 +485,22 @@ func configureClaudeSubscriptionRequest(req *httputil.ProxyRequest) {
 	if headers.Get("X-Client-Request-Id") == "" {
 		headers.Set("X-Client-Request-Id", uuid.NewString())
 	}
-	// Keep the client betas in order and add the OAuth beta once.
-	betas := strings.Join(req.In.Header.Values("Anthropic-Beta"), ",")
-	parts := strings.Split(betas, ",")
+	// Keep the client's beta ordering, inserting the OAuth beta after Claude Code.
+	betas := []string{}
+	for beta := range strings.SplitSeq(strings.Join(req.In.Header.Values("Anthropic-Beta"), ","), ",") {
+		if beta = strings.TrimSpace(beta); beta != "" {
+			betas = append(betas, beta)
+		}
+	}
 	const oauthBeta = "oauth-2025-04-20"
-	hasOAuth := slices.ContainsFunc(parts, func(beta string) bool {
-		return strings.TrimSpace(beta) == oauthBeta
-	})
-	if !hasOAuth {
+	if !slices.Contains(betas, oauthBeta) {
 		index := 0
-		if strings.TrimSpace(parts[0]) == "claude-code-20250219" {
+		if len(betas) > 0 && betas[0] == "claude-code-20250219" {
 			index = 1
 		}
-		betas = strings.Join(slices.Insert(parts, index, oauthBeta), ",")
+		betas = slices.Insert(betas, index, oauthBeta)
 	}
-	headers.Set("Anthropic-Beta", strings.TrimSuffix(betas, ","))
+
 	defaults := map[string]string{
 		"Accept":            "application/json",
 		"Anthropic-Version": "2023-06-01",
@@ -507,15 +509,55 @@ func configureClaudeSubscriptionRequest(req *httputil.ProxyRequest) {
 		"X-Stainless-Retry-Count": "0",
 		"X-Stainless-Runtime":     "node",
 		"X-Stainless-Lang":        "js",
+		"X-Stainless-Timeout":     "600",
 	}
-	if !strings.HasSuffix(req.In.URL.Path, "/count_tokens") {
-		defaults["X-Stainless-Timeout"] = "600"
+	if strings.HasSuffix(req.In.URL.Path, "/count_tokens") {
+		delete(defaults, "X-Stainless-Timeout")
+		const tokenCounting = "token-counting-2024-11-01"
+		if !slices.Contains(betas, tokenCounting) {
+			betas = append(betas, tokenCounting)
+		}
 	}
+	headers.Set("Anthropic-Beta", strings.Join(betas, ","))
 	for name, value := range defaults {
 		if headers.Get(name) == "" {
 			headers.Set(name, value)
 		}
 	}
+}
+
+// Anthropic's token count endpoint rejects these Messages-only fields.
+func claudeTokenCountBody(body []byte) ([]byte, error) {
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+	fields := len(payload)
+	delete(payload, "metadata")
+	delete(payload, "context_management")
+	delete(payload, "diagnostics")
+	delete(payload, "prompt_cache_options")
+	if len(payload) == fields {
+		return body, nil
+	}
+	return json.Marshal(payload)
+}
+
+// Limit both the received body and the decoded body before validation.
+func readDelegatedBody(body io.Reader, limit int64, compressed bool) ([]byte, error) {
+	if !compressed {
+		return io.ReadAll(body)
+	}
+	reader, err := gzip.NewReader(body)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	decoded, err := io.ReadAll(io.LimitReader(reader, limit+1))
+	if int64(len(decoded)) > limit {
+		return nil, &http.MaxBytesError{Limit: limit}
+	}
+	return decoded, err
 }
 
 func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request) {
@@ -546,6 +588,8 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 	}
 
 	mcpRequest := r.URL.Path == "/api/mcp"
+	messages := r.URL.Path == "/api/inference/v1/messages"
+	countTokens := r.URL.Path == "/api/inference/v1/messages/count_tokens"
 	resourcePath, requiredScope := "/api/inference/v1", "inference:use"
 	if mcpRequest {
 		resourcePath, requiredScope = "/api/mcp", "mcp:use"
@@ -727,7 +771,8 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			limit = 4 << 20
 		}
 		weight := r.ContentLength
-		if weight < 0 {
+		compressed := (messages || countTokens) && strings.EqualFold(r.Header.Get("Content-Encoding"), "gzip")
+		if weight < 0 || compressed && weight <= limit {
 			weight = limit
 		}
 		if weight > limit {
@@ -754,8 +799,7 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		defer s.delegationBodies.Release(weight)
-		r.Body = http.MaxBytesReader(w, r.Body, limit)
-		body, err = io.ReadAll(r.Body)
+		body, err = readDelegatedBody(http.MaxBytesReader(w, r.Body, limit), limit, compressed)
 		if err != nil {
 			status := http.StatusBadRequest
 			message := "The request body cannot be read."
@@ -768,6 +812,11 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
+		if compressed {
+			r.Header.Del("Content-Encoding")
+			r.ContentLength = int64(len(body))
+			r.TransferEncoding = nil
+		}
 	}
 
 	claudeSubscription := false
@@ -779,7 +828,7 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		var err error
 		switch r.URL.Path {
 		case "/api/inference/v1/messages", "/api/inference/v1/messages/count_tokens":
-			input, err = inference.ValidateDelegatedMessages(body, strings.HasSuffix(r.URL.Path, "/count_tokens"))
+			input, err = inference.ValidateDelegatedMessages(body, countTokens)
 		default:
 			input, err = inference.ValidateDelegatedRequest(body, responses)
 		}
@@ -819,6 +868,16 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 		if err != nil {
 			s.delegationError(w, r, http.StatusBadRequest, "invalid_request_error", err.Error())
 			return
+		}
+		if claudeSubscription && countTokens {
+			body, err = claudeTokenCountBody(body)
+			if err != nil {
+				s.delegationError(w, r, http.StatusBadRequest, "invalid_request_error", "Invalid token count request.")
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			r.ContentLength = int64(len(body))
+			r.TransferEncoding = nil
 		}
 		name := fmt.Sprintf("d-%s-model-%d", grant.ID, index)
 		err = s.delegationReady(r.Context(), grant, selected.Namespace, inference.GatewayName, name, name+"-telemetry")
@@ -1030,6 +1089,7 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 				if response.StatusCode < http.StatusBadRequest {
 					response.StatusCode = http.StatusBadGateway
 				}
+				retryAfter := response.Header.Get("Retry-After")
 				response.Header = http.Header{"Cache-Control": {"no-store, no-transform"}}
 				response.Trailer = nil
 				failure := inferenceError{
@@ -1039,9 +1099,26 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 						Code:    "upstream_error",
 					},
 				}
-				if strings.HasPrefix(r.URL.Path, "/api/inference/v1/messages") {
+				if messages || countTokens {
 					failure.Type = "error"
 					failure.Error.Type = "api_error"
+				}
+				if claudeSubscription {
+					failure.Error.Type = anthropicErrorType(response.StatusCode)
+					switch response.StatusCode {
+					case http.StatusUnauthorized, http.StatusForbidden:
+						response.Header.Set("X-Should-Retry", "false")
+						failure.Error.Message = "The upstream service denied access. Check the Claude subscription and model access."
+					case http.StatusTooManyRequests, http.StatusServiceUnavailable, 529:
+						seconds, err := strconv.ParseUint(retryAfter, 10, 32)
+						if err == nil {
+							response.Header.Set("Retry-After", strconv.FormatUint(seconds, 10))
+							break
+						}
+						if when, err := http.ParseTime(retryAfter); err == nil {
+							response.Header.Set("Retry-After", when.UTC().Format(http.TimeFormat))
+						}
+					}
 				}
 				if !mcpRequest && response.StatusCode == http.StatusUnprocessableEntity {
 					failure.Error.Message = "The model gateway rejected this request. Review your input and assigned policies, then try again."
@@ -1119,6 +1196,28 @@ func (s *Service) handleDelegatedRequest(w http.ResponseWriter, r *http.Request)
 	proxy.ServeHTTP(w, r.WithContext(ctx))
 }
 
+func anthropicErrorType(status int) string {
+	switch status {
+	case http.StatusUnauthorized:
+		return "authentication_error"
+	case http.StatusForbidden:
+		return "permission_error"
+	case http.StatusNotFound:
+		return "not_found_error"
+	case http.StatusRequestEntityTooLarge:
+		return "request_too_large"
+	case http.StatusTooManyRequests:
+		return "rate_limit_error"
+	case 529:
+		return "overloaded_error"
+	default:
+		if status >= http.StatusInternalServerError {
+			return "api_error"
+		}
+		return "invalid_request_error"
+	}
+}
+
 func (s *Service) delegationError(w http.ResponseWriter, r *http.Request, status int, code, message string) {
 	if r.URL.Path == "/api/mcp" || r.URL.Path == "/api/inference/v1/catalog" {
 		apiutil.WriteError(w, r, apiutil.NewError(
@@ -1133,24 +1232,9 @@ func (s *Service) delegationError(w http.ResponseWriter, r *http.Request, status
 		if status == http.StatusUnauthorized || status == http.StatusForbidden {
 			w.Header().Set("x-should-retry", "false")
 		}
-		errorType := "invalid_request_error"
-		switch status {
-		case http.StatusUnauthorized:
-			errorType = "authentication_error"
-		case http.StatusForbidden:
-			errorType = "permission_error"
-		case http.StatusNotFound:
-			errorType = "not_found_error"
-		case http.StatusTooManyRequests:
-			errorType = "rate_limit_error"
-		default:
-			if status >= http.StatusInternalServerError {
-				errorType = "api_error"
-			}
-		}
 		apiutil.WriteJSON(w, status, inferenceError{
 			Type:  "error",
-			Error: inferenceErrorDetail{Message: message, Type: errorType},
+			Error: inferenceErrorDetail{Message: message, Type: anthropicErrorType(status)},
 		})
 		return
 	}

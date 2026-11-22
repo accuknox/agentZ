@@ -92,7 +92,7 @@ kubectl apply --server-side --force-conflicts -f \
 ```
 
 ```bash
-export AGENTZ_VERSION=v0.35.0
+export AGENTZ_VERSION=v0.39.0
 
 helm upgrade -i --create-namespace \
   --namespace agentgateway-system \
@@ -567,6 +567,15 @@ ingress:
   - hosts: ["${AGENTZ_HOST}"]
     secretName: agentz-tls
 YAML
+```
+
+For an existing Helm installation, apply the CRDs from the new chart before upgrading. Helm installs
+files in `crds/` on first install and leaves existing CRDs in place during upgrades. The updated
+schemas allow the `ClaudeSubscription` provider kind and the `spec.allowClaudeSubscription` tenant
+setting.
+
+```bash
+helm show crds /root/agentz/deploy/helm | kubectl apply -f -
 ```
 
 ```bash

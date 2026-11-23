@@ -348,7 +348,7 @@ func (installed *installation) serve(ctx context.Context) error {
 		if installed.Provider == "claude" {
 			// Let credential requests finish their lock wait and any rotation
 			// before exiting, even when the last Claude window has closed.
-			shutdownTimeout += oauthRequestTimeout + oauthRefreshTimeout
+			shutdownTimeout += oauthRequestTimeout + oauthRefreshTries*oauthRefreshTimeout
 		}
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 		defer shutdownCancel()

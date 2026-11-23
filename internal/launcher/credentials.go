@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/cli/browser"
 	"github.com/gofrs/flock"
 	"github.com/golang-jwt/jwt/v5"
@@ -31,6 +32,7 @@ var errInvalidOAuthResponse = errors.New("invalid AgentZ authentication response
 const (
 	oauthRequestTimeout = 20 * time.Second
 	oauthRefreshTimeout = 15 * time.Second
+	oauthRefreshTries   = 3
 	claudeRefreshPrefix = "azr_"
 )
 
@@ -182,7 +184,20 @@ func (installed *installation) accessToken(ctx context.Context, resource, sessio
 	// Each grant contains exactly one resource. Better Auth retains that
 	// resource on refresh when the OAuth client omits the resource parameter.
 	refresh := &oauth2.Token{RefreshToken: stored.RefreshToken}
-	token, err := config.TokenSource(refreshCtx, refresh).Token()
+	// A lost response leaves the server rotated but this profile stale. Retry
+	// transport failures at once so Better Auth replays the rotated grant
+	// within its reuse interval instead of revoking the token family.
+	token, err := backoff.Retry(
+		refreshCtx,
+		func() (*oauth2.Token, error) {
+			token, err := config.TokenSource(refreshCtx, refresh).Token()
+			if _, ok := errors.AsType[*oauth2.RetrieveError](err); ok {
+				return nil, backoff.Permanent(err)
+			}
+			return token, err
+		},
+		backoff.WithMaxTries(oauthRefreshTries),
+	)
 	if err != nil {
 		oauthErr, ok := errors.AsType[*oauth2.RetrieveError](err)
 		if ok && oauthErr.ErrorCode == "invalid_grant" {

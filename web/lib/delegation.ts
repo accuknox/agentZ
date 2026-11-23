@@ -409,6 +409,9 @@ export function agentZOAuthProvider(issuer: string) {
     grantTypes: ["authorization_code", "refresh_token", DEVICE_CODE_GRANT_TYPE],
     accessTokenExpiresIn: 300,
     refreshTokenExpiresIn: 30 * 24 * 60 * 60,
+    // Launchers retry a refresh whose response was lost. Replaying the rotated
+    // response briefly keeps that retry from revoking the whole token family.
+    refreshTokenReuseInterval: 60,
     rateLimit: { token: { window: 60, max: 600 } },
     allowDynamicClientRegistration: false,
     allowPublicWebHttpLoopbackRedirects: process.env.NODE_ENV === "development",

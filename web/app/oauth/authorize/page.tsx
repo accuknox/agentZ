@@ -13,9 +13,7 @@ import {
 } from "@/lib/delegation"
 import { Consent, ResumeAuthorization } from "./consent"
 import { AuthorizationState } from "./authorization-state"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { DeviceCodeForm } from "./device-code-form"
 
 export const metadata = { title: "Authorize application", robots: { index: false, follow: false } }
 
@@ -58,27 +56,11 @@ async function AuthorizeContent({ searchParams }: PageProps<"/oauth/authorize">)
     return (
       <AuthorizationState
         title={approved ? "Application connected" : "Access declined"}
-        description="Return to your terminal to continue."
+        description="Return to your device to continue."
       />
     )
   }
-  if (!oauthQuery)
-    return (
-      <form action="/oauth/authorize" className="flex flex-col gap-5">
-        <h1 className="text-2xl font-semibold">Connect an application</h1>
-        <Field>
-          <FieldLabel htmlFor="device-user-code">Code from your terminal</FieldLabel>
-          <Input
-            id="device-user-code"
-            name="user_code"
-            required
-            autoComplete="off"
-            maxLength={191}
-          />
-        </Field>
-        <Button type="submit">Review connection</Button>
-      </form>
-    )
+  if (!oauthQuery) return <DeviceCodeForm />
   const userCode = params.get("user_code")
   let request: DelegationRequest = { type: "authorization_code", oauthQuery }
   if (userCode !== null)

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 export function OtpInput({
   value,
   length = 6,
+  alphanumeric = false,
   disabled,
   onChange,
   onSelect,
@@ -15,6 +16,9 @@ export function OtpInput({
 }: Omit<ComponentProps<"input">, "value" | "type" | "maxLength"> & {
   value: string
   length?: number
+  // Device user codes mix letters and digits; they compare case-insensitively,
+  // so they are normalized to the uppercase form terminals print.
+  alphanumeric?: boolean
 }) {
   const [active, setActive] = useState(0)
   const reduced = useReducedMotion()
@@ -25,11 +29,17 @@ export function OtpInput({
         disabled={disabled}
         value={value}
         type="text"
-        inputMode="numeric"
-        autoComplete="one-time-code"
+        inputMode={alphanumeric ? "text" : "numeric"}
+        autoComplete={alphanumeric ? "off" : "one-time-code"}
+        autoCapitalize={alphanumeric ? "characters" : undefined}
+        spellCheck={false}
         className="absolute inset-0 z-10 size-full cursor-text opacity-0 disabled:cursor-not-allowed"
         onChange={(event) => {
-          event.currentTarget.value = event.currentTarget.value.replace(/\D/g, "").slice(0, length)
+          const raw = event.currentTarget.value
+          const chars = alphanumeric
+            ? raw.replace(/[^a-z0-9]/gi, "").toUpperCase()
+            : raw.replace(/\D/g, "")
+          event.currentTarget.value = chars.slice(0, length)
           setActive(event.currentTarget.selectionStart ?? 0)
           onChange?.(event)
         }}

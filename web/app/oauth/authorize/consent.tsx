@@ -190,7 +190,7 @@ export function Consent({
         <Alert variant="warning">
           <TriangleAlert aria-hidden="true" />
           <AlertDescription>
-            Confirm this code matches your terminal:{" "}
+            Confirm this code matches your device:{" "}
             <strong className="font-mono">{request.userCode}</strong>. Only authorize a connection
             you started.
           </AlertDescription>
@@ -580,7 +580,7 @@ export function Consent({
       </div>
       <p className="text-center text-sm leading-relaxed text-muted-foreground">
         {request.type === "device_code"
-          ? "Return to your terminal after authorization."
+          ? "Return to your device after authorization."
           : "You will be redirected to"}
         {request.type === "authorization_code" ? (
           <strong className="block font-bold wrap-anywhere text-foreground">

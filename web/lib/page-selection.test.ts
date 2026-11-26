@@ -177,6 +177,28 @@ test("selection URLs remove old descendants and cursors while preserving unrelat
   assert.equal(search.get("page_token"), "p")
 })
 
+test("selection URLs preserve explicit empty values so a cleared filter can be linked", () => {
+  const url = selectionURL(
+    "/page",
+    new URLSearchParams("agent_name=old&sort_by=name"),
+    { agent_name: "" },
+    true
+  )
+  const params = new URL(url, "http://test").searchParams
+  assert.equal(params.get("agent_name"), "")
+  assert.equal(params.has("app_client_id"), false)
+  assert.equal(params.get("sort_by"), "name")
+
+  const saved: SelectionHistory = [
+    [scope, "workflows/graphs", { agent_name: "saved", workflow_name: "saved-workflow" }],
+  ]
+  const restored = restoreSelection(saved, scope, "workflows/graphs", {
+    agent_name: params.get("agent_name") ?? undefined,
+  })
+  assert.equal(restored.agent_name, "")
+  assert.equal(restored.workflow_name, undefined)
+})
+
 test("Lens sessions stay under their native or external parent on both pages", () => {
   for (const page of ["lens/traces", "lens/mcp"] as const) {
     const choices: SelectionHistory = [

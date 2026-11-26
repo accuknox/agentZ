@@ -76,7 +76,14 @@ export async function delegationCatalog(
     query: { include_unavailable: includeUnavailable },
   })
   if (result.error) {
-    if (result.response?.status === 401 || result.response?.status === 403)
+    // The gateway authenticates a server-issued bearer before checking access.
+    // A rejected bearer leaves the user's grant unverified.
+    if (result.response?.status === 401)
+      throw new APIError("SERVICE_UNAVAILABLE", {
+        error: "temporarily_unavailable",
+        message: "Delegation access could not be verified. Try again.",
+      })
+    if (result.response?.status === 403)
       throw new APIError("FORBIDDEN", {
         error: "access_denied",
         message: result.error.message,
@@ -120,8 +127,11 @@ export async function externalAgentAccess(
     client: createClient({ baseUrl: serverGatewayBaseURL(), auth: token }),
     path: { workspaceId: agent.workspaceId },
   })
-  if (!result.response || result.response.status >= 500)
-    throw new Error("Agent access could not be verified. Try again.")
+  if (!result.response || result.response.status === 401 || result.response.status >= 500)
+    throw new APIError("SERVICE_UNAVAILABLE", {
+      error: "temporarily_unavailable",
+      message: "Agent access could not be verified. Try again.",
+    })
   if (!result.data?.capabilities.external_agents.read || result.data.state !== "ready")
     throw new APIError("FORBIDDEN", {
       error: "access_denied",

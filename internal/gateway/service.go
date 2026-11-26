@@ -1082,6 +1082,24 @@ func requestLog(next http.Handler) http.Handler {
 		if rec.apiCode != "" {
 			attrs = append(attrs, slog.String("code", rec.apiCode))
 		}
+		// The OAuth server depends on this check to renew delegated grants.
+		// Record the validation category without logging bearer input.
+		if rec.status == http.StatusUnauthorized && r.URL.Path == "/api/delegations/catalog" {
+			reason := "bearer_rejected"
+			switch {
+			case errors.Is(rec.cause, jwt.ErrTokenUsedBeforeIssued):
+				reason = "issued_in_future"
+			case errors.Is(rec.cause, jwt.ErrTokenExpired):
+				reason = "expired"
+			case errors.Is(rec.cause, jwt.ErrTokenUnverifiable):
+				reason = "unverifiable"
+			case errors.Is(rec.cause, jwt.ErrTokenSignatureInvalid):
+				reason = "invalid_signature"
+			case errors.Is(rec.cause, jwt.ErrTokenInvalidClaims):
+				reason = "invalid_claims"
+			}
+			attrs = append(attrs, slog.String("auth_reason", reason))
+		}
 		if rec.cause != nil && shouldLogRequestCause(r.Context(), rec.status) {
 			attrs = append(attrs, slog.Any("err", rec.cause))
 		}

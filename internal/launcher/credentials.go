@@ -26,8 +26,10 @@ import (
 	gatewayapi "github.com/accuknox/agentz/internal/gateway/openapi"
 )
 
-var errCredentialRequired = errors.New("AgentZ sign-in required")
-var errInvalidOAuthResponse = errors.New("invalid AgentZ authentication response")
+var (
+	errCredentialRequired   = errors.New("AgentZ sign-in required")
+	errInvalidOAuthResponse = errors.New("invalid AgentZ authentication response")
+)
 
 const (
 	oauthRequestTimeout = 20 * time.Second
@@ -184,14 +186,14 @@ func (installed *installation) accessToken(ctx context.Context, resource, sessio
 	// Each grant contains exactly one resource. Better Auth retains that
 	// resource on refresh when the OAuth client omits the resource parameter.
 	refresh := &oauth2.Token{RefreshToken: stored.RefreshToken}
-	// A lost response leaves the server rotated but this profile stale. Retry
-	// transport failures at once so Better Auth replays the rotated grant
-	// within its reuse interval instead of revoking the token family.
+	// Retry transport and server failures within the rotation replay window.
+	// The server may have rotated the grant before the response failed.
 	token, err := backoff.Retry(
 		refreshCtx,
 		func() (*oauth2.Token, error) {
 			token, err := config.TokenSource(refreshCtx, refresh).Token()
-			if _, ok := errors.AsType[*oauth2.RetrieveError](err); ok {
+			oauthErr, ok := errors.AsType[*oauth2.RetrieveError](err)
+			if ok && oauthErr.Response.StatusCode < http.StatusInternalServerError {
 				return nil, backoff.Permanent(err)
 			}
 			return token, err
@@ -200,7 +202,8 @@ func (installed *installation) accessToken(ctx context.Context, resource, sessio
 	)
 	if err != nil {
 		oauthErr, ok := errors.AsType[*oauth2.RetrieveError](err)
-		if ok && oauthErr.ErrorCode == "invalid_grant" {
+		invalidGrant := ok && oauthErr.ErrorCode == "invalid_grant" && oauthErr.Response.StatusCode == http.StatusBadRequest
+		if invalidGrant {
 			if claude {
 				path := filepath.Join(installed.profile, resource+"-oauth.json")
 				if err := os.Remove(path); err != nil {
